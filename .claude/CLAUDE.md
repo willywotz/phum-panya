@@ -1,7 +1,7 @@
 # Rule
 
-- if CONTEXT.md not exists must deep learn codebase first then create CONTEXT.md file
-- when done anything must update CONTEXT.md and commit it
+- Please talk to me in ASD-STE100 Simplified Technical English
+- when task done must update `CONTEXT.md` then commit it
 
 # Multi-agent workflow (opt-in)
 

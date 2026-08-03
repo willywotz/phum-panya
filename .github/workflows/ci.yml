@@ -155,6 +155,8 @@ jobs:
           sc.exe query phum-panya
           if ($LASTEXITCODE -eq 0) { throw "service still present after uninstall" }
           Write-Host "MSI install / query / uninstall smoke test passed"
+          # The expected 1060 from the last sc query would otherwise be the step exit code.
+          exit 0
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v7
         with:

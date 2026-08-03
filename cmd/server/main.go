@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -54,20 +55,56 @@ func main() {
 	}
 }
 
-// runServiceControl installs, uninstalls, or controls the OS service.
+// runServiceControl installs, uninstalls, or controls the OS service. The
+// install action accepts seed flags (--admin-email, --admin-password,
+// --domain, --http-addr) that the MSI passes from its wizard page.
 func runServiceControl(args []string) {
-	if len(args) != 1 {
+	if len(args) < 1 {
 		log.Fatal("usage: server service install|uninstall|start|stop|restart")
 	}
 	action := args[0]
 	switch action {
-	case "install", "uninstall", "start", "stop", "restart":
-		if err := svc.Control(action); err != nil {
-			log.Fatalf("service %s: %v", action, err)
+	case "install":
+		applyInstallFlags(args[1:])
+		control(action)
+	case "uninstall", "start", "stop", "restart":
+		if len(args) != 1 {
+			log.Fatalf("service %s takes no arguments", action)
 		}
-		fmt.Printf("service %s: ok\n", action)
+		control(action)
 	default:
 		log.Fatalf("unknown service action %q (install|uninstall|start|stop|restart)", action)
+	}
+}
+
+func control(action string) {
+	if err := svc.Control(action); err != nil {
+		log.Fatalf("service %s: %v", action, err)
+	}
+	fmt.Printf("service %s: ok\n", action)
+}
+
+// applyInstallFlags maps install-time flags to APP_* environment variables so
+// they are baked into the service definition (svc.Config reads the environment
+// when it registers the service).
+func applyInstallFlags(args []string) {
+	fs := flag.NewFlagSet("service install", flag.ExitOnError)
+	email := fs.String("admin-email", "", "seed the first admin with this email")
+	password := fs.String("admin-password", "", "seed the first admin with this password")
+	domain := fs.String("domain", "", "public domain for built-in TLS (blank = plain HTTP)")
+	addr := fs.String("http-addr", "", "listen address (default :8080)")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("service install: %v", err)
+	}
+	setEnvIf("APP_ADMIN_EMAIL", *email)
+	setEnvIf("APP_ADMIN_PASSWORD", *password)
+	setEnvIf("APP_DOMAIN", *domain)
+	setEnvIf("APP_HTTP_ADDR", *addr)
+}
+
+func setEnvIf(key, val string) {
+	if val != "" {
+		_ = os.Setenv(key, val)
 	}
 }
 

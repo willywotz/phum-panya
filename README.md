@@ -47,6 +47,41 @@ confirm) that admin without starting the server, run:
 In production, set `APP_DOMAIN` to a real domain and drop `APP_DEV`: the
 server then terminates TLS itself and needs ports 80 and 443 open.
 
+## Run as a service
+
+The binary can register itself with the host service manager (Windows SCM,
+Linux systemd, macOS launchd):
+
+```
+server service install     # register (installs seed config as service env)
+server service start
+server service stop
+server service uninstall
+```
+
+`service install` accepts the seed config as flags and bakes it into the
+service definition, so the service starts with it:
+
+```
+server service install --admin-email=admin@example.com \
+  --admin-password=changeme --domain=example.com
+```
+
+Data resolves under the service working directory:
+`%ProgramData%\phum-panya` on Windows, `/var/lib/phum-panya` elsewhere.
+
+### Windows (MSI)
+
+Releases ship a `phum-panya-<version>-windows-amd64.msi`. Double-click it: the
+wizard asks for the admin email, admin password, and public domain, installs
+`server.exe` to Program Files, and registers + starts the `phum-panya` service
+with that config. Uninstalling stops and removes the service. Silent install:
+
+```
+msiexec /i phum-panya-<version>-windows-amd64.msi /quiet ^
+  ADMINEMAIL=admin@example.com ADMINPASSWORD=changeme APPDOMAIN=example.com
+```
+
 ## Restore
 
 See [`docs/ops/restore.md`](docs/ops/restore.md) to restore the database and

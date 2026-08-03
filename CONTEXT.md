@@ -111,6 +111,17 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   **web** (`tsc` + static export), **e2e** (Playwright drives the real binary via the config's
   `make build` webServer). A **release** job on `v*` tags builds the cgo-free binary and attaches
   it to a GitHub Release; deploy stays manual. No CD to the VPS yet.
+- Windows service + MSI (branch `feat/windows-service-msi`): the binary now runs under the host
+  service manager via **kardianos/service** (`internal/svc`) — subcommands `service
+  install|uninstall|start|stop|restart` (Windows SCM / Linux systemd / macOS launchd). `httpx.Serve`
+  refactored to `ServeContext(ctx,…)` so the supervisor can stop it. `service install` takes
+  `--admin-email/--admin-password/--domain` and bakes them into the service env; data lives under
+  `%ProgramData%\phum-panya` (Windows) or `/var/lib/phum-panya`. Makefile `build-release`
+  cross-compiles `bin/server-linux-amd64` + `bin/server.exe` (cgo-free). A WiX v5 installer
+  (`deploy/windows/phum-panya.{wxs,wixproj}`) collects admin email/password/domain in a wizard page
+  and registers+starts the service on install, stops+removes on uninstall. CI gains a **windows**
+  job (build exe+msi, silent install/query/uninstall smoke test) and the **release** job now
+  attaches the linux binary + `.exe` + `.msi` on `v*` tags. 113 Go tests green.
 - Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client. The
   styling pass sits on top of `feat/p1-launch` — decide merge order (styling → p1-launch → main,
   or fold together). The dev-compose branch is a small independent add-on on top.

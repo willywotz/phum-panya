@@ -82,11 +82,83 @@ jobs:
           path: web/playwright-report/
           retention-days: 7
 
+  windows:
+    name: Windows exe + MSI
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build web + embed
+        shell: bash
+        run: |
+          (cd web && npm ci && npm run build)
+          find internal/webui/dist -mindepth 1 ! -name index.html -delete
+          cp -r web/out/. internal/webui/dist/
+      - name: Build server.exe
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+          GOOS: windows
+          GOARCH: amd64
+        run: go build -o bin/server.exe ./cmd/server
+      - name: Compute MSI version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "v=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "v=0.0.0" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build MSI (WiX v5)
+        shell: bash
+        run: |
+          dotnet build deploy/windows/phum-panya.wixproj -c Release \
+            -p:ProductVersion=${{ steps.ver.outputs.v }} \
+            -p:ServerExeSource="$PWD/bin/server.exe"
+      - name: Locate MSI
+        id: msi
+        shell: bash
+        run: echo "path=$(find . -name 'phum-panya*.msi' | head -1)" >> "$GITHUB_OUTPUT"
+      - name: Smoke test install / query / uninstall
+        shell: pwsh
+        run: |
+          $msi = "${{ steps.msi.outputs.path }}"
+          Write-Host "Installing $msi"
+          $i = Start-Process msiexec -Wait -PassThru -ArgumentList `
+            "/i","`"$msi`"","/quiet","/l*v","install.log", `
+            "ADMINEMAIL=admin@test","ADMINPASSWORD=pw123456","APPDOMAIN="
+          if ($i.ExitCode -ne 0) { Get-Content install.log -Tail 80; throw "install failed ($($i.ExitCode))" }
+          sc.exe query phum-panya
+          if ($LASTEXITCODE -ne 0) { throw "service phum-panya was not registered" }
+          $u = Start-Process msiexec -Wait -PassThru -ArgumentList `
+            "/x","`"$msi`"","/quiet","/l*v","uninstall.log"
+          if ($u.ExitCode -ne 0) { Get-Content uninstall.log -Tail 80; throw "uninstall failed ($($u.ExitCode))" }
+          sc.exe query phum-panya
+          if ($LASTEXITCODE -eq 0) { throw "service still present after uninstall" }
+          Write-Host "MSI install / query / uninstall smoke test passed"
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-artifacts
+          path: |
+            bin/server.exe
+            ${{ steps.msi.outputs.path }}
+          retention-days: 7
+
   release:
-    name: Release binary
-    # Tag pushes only; gated on all three CI jobs passing.
+    name: Release
+    # Tag pushes only; gated on every CI job passing.
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [go, web, e2e]
+    needs: [go, web, e2e, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -101,11 +173,25 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Build single cgo-free binary (embeds UI)
+      - name: Build linux binary (embeds UI)
         run: make build
-      - name: Name the artifact
+      - name: Name linux binary
         run: mv server "server-${GITHUB_REF_NAME}-linux-amd64"
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: windows-artifacts
+          path: win
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" "server-${GITHUB_REF_NAME}-linux-amd64" --generate-notes --title "${GITHUB_REF_NAME}"
+        run: |
+          exe="$(find win -name 'server.exe' | head -1)"
+          msi="$(find win -name 'phum-panya*.msi' | head -1)"
+          cp "$exe" "server-${GITHUB_REF_NAME}-windows-amd64.exe"
+          cp "$msi" "phum-panya-${GITHUB_REF_NAME}-windows-amd64.msi"
+          gh release create "${GITHUB_REF_NAME}" \
+            "server-${GITHUB_REF_NAME}-linux-amd64" \
+            "server-${GITHUB_REF_NAME}-windows-amd64.exe" \
+            "phum-panya-${GITHUB_REF_NAME}-windows-amd64.msi" \
+            --generate-notes --title "${GITHUB_REF_NAME}"

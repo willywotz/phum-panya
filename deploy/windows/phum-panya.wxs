@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSI installer for phum-panya on Windows.
+
+  Installs the single server.exe to Program Files, collects the seed admin
+  email/password and the public domain in a wizard page (or via the msiexec
+  command line: ADMINEMAIL, ADMINPASSWORD, APPDOMAIN), then registers and
+  starts the Windows service through the app's own `service install` command
+  (kardianos). Uninstall stops and removes the service.
+
+  Built with the WiX v5 SDK; see phum-panya.wixproj.
+  Version and exe path are passed in by the build:
+    -p:ProductVersion=1.2.3  -p:ServerExeSource=...\server.exe
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="phum-panya"
+           Manufacturer="phum-panya"
+           Version="$(ProductVersion)"
+           UpgradeCode="935a2b0d-d305-491a-8a46-c3e77ab8f7a8"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Config: collected by the wizard page below, or passed to msiexec. -->
+    <Property Id="ADMINEMAIL" Secure="yes" />
+    <Property Id="ADMINPASSWORD" Secure="yes" Hidden="yes" />
+    <Property Id="APPDOMAIN" Secure="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="phum-panya" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component Id="ServerExeComponent" Bitness="always64">
+        <File Id="ServerExe" Source="$(ServerExeSource)" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="phum-panya" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+    </Feature>
+
+    <!-- === Service lifecycle via the app binary (kardianos) === -->
+    <!-- Deferred, non-impersonated (LocalSystem) so it can touch the SCM.
+         The password is hidden from the MSI log (HideTarget). -->
+
+    <!-- Install + start on fresh install / upgrade. -->
+    <CustomAction Id="SetInstallSvc" Property="InstallSvc" Execute="immediate"
+                  Value="&quot;[#ServerExe]&quot; service install --admin-email=&quot;[ADMINEMAIL]&quot; --admin-password=&quot;[ADMINPASSWORD]&quot; --domain=&quot;[APPDOMAIN]&quot;" />
+    <CustomAction Id="InstallSvc" DllEntry="WixQuietExec64" BinaryRef="Wix4UtilCA_X64"
+                  Execute="deferred" Impersonate="no" Return="check" HideTarget="yes" />
+
+    <CustomAction Id="SetStartSvc" Property="StartSvc" Execute="immediate"
+                  Value="&quot;[#ServerExe]&quot; service start" />
+    <CustomAction Id="StartSvc" DllEntry="WixQuietExec64" BinaryRef="Wix4UtilCA_X64"
+                  Execute="deferred" Impersonate="no" Return="check" />
+
+    <!-- Stop + uninstall on removal. -->
+    <CustomAction Id="SetStopSvc" Property="StopSvc" Execute="immediate"
+                  Value="&quot;[#ServerExe]&quot; service stop" />
+    <CustomAction Id="StopSvc" DllEntry="WixQuietExec64" BinaryRef="Wix4UtilCA_X64"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="SetUninstallSvc" Property="UninstallSvc" Execute="immediate"
+                  Value="&quot;[#ServerExe]&quot; service uninstall" />
+    <CustomAction Id="UninstallSvc" DllEntry="WixQuietExec64" BinaryRef="Wix4UtilCA_X64"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="SetInstallSvc"   After="InstallFiles"    Condition="NOT Installed" />
+      <Custom Action="InstallSvc"      After="SetInstallSvc"   Condition="NOT Installed" />
+      <Custom Action="SetStartSvc"     After="InstallSvc"      Condition="NOT Installed" />
+      <Custom Action="StartSvc"        After="SetStartSvc"     Condition="NOT Installed" />
+
+      <Custom Action="SetStopSvc"      Before="RemoveFiles"    Condition="REMOVE" />
+      <Custom Action="StopSvc"         After="SetStopSvc"      Condition="REMOVE" />
+      <Custom Action="SetUninstallSvc" After="StopSvc"         Condition="REMOVE" />
+      <Custom Action="UninstallSvc"    After="SetUninstallSvc" Condition="REMOVE" />
+    </InstallExecuteSequence>
+
+    <!-- === Wizard: standard InstallDir flow + a config page === -->
+    <ui:WixUI Id="WixUI_InstallDir" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <UI>
+      <Dialog Id="ConfigDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes"
+                 Text="{\WixUI_Font_Title}Server configuration" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="20" Transparent="yes" NoPrefix="yes"
+                 Text="These seed the first admin login and TLS. You can change them later in-app." />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+
+        <Control Id="EmailLabel" Type="Text" X="25" Y="60" Width="320" Height="12" Text="Admin email" />
+        <Control Id="EmailEdit" Type="Edit" X="25" Y="72" Width="320" Height="16" Property="ADMINEMAIL" />
+
+        <Control Id="PwLabel" Type="Text" X="25" Y="98" Width="320" Height="12" Text="Admin password" />
+        <Control Id="PwEdit" Type="Edit" X="25" Y="110" Width="320" Height="16" Property="ADMINPASSWORD" Password="yes" />
+
+        <Control Id="DomainLabel" Type="Text" X="25" Y="136" Width="320" Height="12"
+                 Text="Public domain for TLS (leave blank for plain HTTP on :8080)" />
+        <Control Id="DomainEdit" Type="Edit" X="25" Y="148" Width="320" Height="16" Property="APPDOMAIN" />
+
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="Back">
+          <Publish Event="NewDialog" Value="InstallDirDlg" Condition="1" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="Next">
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Condition="1" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+        </Control>
+      </Dialog>
+
+      <!-- Splice ConfigDlg between the install-location page and the ready page. -->
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="ConfigDlg" Order="3"
+               Condition="WIXUI_INSTALLDIR_VALID=&quot;1&quot;" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ConfigDlg" Order="3"
+               Condition="NOT Installed" />
+    </UI>
+  </Package>
+</Wix>

@@ -1,8 +1,16 @@
-// Command server runs the phum-panya API and static frontend, or (with the
-// create-admin subcommand) seeds the first central admin and exits.
+// Command server runs the phum-panya API and static frontend. Subcommands:
+//
+//	server                      run in the foreground (default)
+//	server run                  run under the host service manager
+//	server service install      register the OS service (Windows SCM / systemd)
+//	server service uninstall    remove the OS service
+//	server service start|stop|restart
+//	server create-admin         seed the first central admin, then exit
 package main
 
 import (
+	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -18,6 +26,7 @@ import (
 	"phum-panya/internal/media"
 	"phum-panya/internal/model"
 	"phum-panya/internal/router"
+	"phum-panya/internal/svc"
 )
 
 // sessionTTL is how long a login session stays valid.
@@ -35,16 +44,74 @@ const backupInterval = 24 * time.Hour
 const backupKeep = 14
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "create-admin" {
+	args := os.Args[1:]
+	switch {
+	case len(args) >= 1 && args[0] == "create-admin":
 		runCreateAdmin()
-		return
+	case len(args) >= 1 && args[0] == "service":
+		runServiceControl(args[1:])
+	default: // "" (foreground) or "run" (under the service manager)
+		runServer()
 	}
-	run()
 }
 
-// run opens the database, ensures the schema and first admin exist, wires
-// the engine, starts the daily backup ticker, and serves the app.
-func run() {
+// runServiceControl installs, uninstalls, or controls the OS service. The
+// install action accepts seed flags (--admin-email, --admin-password,
+// --domain, --http-addr) that the MSI passes from its wizard page.
+func runServiceControl(args []string) {
+	if len(args) < 1 {
+		log.Fatal("usage: server service install|uninstall|start|stop|restart")
+	}
+	action := args[0]
+	switch action {
+	case "install":
+		applyInstallFlags(args[1:])
+		control(action)
+	case "uninstall", "start", "stop", "restart":
+		if len(args) != 1 {
+			log.Fatalf("service %s takes no arguments", action)
+		}
+		control(action)
+	default:
+		log.Fatalf("unknown service action %q (install|uninstall|start|stop|restart)", action)
+	}
+}
+
+func control(action string) {
+	if err := svc.Control(action); err != nil {
+		log.Fatalf("service %s: %v", action, err)
+	}
+	fmt.Printf("service %s: ok\n", action)
+}
+
+// applyInstallFlags maps install-time flags to APP_* environment variables so
+// they are baked into the service definition (svc.Config reads the environment
+// when it registers the service).
+func applyInstallFlags(args []string) {
+	fs := flag.NewFlagSet("service install", flag.ExitOnError)
+	email := fs.String("admin-email", "", "seed the first admin with this email")
+	password := fs.String("admin-password", "", "seed the first admin with this password")
+	domain := fs.String("domain", "", "public domain for built-in TLS (blank = plain HTTP)")
+	addr := fs.String("http-addr", "", "listen address (default :8080)")
+	if err := fs.Parse(args); err != nil {
+		log.Fatalf("service install: %v", err)
+	}
+	setEnvIf("APP_ADMIN_EMAIL", *email)
+	setEnvIf("APP_ADMIN_PASSWORD", *password)
+	setEnvIf("APP_DOMAIN", *domain)
+	setEnvIf("APP_HTTP_ADDR", *addr)
+}
+
+func setEnvIf(key, val string) {
+	if val != "" {
+		_ = os.Setenv(key, val)
+	}
+}
+
+// runServer opens the database, ensures the schema and first admin exist,
+// wires the engine, starts the daily backup ticker, and serves the app under
+// the service supervisor (foreground or OS service manager).
+func runServer() {
 	cfg := config.Load()
 	g, err := db.Open(cfg.DBPath)
 	if err != nil {
@@ -76,7 +143,9 @@ func run() {
 	go runBackupTicker(cfg, clk)
 
 	log.Printf("listening on %s", cfg.HTTPAddr)
-	if err := httpx.Serve(cfg, engine); err != nil {
+	if err := svc.Run(func(ctx context.Context) error {
+		return httpx.ServeContext(ctx, cfg, engine)
+	}); err != nil {
 		log.Fatalf("serve: %v", err)
 	}
 }

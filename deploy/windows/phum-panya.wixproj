@@ -1,0 +1,14 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <PropertyGroup>
+    <OutputName>phum-panya</OutputName>
+    <OutputType>Package</OutputType>
+    <Platform>x64</Platform>
+    <!-- ProductVersion and ServerExeSource are supplied by the build:
+         dotnet build -c Release -p:ProductVersion=1.2.3 -p:ServerExeSource=...\server.exe -->
+    <DefineConstants>ProductVersion=$(ProductVersion);ServerExeSource=$(ServerExeSource)</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" />
+  </ItemGroup>
+</Project>

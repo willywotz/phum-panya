@@ -1,4 +1,5 @@
 /server
+/bin/
 /internal/webui/dist/*
 !/internal/webui/dist/index.html
 /web/node_modules/

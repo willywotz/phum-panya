@@ -2,6 +2,8 @@ import path from 'node:path';
 
 import { test, expect, type Page } from '@playwright/test';
 
+import { selectByName } from './fixtures/select';
+
 const photoFixture = path.join(__dirname, 'fixtures', 'test-photo.png');
 
 async function login(page: Page, email: string, password: string) {
@@ -59,10 +61,10 @@ test('staff flow: editor creates doctor, recipe, and case; admin reconciles a pe
   await page.getByLabel('ชื่อ-นามสกุล').fill('E2E Editor');
   await page.getByLabel('อีเมล').fill(editorEmail);
   await page.getByLabel('รหัสผ่าน').fill('pw123456');
-  await page.getByLabel('บทบาท').selectOption({ label: 'ผู้แก้ไขข้อมูลอำเภอ' });
-  const userDistrictSelect = page.getByLabel('อำเภอ');
-  await expect(userDistrictSelect.locator('option', { hasText: districtName })).toHaveCount(1);
-  await userDistrictSelect.selectOption({ label: districtName });
+  await selectByName(page, 'บทบาท', 'ผู้แก้ไขข้อมูลอำเภอ');
+  await page.getByRole('combobox', { name: 'อำเภอ' }).click();
+  await expect(page.getByRole('option', { name: districtName, exact: true })).toHaveCount(1);
+  await page.getByRole('option', { name: districtName, exact: true }).click();
   await page.getByRole('button', { name: 'บันทึก' }).click();
   await expect(page.getByRole('row', { name: new RegExp(editorEmail) })).toBeVisible();
 
@@ -73,7 +75,7 @@ test('staff flow: editor creates doctor, recipe, and case; admin reconciles a pe
   await page.getByRole('button', { name: 'เพิ่ม' }).click();
   await page.getByLabel('รหัส').fill(doctorCode);
   await page.getByLabel('ชื่อ-นามสกุล').fill(doctorName);
-  await page.getByLabel('สถานะ').selectOption({ label: 'ใช้งาน' });
+  await selectByName(page, 'สถานะ', 'ใช้งาน');
   await page.getByRole('button', { name: 'บันทึก' }).click();
   const doctorRow = page.getByRole('row', { name: new RegExp(doctorName) });
   await expect(doctorRow).toBeVisible();
@@ -131,6 +133,8 @@ test('staff flow: editor creates doctor, recipe, and case; admin reconciles a pe
   await page.goto('/staff/cases');
   await page.getByRole('button', { name: 'เพิ่ม' }).click();
   await page.getByLabel('อาการ').fill('ปวดหัว');
+  // The case result select is rendered by CaseForm's own native <select>
+  // (cases/page.tsx), not CrudForm, so it is untouched by this migration.
   await page.getByLabel('ผลการรักษา').selectOption({ label: 'หายขาด' });
   await page.getByRole('button', { name: 'บันทึก' }).click();
   await expect(page.getByRole('row', { name: /ปวดหัว/ })).toBeVisible();

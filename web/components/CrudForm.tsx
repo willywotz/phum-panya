@@ -2,6 +2,18 @@
 
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import {
   type CrudRow,
@@ -103,26 +115,35 @@ export function CrudForm({ spec, id, initial, onDone, onCancel, formExtra }: Cru
   return (
     <form onSubmit={handleSubmit}>
       {fields.map((field, index) => (
-        <div key={field.name}>
-          <label htmlFor={field.name}>{t(field.labelKey)}</label>
+        <div key={field.name} className="grid gap-1.5">
+          <Label htmlFor={field.name}>{t(field.labelKey)}</Label>
           {renderInput(
             field,
             values,
             setField,
             t,
-            index === 0 ? (el) => (firstFieldRef.current = el) : undefined,
+            index === 0 && autoFocusable(field.type)
+              ? (el) => (firstFieldRef.current = el)
+              : undefined,
           )}
         </div>
       ))}
       {id !== undefined && formExtra?.(id)}
-      <button type="submit" disabled={submitting}>
+      <Button type="submit" disabled={submitting}>
         {t('save')}
-      </button>
-      <button type="button" onClick={onCancel}>
+      </Button>
+      <Button type="button" variant="outline" onClick={onCancel}>
         {t('cancel')}
-      </button>
+      </Button>
     </form>
   );
+}
+
+// Radix SelectTrigger and shadcn Checkbox don't accept the HTMLElement focus
+// ref used to autofocus the form's first field, so only text-like inputs
+// (including native multiselect) are eligible.
+function autoFocusable(type: FieldSpec['type']): boolean {
+  return type !== 'select' && type !== 'checkbox';
 }
 
 function optionLabel(option: FieldOption, t: (key: string) => string): string {
@@ -141,7 +162,7 @@ function renderInput(
   switch (type) {
     case 'textarea':
       return (
-        <textarea
+        <Textarea
           id={name}
           ref={autoFocusRef}
           value={String(values[name] ?? '')}
@@ -151,52 +172,30 @@ function renderInput(
       );
     case 'checkbox':
       return (
-        <input
+        <Checkbox
           id={name}
-          type="checkbox"
-          ref={autoFocusRef}
           checked={Boolean(values[name])}
-          onChange={(event) => setField(name, event.target.checked)}
-        />
-      );
-    case 'date':
-      return (
-        <input
-          id={name}
-          type="date"
-          ref={autoFocusRef}
-          value={String(values[name] ?? '')}
-          required={required}
-          onChange={(event) => setField(name, event.target.value)}
-        />
-      );
-    case 'password':
-      return (
-        <input
-          id={name}
-          type="password"
-          ref={autoFocusRef}
-          value={String(values[name] ?? '')}
-          required={required}
-          onChange={(event) => setField(name, event.target.value)}
+          onCheckedChange={(checked) => setField(name, checked === true)}
         />
       );
     case 'select':
       return (
-        <select
-          id={name}
-          ref={autoFocusRef}
+        <Select
           value={String(values[name] ?? '')}
           required={required}
-          onChange={(event) => setField(name, event.target.value)}
+          onValueChange={(value) => setField(name, value)}
         >
-          <option value="" />
-          {options?.map((option) => (
-            <option key={option.value} value={option.value}>
-              {optionLabel(option, t)}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id={name} aria-label={t(field.labelKey)}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {options?.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {optionLabel(option, t)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       );
     case 'multiselect':
       return (
@@ -204,6 +203,7 @@ function renderInput(
           id={name}
           multiple
           ref={autoFocusRef}
+          className="w-full rounded-md border bg-background p-2"
           value={(values[name] as string[]) ?? []}
           required={required}
           onChange={(event) =>
@@ -220,11 +220,13 @@ function renderInput(
           ))}
         </select>
       );
+    case 'date':
+    case 'password':
     case 'number':
       return (
-        <input
+        <Input
           id={name}
-          type="number"
+          type={type}
           ref={autoFocusRef}
           value={String(values[name] ?? '')}
           required={required}
@@ -233,7 +235,7 @@ function renderInput(
       );
     default:
       return (
-        <input
+        <Input
           id={name}
           type="text"
           ref={autoFocusRef}

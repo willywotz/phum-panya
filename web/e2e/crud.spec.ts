@@ -18,6 +18,7 @@ test('crud table adds, edits, and deletes a district', async ({ page }) => {
 
   // Add.
   await page.getByRole('button', { name: 'เพิ่ม' }).click();
+  await expect(page.getByLabel('ชื่อ')).toBeFocused();
   await page.getByLabel('ชื่อ').fill(name);
   await page.getByLabel('จังหวัด').fill(province);
   await page.getByRole('button', { name: 'บันทึก' }).click();
@@ -35,7 +36,8 @@ test('crud table adds, edits, and deletes a district', async ({ page }) => {
   await expect(updatedRow).toBeVisible();
   await expect(page.getByRole('cell', { name, exact: true })).toHaveCount(0);
 
-  // Delete.
+  // Delete, via the inline two-step confirmation.
   await updatedRow.getByRole('button', { name: 'ลบ' }).click();
+  await updatedRow.getByRole('button', { name: 'ใช่' }).click();
   await expect(page.getByRole('row', { name: new RegExp(updatedName) })).toHaveCount(0);
 });

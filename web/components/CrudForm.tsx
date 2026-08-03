@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 import { api } from '@/lib/api';
 import {
@@ -49,6 +49,13 @@ export function CrudForm({ spec, id, initial, onDone, onCancel }: CrudFormProps)
     initialValues(spec.fields, initial),
   );
   const [submitting, setSubmitting] = useState(false);
+  const firstFieldRef = useRef<HTMLElement | null>(null);
+
+  // Move focus into the form as soon as it opens, so keyboard/screen-reader
+  // users land on the first field instead of staying on the trigger button.
+  useEffect(() => {
+    firstFieldRef.current?.focus();
+  }, []);
 
   const setField = (name: string, value: unknown) => {
     setValues((prev) => ({ ...prev, [name]: value }));
@@ -71,10 +78,16 @@ export function CrudForm({ spec, id, initial, onDone, onCancel }: CrudFormProps)
 
   return (
     <form onSubmit={handleSubmit}>
-      {spec.fields.map((field) => (
+      {spec.fields.map((field, index) => (
         <div key={field.name}>
           <label htmlFor={field.name}>{t(field.labelKey)}</label>
-          {renderInput(field, values, setField, t)}
+          {renderInput(
+            field,
+            values,
+            setField,
+            t,
+            index === 0 ? (el) => (firstFieldRef.current = el) : undefined,
+          )}
         </div>
       ))}
       <button type="submit" disabled={submitting}>
@@ -92,6 +105,7 @@ function renderInput(
   values: CrudRow,
   setField: (name: string, value: unknown) => void,
   t: (key: string) => string,
+  autoFocusRef?: (el: HTMLElement | null) => void,
 ) {
   const { name, type, required, options } = field;
 
@@ -100,6 +114,7 @@ function renderInput(
       return (
         <textarea
           id={name}
+          ref={autoFocusRef}
           value={String(values[name] ?? '')}
           required={required}
           onChange={(event) => setField(name, event.target.value)}
@@ -110,6 +125,7 @@ function renderInput(
         <input
           id={name}
           type="checkbox"
+          ref={autoFocusRef}
           checked={Boolean(values[name])}
           onChange={(event) => setField(name, event.target.checked)}
         />
@@ -118,6 +134,7 @@ function renderInput(
       return (
         <select
           id={name}
+          ref={autoFocusRef}
           value={String(values[name] ?? '')}
           required={required}
           onChange={(event) => setField(name, event.target.value)}
@@ -135,6 +152,7 @@ function renderInput(
         <select
           id={name}
           multiple
+          ref={autoFocusRef}
           value={(values[name] as string[]) ?? []}
           required={required}
           onChange={(event) =>
@@ -156,6 +174,7 @@ function renderInput(
         <input
           id={name}
           type="number"
+          ref={autoFocusRef}
           value={String(values[name] ?? '')}
           required={required}
           onChange={(event) => setField(name, event.target.value)}
@@ -166,6 +185,7 @@ function renderInput(
         <input
           id={name}
           type="text"
+          ref={autoFocusRef}
           value={String(values[name] ?? '')}
           required={required}
           onChange={(event) => setField(name, event.target.value)}

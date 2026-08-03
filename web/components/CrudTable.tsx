@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { CrudForm } from '@/components/CrudForm';
 import { api } from '@/lib/api';
@@ -28,6 +28,10 @@ export function CrudTable({ spec }: { spec: ResourceSpec }) {
   const [rows, setRows] = useState<CrudRow[]>([]);
   const [editing, setEditing] = useState<CrudRow | 'new' | null>(null);
   const [mismatch, setMismatch] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  // The button that opened the form (Add, or a row's Edit), so focus can
+  // return to it once the form closes.
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   const columns = spec.listColumns ?? defaultColumns(spec.fields);
 
@@ -39,14 +43,25 @@ export function CrudTable({ spec }: { spec: ResourceSpec }) {
     refresh();
   }, [refresh]);
 
-  const handleDone = async (didMismatch: boolean) => {
+  const openForm = (row: CrudRow | 'new', trigger: HTMLButtonElement) => {
+    triggerRef.current = trigger;
+    setEditing(row);
+  };
+
+  const closeForm = () => {
     setEditing(null);
+    triggerRef.current?.focus();
+  };
+
+  const handleDone = async (didMismatch: boolean) => {
+    closeForm();
     setMismatch(didMismatch);
     await refresh();
   };
 
   const handleDelete = async (row: CrudRow) => {
     await api.send('DELETE', `${spec.basePath}/${rowId(row)}`);
+    setConfirmingId(null);
     await refresh();
   };
 
@@ -54,7 +69,10 @@ export function CrudTable({ spec }: { spec: ResourceSpec }) {
     <section>
       <h2>{t(spec.titleKey)}</h2>
       {mismatch && <p role="alert">{t('mismatchWarning')}</p>}
-      <button type="button" onClick={() => setEditing('new')}>
+      <button
+        type="button"
+        onClick={(event) => openForm('new', event.currentTarget)}
+      >
         {t('add')}
       </button>
       {editing !== null && (
@@ -63,7 +81,7 @@ export function CrudTable({ spec }: { spec: ResourceSpec }) {
           id={editing === 'new' ? undefined : rowId(editing)}
           initial={editing === 'new' ? undefined : editing}
           onDone={handleDone}
-          onCancel={() => setEditing(null)}
+          onCancel={closeForm}
         />
       )}
       <table>
@@ -76,21 +94,39 @@ export function CrudTable({ spec }: { spec: ResourceSpec }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={rowId(row)}>
-              {columns.map((name) => (
-                <td key={name}>{String(rowValue(row, name) ?? '')}</td>
-              ))}
-              <td>
-                <button type="button" onClick={() => setEditing(row)}>
-                  {t('edit')}
-                </button>
-                <button type="button" onClick={() => handleDelete(row)}>
-                  {t('delete')}
-                </button>
-              </td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const id = rowId(row);
+            return (
+              <tr key={id}>
+                {columns.map((name) => (
+                  <td key={name}>{String(rowValue(row, name) ?? '')}</td>
+                ))}
+                <td>
+                  <button
+                    type="button"
+                    onClick={(event) => openForm(row, event.currentTarget)}
+                  >
+                    {t('edit')}
+                  </button>
+                  {confirmingId === id ? (
+                    <span>
+                      {t('confirmDelete')}
+                      <button type="button" onClick={() => handleDelete(row)}>
+                        {t('yes')}
+                      </button>
+                      <button type="button" onClick={() => setConfirmingId(null)}>
+                        {t('no')}
+                      </button>
+                    </span>
+                  ) : (
+                    <button type="button" onClick={() => setConfirmingId(id)}>
+                      {t('delete')}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </section>

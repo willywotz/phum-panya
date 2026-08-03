@@ -26,6 +26,9 @@ const th: Dictionary = {
   cancel: 'ยกเลิก',
   actions: 'การกระทำ',
   mismatchWarning: 'รหัสกับชื่อไม่ตรงกัน โปรดตรวจสอบ',
+  confirmDelete: 'ยืนยันการลบ?',
+  yes: 'ใช่',
+  no: 'ไม่',
 };
 
 const en: Dictionary = {
@@ -45,6 +48,9 @@ const en: Dictionary = {
   cancel: 'Cancel',
   actions: 'Actions',
   mismatchWarning: 'Code and name do not match — please check',
+  confirmDelete: 'Confirm delete?',
+  yes: 'Yes',
+  no: 'No',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { th, en };

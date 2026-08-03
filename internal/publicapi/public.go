@@ -108,12 +108,28 @@ func NewRepo(g *gorm.DB) *Repo {
 	return &Repo{g: g}
 }
 
-// ListDoctors returns the public fields of every consented doctor.
-func (r *Repo) ListDoctors() ([]Doctor, error) {
+// DoctorFilter narrows ListDoctors to doctors matching Q (a case-insensitive
+// substring of full_name or known_as) and/or DistrictID. A zero value
+// matches every consented doctor.
+type DoctorFilter struct {
+	Q          string
+	DistrictID *uint
+}
+
+// ListDoctors returns the public fields of every consented doctor matching
+// f.
+func (r *Repo) ListDoctors(f DoctorFilter) ([]Doctor, error) {
 	var out []Doctor
-	err := r.g.Table("doctors").Select(doctorColumns).
-		Where("consent_obtained = ?", true).
-		Find(&out).Error
+	q := r.g.Table("doctors").Select(doctorColumns).
+		Where("consent_obtained = ?", true)
+	if f.Q != "" {
+		like := "%" + f.Q + "%"
+		q = q.Where("(LOWER(full_name) LIKE LOWER(?) OR LOWER(known_as) LIKE LOWER(?))", like, like)
+	}
+	if f.DistrictID != nil {
+		q = q.Where("district_id = ?", *f.DistrictID)
+	}
+	err := q.Find(&out).Error
 	return out, err
 }
 
@@ -127,10 +143,33 @@ func (r *Repo) GetDoctor(id uint) (Doctor, error) {
 	return out, err
 }
 
-// ListRecipes returns every recipe of a consented doctor, with attribution.
-func (r *Repo) ListRecipes() ([]Recipe, error) {
+// RecipeFilter narrows ListRecipes to recipes matching Q (a case-insensitive
+// substring of name or indication), DistrictID (the recipe's doctor's
+// district), and/or HerbID (the recipe must have an ingredient with that
+// herb). A zero value matches every recipe of a consented doctor.
+type RecipeFilter struct {
+	Q          string
+	DistrictID *uint
+	HerbID     *uint
+}
+
+// ListRecipes returns every recipe of a consented doctor matching f, with
+// attribution.
+func (r *Repo) ListRecipes(f RecipeFilter) ([]Recipe, error) {
 	var out []Recipe
-	err := r.recipeQuery().Find(&out).Error
+	q := r.recipeQuery()
+	if f.Q != "" {
+		like := "%" + f.Q + "%"
+		q = q.Where("(LOWER(recipes.name) LIKE LOWER(?) OR LOWER(recipes.indication) LIKE LOWER(?))", like, like)
+	}
+	if f.DistrictID != nil {
+		q = q.Where("doctors.district_id = ?", *f.DistrictID)
+	}
+	if f.HerbID != nil {
+		q = q.Where("recipes.id IN (?)",
+			r.g.Table("ingredients").Select("recipe_id").Where("herb_id = ?", *f.HerbID))
+	}
+	err := q.Find(&out).Error
 	return out, err
 }
 

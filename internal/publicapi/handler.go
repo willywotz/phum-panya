@@ -35,7 +35,11 @@ func RegisterRoutes(r gin.IRouter, g *gorm.DB) {
 
 func listDoctorsHandler(repo *Repo) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		doctors, err := repo.ListDoctors()
+		districtID, ok := parseOptionalID(c, "district_id")
+		if !ok {
+			return
+		}
+		doctors, err := repo.ListDoctors(DoctorFilter{Q: c.Query("q"), DistrictID: districtID})
 		if err != nil {
 			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not list doctors")
 			return
@@ -75,7 +79,15 @@ func doctorDetailHandler(repo *Repo) gin.HandlerFunc {
 
 func listRecipesHandler(repo *Repo) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		recipes, err := repo.ListRecipes()
+		districtID, ok := parseOptionalID(c, "district_id")
+		if !ok {
+			return
+		}
+		herbID, ok := parseOptionalID(c, "herb_id")
+		if !ok {
+			return
+		}
+		recipes, err := repo.ListRecipes(RecipeFilter{Q: c.Query("q"), DistrictID: districtID, HerbID: herbID})
 		if err != nil {
 			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not list recipes")
 			return
@@ -104,6 +116,23 @@ func parseID(c *gin.Context) (id uint, ok bool) {
 		return 0, false
 	}
 	return uint(parsed), true
+}
+
+// parseOptionalID parses the query parameter name as a uint, if present. It
+// returns id=nil, ok=true when the parameter is absent. A malformed value
+// writes a 400 response and returns ok=false.
+func parseOptionalID(c *gin.Context, name string) (id *uint, ok bool) {
+	raw := c.Query(name)
+	if raw == "" {
+		return nil, true
+	}
+	parsed, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		httpx.Err(c, http.StatusBadRequest, "invalid_request", "invalid "+name)
+		return nil, false
+	}
+	val := uint(parsed)
+	return &val, true
 }
 
 // writeRepoError writes a 404 with notFoundMsg for a not-found repo error,

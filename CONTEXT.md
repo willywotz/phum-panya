@@ -71,7 +71,8 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
 - Styling pass: **complete** on branch `feat/styling-pass` (off `feat/p1-launch`, 8 TDD tasks,
   subagent-driven build→verify). Adds **Tailwind CSS v4 + shadcn/ui** (Radix), a **warm herbal
   theme** with a **light/dark toggle** (`next-themes`), a real **landing page** (hero + browse
-  cards), and a **vendored Thai font** (`@fontsource/noto-sans-thai`) — no CDN, so the single
+  cards), and a **vendored Thai font** (`@fontsource/sarabun`, weights 300/500/700; body 300,
+  titles 500) — no CDN, so the single
   cgo-free binary and static export are unchanged. Shared `CrudForm`/`CrudTable`/`IngredientEditor`
   now use shadcn controls: single-selects are Radix `Select`, the add/edit form is a modal `Dialog`,
   delete is an `AlertDialog`; the e2e specs moved to role-based drivers (`selectByName` combobox
@@ -97,6 +98,11 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   (web file synced ~2s, Go edit synced + air rebuilt). Run with `make dev`
   (=`docker compose -f docker-compose.dev.yaml up -w --build --force-recreate`). See
   `docs/superpowers/specs/2026-08-04-dev-compose-nginx-design.md`.
+- Font change (branch `feat/font-sarabun`, off `feat/p1-launch`): swapped the vendored Thai font
+  from Noto Sans Thai to **Sarabun** (`@fontsource/sarabun`, weights 300/500/700). Base `body`
+  now weight **300** (`font-light`); `h1`/`h2` now weight **500** (`font-medium`). Still no CDN
+  (Thai subset bundled). Gate: `tsc` clean, `web/out/` builds, Sarabun woff2 in output, no stray
+  Noto refs.
 - Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client. The
   styling pass sits on top of `feat/p1-launch` — decide merge order (styling → p1-launch → main,
   or fold together). The dev-compose branch is a small independent add-on on top.

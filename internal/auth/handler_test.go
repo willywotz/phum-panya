@@ -95,6 +95,26 @@ func TestLoginUnknownEmail(t *testing.T) {
 	}
 }
 
+// TestLoginUnknownEmailRunsBcrypt proves that a not-found lookup still pays
+// the full bcrypt cost, closing the account-enumeration timing side-channel:
+// an attacker must not be able to tell "email unknown" from "wrong password"
+// by response latency. This is a lower-bound-only check (bcrypt cost 12 is
+// CPU-bound at 100ms+), never an upper bound or a timing comparison.
+func TestLoginUnknownEmailRunsBcrypt(t *testing.T) {
+	r, _ := newLoginRouter(t, 5)
+
+	start := time.Now()
+	rec := login(r, "nobody@x", "pw12345")
+	elapsed := time.Since(start)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+	if elapsed < 30*time.Millisecond {
+		t.Fatalf("elapsed = %v, want >= 30ms (bcrypt must run on unknown-email path)", elapsed)
+	}
+}
+
 func TestLoginThrottled(t *testing.T) {
 	r, email := newLoginRouter(t, 2)
 

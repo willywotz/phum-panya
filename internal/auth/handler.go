@@ -49,7 +49,11 @@ func loginHandler(g *gorm.DB, store *SessionStore, th *Throttle, secure bool) gi
 		if err == nil {
 			hash = user.PasswordHash
 		}
-		if err != nil || !CheckPassword(hash, req.Password) {
+		// Evaluate CheckPassword unconditionally: err != nil must not
+		// short-circuit the bcrypt call, or an unknown/inactive email would
+		// return faster than a known email with a wrong password.
+		passwordOK := CheckPassword(hash, req.Password)
+		if err != nil || !passwordOK {
 			th.Fail(key)
 			httpx.Err(c, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
 			return

@@ -1,0 +1,48 @@
+# phum-panya — single self-hosted binary in a container.
+#
+# Quick start (local, plain HTTP on http://localhost:8080):
+#   APP_ADMIN_PASSWORD=change-me docker compose up --build
+# then log in as the seeded admin (APP_ADMIN_EMAIL / APP_ADMIN_PASSWORD).
+#
+# Production (TLS via built-in ACME): set APP_DOMAIN, drop APP_DEV, and publish
+# ports 80 + 443 (see the commented block below). The domain's DNS must point
+# at this host and ports 80/443 must be reachable for Let's Encrypt.
+
+services:
+  app:
+    build: .
+    image: phum-panya:latest
+    container_name: phum-panya
+    restart: unless-stopped
+
+    environment:
+      # --- first-admin bootstrap (seeded once, on first run) ---
+      APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-admin@example.com}
+      # Required — compose refuses to start if unset (no default password).
+      APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?set APP_ADMIN_PASSWORD in your env or .env file}
+
+      # --- local/dev: plain HTTP on :8080 ---
+      APP_DEV: "1"
+      APP_HTTP_ADDR: ":8080"
+
+      # --- production TLS: comment out the two lines above and set your domain ---
+      # APP_DOMAIN: "example.org"
+
+      # Storage paths live inside the /data volume (defaults from the image;
+      # shown here for clarity).
+      APP_DB_PATH: /data/app.db
+      APP_MEDIA_DIR: /data/media
+      APP_BACKUP_DIR: /data/backup
+
+    ports:
+      - "8080:8080"
+      # Production TLS — uncomment (and remove 8080 above) when using APP_DOMAIN:
+      # - "80:80"
+      # - "443:443"
+
+    volumes:
+      # DB + uploaded media + nightly backups + ACME certs, all persisted here.
+      - app-data:/data
+
+volumes:
+  app-data:

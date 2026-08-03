@@ -63,6 +63,11 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   - Deferred polish (non-blocking, see SDD ledger): input `binding:required` tags, enum DB
     CHECKs, role-based staff-nav hiding, `full_name` on `/api/current-user`, storage-meter
     aria-label, ESLint config, Recipe multi-photo.
+- Containerized: `Dockerfile` (multi-stage: Node builds the Next.js export → Go embeds it →
+  cgo-free static binary on alpine + ca-certificates) + `docker-compose.yaml` (one `app`
+  service, `/data` volume for DB/media/backups/certs, required `APP_ADMIN_PASSWORD`, dev
+  plain-HTTP:8080 by default, commented prod TLS on 80/443). Image builds and runs; health,
+  embedded UI, and seeded-admin login verified in-container.
 - Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client.
 
 ## Data model (summary)

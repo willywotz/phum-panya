@@ -36,8 +36,9 @@ test('crud table adds, edits, and deletes a district', async ({ page }) => {
   await expect(updatedRow).toBeVisible();
   await expect(page.getByRole('cell', { name, exact: true })).toHaveCount(0);
 
-  // Delete, via the inline two-step confirmation.
+  // Delete, via the confirmation dialog.
   await updatedRow.getByRole('button', { name: 'ลบ' }).click();
-  await updatedRow.getByRole('button', { name: 'ใช่' }).click();
+  const dialog = page.getByRole('alertdialog');
+  await dialog.getByRole('button', { name: 'ใช่' }).click();
   await expect(page.getByRole('row', { name: new RegExp(updatedName) })).toHaveCount(0);
 });

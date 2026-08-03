@@ -2,7 +2,31 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import { CrudForm } from '@/components/CrudForm';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { api } from '@/lib/api';
 import {
   type CrudRow,
@@ -37,7 +61,6 @@ export function CrudTable({ spec, newDefaults, formExtra }: CrudTableProps) {
   const [rows, setRows] = useState<CrudRow[]>([]);
   const [editing, setEditing] = useState<CrudRow | 'new' | null>(null);
   const [mismatch, setMismatch] = useState(false);
-  const [confirmingId, setConfirmingId] = useState<number | null>(null);
   // The button that opened the form (Add, or a row's Edit), so focus can
   // return to it once the form closes.
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -70,7 +93,6 @@ export function CrudTable({ spec, newDefaults, formExtra }: CrudTableProps) {
 
   const handleDelete = async (row: CrudRow) => {
     await api.send('DELETE', resourceUrl(spec.basePath, rowId(row)));
-    setConfirmingId(null);
     await refresh();
   };
 
@@ -78,67 +100,81 @@ export function CrudTable({ spec, newDefaults, formExtra }: CrudTableProps) {
     <section>
       <h2>{t(spec.titleKey)}</h2>
       {mismatch && <p role="alert">{t('mismatchWarning')}</p>}
-      <button
+      <Button
         type="button"
         onClick={(event) => openForm('new', event.currentTarget)}
       >
         {t('add')}
-      </button>
-      {editing !== null && (
-        <CrudForm
-          spec={spec}
-          id={editing === 'new' ? undefined : rowId(editing)}
-          initial={editing === 'new' ? newDefaults : editing}
-          onDone={handleDone}
-          onCancel={closeForm}
-          formExtra={formExtra}
-        />
-      )}
-      <table>
-        <thead>
-          <tr>
+      </Button>
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(open) => {
+          if (!open) closeForm();
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t(editing === 'new' ? 'add' : 'edit')}</DialogTitle>
+          </DialogHeader>
+          {editing !== null && (
+            <CrudForm
+              spec={spec}
+              id={editing === 'new' ? undefined : rowId(editing)}
+              initial={editing === 'new' ? newDefaults : editing}
+              onDone={handleDone}
+              onCancel={closeForm}
+              formExtra={formExtra}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      <Table>
+        <TableHeader>
+          <TableRow>
             {columns.map((name) => (
-              <th key={name}>{t(labelKeyFor(spec.fields, name))}</th>
+              <TableHead key={name}>{t(labelKeyFor(spec.fields, name))}</TableHead>
             ))}
-            <th>{t('actions')}</th>
-          </tr>
-        </thead>
-        <tbody>
+            <TableHead>{t('actions')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row) => {
             const id = rowId(row);
             return (
-              <tr key={id}>
+              <TableRow key={id}>
                 {columns.map((name) => (
-                  <td key={name}>{String(rowValue(row, name) ?? '')}</td>
+                  <TableCell key={name}>{String(rowValue(row, name) ?? '')}</TableCell>
                 ))}
-                <td>
-                  <button
+                <TableCell>
+                  <Button
                     type="button"
+                    variant="outline"
                     onClick={(event) => openForm(row, event.currentTarget)}
                   >
                     {t('edit')}
-                  </button>
-                  {confirmingId === id ? (
-                    <span>
-                      {t('confirmDelete')}
-                      <button type="button" onClick={() => handleDelete(row)}>
-                        {t('yes')}
-                      </button>
-                      <button type="button" onClick={() => setConfirmingId(null)}>
-                        {t('no')}
-                      </button>
-                    </span>
-                  ) : (
-                    <button type="button" onClick={() => setConfirmingId(id)}>
-                      {t('delete')}
-                    </button>
-                  )}
-                </td>
-              </tr>
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button type="button" variant="destructive">
+                        {t('delete')}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogTitle>{t('confirmDelete')}</AlertDialogTitle>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{t('no')}</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(row)}>
+                          {t('yes')}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </section>
   );
 }

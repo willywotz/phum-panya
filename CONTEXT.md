@@ -106,11 +106,14 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   now weight **300** (`font-light`); `h1`/`h2` now weight **500** (`font-medium`). Still no CDN
   (Thai subset bundled). Gate: `tsc` clean, `web/out/` builds, Sarabun woff2 in output, no stray
   Noto refs.
-- CI/CD (branch `chore/ci`): added `.github/workflows/ci.yml` (GitHub Actions). On push
-  (`main`, `feat/**`) + PR to `main`, three jobs run every gate — **go** (`go build`/`go test`),
-  **web** (`tsc` + static export), **e2e** (Playwright drives the real binary via the config's
-  `make build` webServer). A **release** job on `v*` tags builds the cgo-free binary and attaches
-  it to a GitHub Release; deploy stays manual. No CD to the VPS yet.
+- CI/CD (GitHub Actions), split into two workflows:
+  - **`ci.yml`** — on push (`main`, `feat/**`) + PR to `main`, three jobs run every gate: **go**
+    (`go build`/`go test`), **web** (`tsc` + static export), **e2e** (Playwright drives the real
+    binary via the config's `make build` webServer).
+  - **`release.yml`** — on `v*` tags only: a **windows** job builds `server.exe` + the WiX MSI and
+    smoke-tests its install/register/uninstall, then a **release** job builds the linux binary and
+    publishes a GitHub Release with all three assets. Tag a commit that already passed `ci`. Deploy
+    to the VPS stays manual.
 - Windows service + MSI (branch `feat/windows-service-msi`): the binary now runs under the host
   service manager via **kardianos/service** (`internal/svc`) — subcommands `service
   install|uninstall|start|stop|restart` (Windows SCM / Linux systemd / macOS launchd). `httpx.Serve`

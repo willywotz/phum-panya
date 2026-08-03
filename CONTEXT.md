@@ -94,7 +94,8 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   `fetch('/api/...')` + the dev-mode no-op CSRF check make same-origin proxying work as-is.
   Prod (single embedded binary, `docker-compose.yaml`) is untouched. Smoke-tested end-to-end:
   health, landing, HMR websocket 101, auth 401 all via nginx, plus live `watch` sync verified
-  (web file synced ~2s, Go edit synced + air rebuilt). Run with `up --watch`. See
+  (web file synced ~2s, Go edit synced + air rebuilt). Run with `make dev`
+  (=`docker compose -f docker-compose.dev.yaml up -w --build --force-recreate`). See
   `docs/superpowers/specs/2026-08-04-dev-compose-nginx-design.md`.
 - Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client. The
   styling pass sits on top of `feat/p1-launch` — decide merge order (styling → p1-launch → main,

@@ -35,8 +35,11 @@ services:
       APP_BACKUP_DIR: /data/backup
 
     ports:
-      - "8080:8080"
-      # Production TLS — uncomment (and remove 8080 above) when using APP_DOMAIN:
+      # host:container. Host port defaults to 8080; override APP_HOST_PORT if
+      # 8080 is taken/reserved on your host (common on Windows/WSL2 — set e.g.
+      # APP_HOST_PORT=18080 and browse http://localhost:18080).
+      - "${APP_HOST_PORT:-8080}:8080"
+      # Production TLS — uncomment (and remove the line above) when using APP_DOMAIN:
       # - "80:80"
       # - "443:443"
 

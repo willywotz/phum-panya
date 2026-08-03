@@ -106,6 +106,11 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   now weight **300** (`font-light`); `h1`/`h2` now weight **500** (`font-medium`). Still no CDN
   (Thai subset bundled). Gate: `tsc` clean, `web/out/` builds, Sarabun woff2 in output, no stray
   Noto refs.
+- CI/CD (branch `chore/ci`): added `.github/workflows/ci.yml` (GitHub Actions). On push
+  (`main`, `feat/**`) + PR to `main`, three jobs run every gate — **go** (`go build`/`go test`),
+  **web** (`tsc` + static export), **e2e** (Playwright drives the real binary via the config's
+  `make build` webServer). A **release** job on `v*` tags builds the cgo-free binary and attaches
+  it to a GitHub Release; deploy stays manual. No CD to the VPS yet.
 - Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client. The
   styling pass sits on top of `feat/p1-launch` — decide merge order (styling → p1-launch → main,
   or fold together). The dev-compose branch is a small independent add-on on top.

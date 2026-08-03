@@ -16,6 +16,16 @@ const th: Dictionary = {
   loginError: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
   staffDashboard: 'แดชบอร์ดเจ้าหน้าที่',
   logOut: 'ออกจากระบบ',
+  districts: 'อำเภอ',
+  name: 'ชื่อ',
+  province: 'จังหวัด',
+  add: 'เพิ่ม',
+  edit: 'แก้ไข',
+  delete: 'ลบ',
+  save: 'บันทึก',
+  cancel: 'ยกเลิก',
+  actions: 'การกระทำ',
+  mismatchWarning: 'รหัสกับชื่อไม่ตรงกัน โปรดตรวจสอบ',
 };
 
 const en: Dictionary = {
@@ -25,6 +35,16 @@ const en: Dictionary = {
   loginError: 'Wrong email or password',
   staffDashboard: 'Staff dashboard',
   logOut: 'Log out',
+  districts: 'Districts',
+  name: 'Name',
+  province: 'Province',
+  add: 'Add',
+  edit: 'Edit',
+  delete: 'Delete',
+  save: 'Save',
+  cancel: 'Cancel',
+  actions: 'Actions',
+  mismatchWarning: 'Code and name do not match — please check',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { th, en };

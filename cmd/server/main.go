@@ -1,8 +1,15 @@
-// Command server runs the phum-panya API and static frontend, or (with the
-// create-admin subcommand) seeds the first central admin and exits.
+// Command server runs the phum-panya API and static frontend. Subcommands:
+//
+//	server                      run in the foreground (default)
+//	server run                  run under the host service manager
+//	server service install      register the OS service (Windows SCM / systemd)
+//	server service uninstall    remove the OS service
+//	server service start|stop|restart
+//	server create-admin         seed the first central admin, then exit
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -18,6 +25,7 @@ import (
 	"phum-panya/internal/media"
 	"phum-panya/internal/model"
 	"phum-panya/internal/router"
+	"phum-panya/internal/svc"
 )
 
 // sessionTTL is how long a login session stays valid.
@@ -35,16 +43,38 @@ const backupInterval = 24 * time.Hour
 const backupKeep = 14
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "create-admin" {
+	args := os.Args[1:]
+	switch {
+	case len(args) >= 1 && args[0] == "create-admin":
 		runCreateAdmin()
-		return
+	case len(args) >= 1 && args[0] == "service":
+		runServiceControl(args[1:])
+	default: // "" (foreground) or "run" (under the service manager)
+		runServer()
 	}
-	run()
 }
 
-// run opens the database, ensures the schema and first admin exist, wires
-// the engine, starts the daily backup ticker, and serves the app.
-func run() {
+// runServiceControl installs, uninstalls, or controls the OS service.
+func runServiceControl(args []string) {
+	if len(args) != 1 {
+		log.Fatal("usage: server service install|uninstall|start|stop|restart")
+	}
+	action := args[0]
+	switch action {
+	case "install", "uninstall", "start", "stop", "restart":
+		if err := svc.Control(action); err != nil {
+			log.Fatalf("service %s: %v", action, err)
+		}
+		fmt.Printf("service %s: ok\n", action)
+	default:
+		log.Fatalf("unknown service action %q (install|uninstall|start|stop|restart)", action)
+	}
+}
+
+// runServer opens the database, ensures the schema and first admin exist,
+// wires the engine, starts the daily backup ticker, and serves the app under
+// the service supervisor (foreground or OS service manager).
+func runServer() {
 	cfg := config.Load()
 	g, err := db.Open(cfg.DBPath)
 	if err != nil {
@@ -76,7 +106,9 @@ func run() {
 	go runBackupTicker(cfg, clk)
 
 	log.Printf("listening on %s", cfg.HTTPAddr)
-	if err := httpx.Serve(cfg, engine); err != nil {
+	if err := svc.Run(func(ctx context.Context) error {
+		return httpx.ServeContext(ctx, cfg, engine)
+	}); err != nil {
 		log.Fatalf("serve: %v", err)
 	}
 }

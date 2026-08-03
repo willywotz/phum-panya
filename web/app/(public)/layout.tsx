@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { LangToggle, useT } from '@/lib/i18n';
+import { ThemeToggle } from '@/lib/theme';
 
 const navLinks = [
   { href: '/', key: 'home' },
@@ -26,6 +27,7 @@ function PublicNav() {
         {t('signIn')}
       </button>
       <LangToggle />
+      <ThemeToggle />
     </nav>
   );
 }

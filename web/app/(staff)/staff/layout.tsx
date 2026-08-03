@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { RequireStaff } from '@/lib/auth';
 import { LangToggle, useT } from '@/lib/i18n';
+import { ThemeToggle } from '@/lib/theme';
 
 const navLinks = [
   { href: '/staff/districts', key: 'districts' },
@@ -24,6 +25,7 @@ function StaffNav() {
         </Link>
       ))}
       <LangToggle />
+      <ThemeToggle />
     </nav>
   );
 }

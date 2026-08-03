@@ -118,6 +118,9 @@ const th: Dictionary = {
   exportExcel: 'ส่งออก Excel',
   storage: 'พื้นที่จัดเก็บ',
   storageUsed: 'ใช้ไปแล้ว',
+  theme: 'ธีม',
+  lightMode: 'โหมดสว่าง',
+  darkMode: 'โหมดมืด',
 };
 
 const en: Dictionary = {
@@ -229,6 +232,9 @@ const en: Dictionary = {
   exportExcel: 'Export Excel',
   storage: 'Storage',
   storageUsed: 'Used',
+  theme: 'Theme',
+  lightMode: 'Light mode',
+  darkMode: 'Dark mode',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { th, en };

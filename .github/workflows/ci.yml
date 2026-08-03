@@ -137,12 +137,12 @@ jobs:
           $i = Start-Process msiexec -Wait -PassThru -ArgumentList `
             "/i","`"$msi`"","/quiet","/l*v","install.log", `
             "ADMINEMAIL=admin@test","ADMINPASSWORD=pw123456","APPDOMAIN="
-          if ($i.ExitCode -ne 0) { Get-Content install.log -Tail 80; throw "install failed ($($i.ExitCode))" }
+          if ($i.ExitCode -ne 0) { Get-Content install.log -Tail 200; throw "install failed ($($i.ExitCode))" }
           sc.exe query phum-panya
           if ($LASTEXITCODE -ne 0) { throw "service phum-panya was not registered" }
           $u = Start-Process msiexec -Wait -PassThru -ArgumentList `
             "/x","`"$msi`"","/quiet","/l*v","uninstall.log"
-          if ($u.ExitCode -ne 0) { Get-Content uninstall.log -Tail 80; throw "uninstall failed ($($u.ExitCode))" }
+          if ($u.ExitCode -ne 0) { Get-Content uninstall.log -Tail 200; throw "uninstall failed ($($u.ExitCode))" }
           sc.exe query phum-panya
           if ($LASTEXITCODE -eq 0) { throw "service still present after uninstall" }
           Write-Host "MSI install / query / uninstall smoke test passed"

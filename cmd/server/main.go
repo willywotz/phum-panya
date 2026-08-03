@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"phum-panya/internal/auth"
@@ -113,6 +114,9 @@ func setEnvIf(key, val string) {
 // the service supervisor (foreground or OS service manager).
 func runServer() {
 	cfg := config.Load()
+	if err := ensureDataDirs(cfg); err != nil {
+		log.Fatalf("create data dirs: %v", err)
+	}
 	g, err := db.Open(cfg.DBPath)
 	if err != nil {
 		log.Fatalf("open db: %v", err)
@@ -148,6 +152,21 @@ func runServer() {
 	}); err != nil {
 		log.Fatalf("serve: %v", err)
 	}
+}
+
+// ensureDataDirs creates the parent directory of the database file and the
+// media and backup directories, so a fresh install (or a service whose
+// working directory is empty) can open the database and store files.
+func ensureDataDirs(cfg config.Config) error {
+	for _, dir := range []string{filepath.Dir(cfg.DBPath), cfg.MediaDir, cfg.BackupDir} {
+		if dir == "" || dir == "." {
+			continue
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // runBackupTicker runs a backup once a day for the lifetime of the process,

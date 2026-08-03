@@ -3,6 +3,17 @@
 import Link from 'next/link';
 import { type FormEvent, useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 
@@ -57,55 +68,77 @@ export default function RecipesPage() {
 
   return (
     <section>
-      <h1>{t('recipes')}</h1>
-      <form onSubmit={(event: FormEvent<HTMLFormElement>) => event.preventDefault()}>
-        <label htmlFor="recipe-search">{t('search')}</label>
-        <input
-          id="recipe-search"
-          type="text"
-          value={q}
-          onChange={(event) => setQ(event.target.value)}
-        />
-        <label htmlFor="recipe-district-filter">{t('district')}</label>
-        <select
-          id="recipe-district-filter"
-          value={districtId}
-          onChange={(event) => setDistrictId(event.target.value)}
-        >
-          <option value="">{t('allDistricts')}</option>
-          {districts.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-        <label htmlFor="recipe-herb-filter">{t('herb')}</label>
-        <select
-          id="recipe-herb-filter"
-          value={herbId}
-          onChange={(event) => setHerbId(event.target.value)}
-        >
-          <option value="">{t('allHerbs')}</option>
-          {herbs.map((herb) => (
-            <option key={herb.id} value={herb.id}>
-              {herb.thai_name}
-            </option>
-          ))}
-        </select>
-        <button type="submit">{t('search')}</button>
+      <h1 className="mb-4 text-2xl font-bold text-primary">{t('recipes')}</h1>
+      <form
+        onSubmit={(event: FormEvent<HTMLFormElement>) => event.preventDefault()}
+        className="mb-6 flex flex-wrap items-end gap-3"
+      >
+        <div className="grid gap-1.5">
+          <Label htmlFor="recipe-search">{t('search')}</Label>
+          <Input
+            id="recipe-search"
+            type="text"
+            value={q}
+            onChange={(event) => setQ(event.target.value)}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label>{t('district')}</Label>
+          <Select
+            value={districtId || 'all'}
+            onValueChange={(value) => setDistrictId(value === 'all' ? '' : value)}
+          >
+            <SelectTrigger id="recipe-district-filter" aria-label={t('district')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('allDistricts')}</SelectItem>
+              {districts.map((d) => (
+                <SelectItem key={d.id} value={String(d.id)}>
+                  {d.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <Label>{t('herb')}</Label>
+          <Select
+            value={herbId || 'all'}
+            onValueChange={(value) => setHerbId(value === 'all' ? '' : value)}
+          >
+            <SelectTrigger id="recipe-herb-filter" aria-label={t('herb')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('allHerbs')}</SelectItem>
+              {herbs.map((herb) => (
+                <SelectItem key={herb.id} value={String(herb.id)}>
+                  {herb.thai_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button type="submit">{t('search')}</Button>
       </form>
-      <ul>
+      <div className="grid gap-3">
         {recipes.map((recipe) => (
-          <li key={recipe.id}>
-            <Link href={`/doctor?id=${recipe.doctor_id}`}>{recipe.name}</Link>
-            {' — '}
-            {recipe.doctor_name}, {recipe.district_name}
-            {recipe.ingredients.length > 0 && (
-              <span> ({recipe.ingredients.map((ing) => ing.herb_name).join(', ')})</span>
-            )}
-          </li>
+          <Card key={recipe.id}>
+            <CardHeader>
+              <CardTitle>
+                <Link href={`/doctor?id=${recipe.doctor_id}`}>{recipe.name}</Link>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-muted-foreground">
+              {recipe.doctor_name}, {recipe.district_name}
+              {recipe.ingredients.length > 0 && (
+                <p>{recipe.ingredients.map((ing) => ing.herb_name).join(', ')}</p>
+              )}
+            </CardContent>
+          </Card>
         ))}
-      </ul>
+      </div>
     </section>
   );
 }

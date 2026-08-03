@@ -139,16 +139,18 @@ test('SRS §6.1 UAT: editor lifecycle, consent gate, public discovery, export sc
   await page.getByLabel('ชื่อ').fill(recipeName);
   await page.getByLabel('ปีข้อมูล').fill('2024');
 
+  // Radix renders the option listbox in a page-root portal, so the trigger
+  // click is scoped to the row but the option click is scoped to the page.
   const ingredientRow1 = page.locator('fieldset').nth(0);
-  const herbSelect = ingredientRow1.getByLabel('สมุนไพร');
-  await expect(herbSelect.locator('option', { hasText: herbName })).toHaveCount(1);
-  await herbSelect.selectOption({ label: herbName });
+  await ingredientRow1.getByRole('combobox', { name: 'สมุนไพร' }).click();
+  await page.getByRole('option', { name: herbName, exact: true }).click();
   await ingredientRow1.getByLabel('ปริมาณ').fill('10');
   await ingredientRow1.getByLabel('หน่วย').fill('กรัม');
 
   await page.getByRole('button', { name: 'เพิ่มส่วนประกอบ' }).click();
   const ingredientRow2 = page.locator('fieldset').nth(1);
-  await ingredientRow2.getByLabel('สมุนไพร').selectOption({ label: 'อื่นๆ (พิมพ์ชื่อ)' });
+  await ingredientRow2.getByRole('combobox', { name: 'สมุนไพร' }).click();
+  await page.getByRole('option', { name: 'อื่นๆ (พิมพ์ชื่อ)', exact: true }).click();
   await ingredientRow2.getByLabel('ชื่อสมุนไพร').fill(pendingHerbName);
   await ingredientRow2.getByLabel('ปริมาณ').fill('5');
   await ingredientRow2.getByLabel('หน่วย').fill('กรัม');
@@ -192,14 +194,12 @@ test('SRS §6.1 UAT: editor lifecycle, consent gate, public discovery, export sc
   await expect(page.getByRole('link', { name: new RegExp(doctorName) })).toBeVisible();
 
   await page.getByLabel('ค้นหา').fill('');
-  await page.getByLabel('อำเภอ').selectOption({ label: districtName });
+  await selectByName(page, 'อำเภอ', districtName);
   await expect(page.getByRole('link', { name: new RegExp(doctorName) })).toBeVisible();
 
   // --- Step 8: the public filters recipes by one herb.
   await page.goto('/recipes');
-  const herbFilter = page.getByLabel('สมุนไพร');
-  await expect(herbFilter.locator('option', { hasText: herbName })).toHaveCount(1);
-  await herbFilter.selectOption({ label: herbName });
+  await selectByName(page, 'สมุนไพร', herbName);
   await expect(page.getByText(recipeName)).toBeVisible();
 
   // --- Step 9: the public prints/saves the healer page as PDF (public

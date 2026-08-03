@@ -3,6 +3,17 @@
 import Link from 'next/link';
 import { type FormEvent, useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 
@@ -39,40 +50,55 @@ export default function DoctorsPage() {
 
   return (
     <section>
-      <h1>{t('doctors')}</h1>
-      <form onSubmit={(event: FormEvent<HTMLFormElement>) => event.preventDefault()}>
-        <label htmlFor="doctor-search">{t('search')}</label>
-        <input
-          id="doctor-search"
-          type="text"
-          value={q}
-          onChange={(event) => setQ(event.target.value)}
-        />
-        <label htmlFor="doctor-district-filter">{t('district')}</label>
-        <select
-          id="doctor-district-filter"
-          value={districtId}
-          onChange={(event) => setDistrictId(event.target.value)}
-        >
-          <option value="">{t('allDistricts')}</option>
-          {districts.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-        <button type="submit">{t('search')}</button>
+      <h1 className="mb-4 text-2xl font-bold text-primary">{t('doctors')}</h1>
+      <form
+        onSubmit={(event: FormEvent<HTMLFormElement>) => event.preventDefault()}
+        className="mb-6 flex flex-wrap items-end gap-3"
+      >
+        <div className="grid gap-1.5">
+          <Label htmlFor="doctor-search">{t('search')}</Label>
+          <Input
+            id="doctor-search"
+            type="text"
+            value={q}
+            onChange={(event) => setQ(event.target.value)}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label>{t('district')}</Label>
+          <Select
+            value={districtId || 'all'}
+            onValueChange={(value) => setDistrictId(value === 'all' ? '' : value)}
+          >
+            <SelectTrigger id="doctor-district-filter" aria-label={t('district')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('allDistricts')}</SelectItem>
+              {districts.map((d) => (
+                <SelectItem key={d.id} value={String(d.id)}>
+                  {d.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button type="submit">{t('search')}</Button>
       </form>
-      <ul>
+      <div className="grid gap-3">
         {doctors.map((doctor) => (
-          <li key={doctor.id}>
-            <Link href={`/doctor?id=${doctor.id}`}>
-              {doctor.full_name}
-              {doctor.known_as ? ` (${doctor.known_as})` : ''}
-            </Link>
-          </li>
+          <Link key={doctor.id} href={`/doctor?id=${doctor.id}`} className="block">
+            <Card className="transition-colors hover:border-primary">
+              <CardHeader>
+                <CardTitle>
+                  {doctor.full_name}
+                  {doctor.known_as ? ` (${doctor.known_as})` : ''}
+                </CardTitle>
+              </CardHeader>
+            </Card>
+          </Link>
         ))}
-      </ul>
+      </div>
     </section>
   );
 }

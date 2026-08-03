@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+import { selectByName } from './fixtures/select';
+
 // SRS UAT 7-9, 12: an unauthenticated visitor finds a consented doctor by
 // keyword and by district, opens the healer's ID card, filters recipes by
 // herb, gets a clean print view, and can toggle the UI language without the
@@ -78,13 +80,10 @@ test('public visitor searches, filters by herb, and prints the healer page', asy
   await page.getByLabel('ค้นหา').fill(doctorName);
   await expect(page.getByRole('link', { name: new RegExp(doctorName) })).toBeVisible();
 
-  // The district filter shows the district's NAME, not its raw numeric id.
-  await expect(
-    page.locator(`#doctor-district-filter option[value="${districtId}"]`),
-  ).toHaveText(districtName);
-
+  // The district filter selects by the district's NAME, not its raw numeric
+  // id.
   await page.getByLabel('ค้นหา').fill('');
-  await page.getByLabel('อำเภอ').selectOption({ value: String(districtId) });
+  await selectByName(page, 'อำเภอ', districtName);
   await expect(page.getByRole('link', { name: new RegExp(doctorName) })).toBeVisible();
 
   // 2. Open the doctor's ID card: name, its recipe, the recipe's ingredient
@@ -109,6 +108,6 @@ test('public visitor searches, filters by herb, and prints the healer page', asy
 
   // 3. /recipes: filter by herb finds the recipe.
   await page.goto('/recipes');
-  await page.getByLabel('Herb').selectOption({ value: String(herbId) });
+  await selectByName(page, 'Herb', herbName);
   await expect(page.getByText(recipeName)).toBeVisible();
 });

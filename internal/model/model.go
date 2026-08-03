@@ -24,7 +24,7 @@ type User struct {
 	Role         string `gorm:"not null"`
 	DistrictID   *uint
 	District     District `gorm:"constraint:OnDelete:SET NULL"`
-	Active       bool     `gorm:"not null;default:true"`
+	Active       *bool    `gorm:"not null;default:true"`
 }
 
 // Session is a server-side login session keyed by a hashed token.
@@ -36,15 +36,17 @@ type Session struct {
 
 // Doctor is หมอพื้นบ้าน, the healer profile.
 type Doctor struct {
-	ID              uint   `gorm:"primaryKey"`
-	Code            string `gorm:"uniqueIndex;not null"`
-	Photo           string `gorm:"not null"`
-	FullName        string `gorm:"not null"`
-	KnownAs         string
-	Gender          string
-	BirthYear       int
-	DistrictID      uint     `gorm:"not null;index"`
-	District        District `gorm:"constraint:OnDelete:CASCADE"`
+	ID         uint   `gorm:"primaryKey"`
+	Code       string `gorm:"uniqueIndex;not null"`
+	Photo      string `gorm:"not null"`
+	FullName   string `gorm:"not null"`
+	KnownAs    string
+	Gender     string
+	BirthYear  int
+	DistrictID uint `gorm:"not null;index"`
+	// District has no OnDelete:CASCADE: District is a fixed list (spec §2) and
+	// must never wipe its doctors when a row is removed.
+	District        District
 	Address         string
 	Phone           string
 	Specialty       string `gorm:"not null"`

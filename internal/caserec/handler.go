@@ -126,13 +126,18 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 			httpx.Err(c, http.StatusBadRequest, "invalid_request", "result must be one of cured, better, no_change")
 			return
 		}
-		districtID, err := repo.DistrictOf(existing.RecipeID)
+		oldDistrict, err := repo.DistrictOf(existing.RecipeID)
+		if err != nil {
+			writeRepoError(c, err, "recipe not found", "could not resolve recipe district")
+			return
+		}
+		newDistrict, err := repo.DistrictOf(req.RecipeID)
 		if err != nil {
 			writeRepoError(c, err, "recipe not found", "could not resolve recipe district")
 			return
 		}
 		user, _ := auth.UserFrom(c)
-		if !auth.CanWriteDistrict(user, districtID) {
+		if !auth.CanWriteDistrict(user, oldDistrict) || !auth.CanWriteDistrict(user, newDistrict) {
 			httpx.Err(c, http.StatusForbidden, "forbidden", "cannot write to this district")
 			return
 		}

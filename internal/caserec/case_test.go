@@ -21,7 +21,7 @@ import (
 
 // caseAPI wires a caserec router with an admin (id 1), a district_editor
 // (id 2, district 1), a district_editor (id 3, district 2), a doctor in
-// district 1, and a recipe under that doctor.
+// each district, and a recipe under each doctor.
 type caseAPI struct {
 	t            *testing.T
 	g            *gorm.DB
@@ -31,6 +31,7 @@ type caseAPI struct {
 	editor1Token string
 	editor2Token string
 	recipe       model.Recipe
+	recipe2      model.Recipe
 }
 
 func newCaseAPI(t *testing.T) *caseAPI {
@@ -68,6 +69,21 @@ func newCaseAPI(t *testing.T) *caseAPI {
 	}
 	if err := g.Create(&recipe).Error; err != nil {
 		t.Fatalf("create recipe: %v", err)
+	}
+
+	doctor2 := model.Doctor{
+		Code: "MUE-02", Photo: "p.jpg", FullName: "Somsri",
+		DistrictID: d2.ID, Specialty: "herbal", Status: "active", FirstYear: 2020,
+	}
+	if err := g.Create(&doctor2).Error; err != nil {
+		t.Fatalf("create doctor2: %v", err)
+	}
+	recipe2 := model.Recipe{
+		Code: "REC-02", Name: "Yaa Hom 2", DoctorID: doctor2.ID,
+		Indication: "fever", Preparation: "boil", Usage: "drink", DataYear: 2565,
+	}
+	if err := g.Create(&recipe2).Error; err != nil {
+		t.Fatalf("create recipe2: %v", err)
 	}
 
 	active := true
@@ -115,8 +131,22 @@ func newCaseAPI(t *testing.T) *caseAPI {
 	return &caseAPI{
 		t: t, g: g, r: r, repo: repo,
 		adminToken: adminToken, editor1Token: editor1Token, editor2Token: editor2Token,
-		recipe: recipe,
+		recipe: recipe, recipe2: recipe2,
 	}
+}
+
+// seedCase inserts a case directly on recipeID, bypassing the API.
+func (env *caseAPI) seedCase(recipeID uint) model.Case {
+	env.t.Helper()
+	cs := model.Case{
+		RecipeID: recipeID, PatientGender: "female", PatientAgeRange: "30-40",
+		Condition: "fever", Treatment: "herbal tea", Result: "cured",
+		Duration: "3 days", DataYear: 2565,
+	}
+	if err := env.repo.Create(&cs, 1); err != nil {
+		env.t.Fatalf("seedCase: %v", err)
+	}
+	return cs
 }
 
 func (env *caseAPI) doAsEditor1(method, path, body string) *httptest.ResponseRecorder {
@@ -138,7 +168,11 @@ func (env *caseAPI) do(method, path, token, body string) *httptest.ResponseRecor
 }
 
 func (env *caseAPI) caseBody(result string) string {
-	return `{"recipe_id":` + strconv.FormatUint(uint64(env.recipe.ID), 10) + `,
+	return env.caseBodyWithRecipe(env.recipe.ID, result)
+}
+
+func (env *caseAPI) caseBodyWithRecipe(recipeID uint, result string) string {
+	return `{"recipe_id":` + strconv.FormatUint(uint64(recipeID), 10) + `,
 		"patient_gender":"female","patient_age_range":"30-40","condition":"fever",
 		"treatment":"herbal tea","result":"` + result + `","duration":"3 days","data_year":2565}`
 }
@@ -176,5 +210,70 @@ func TestCreateCaseCrossDistrictForbidden(t *testing.T) {
 	res := env.doAsEditor2("POST", "/api/cases", env.caseBody("cured"))
 	if res.Code != http.StatusForbidden {
 		t.Fatalf("status %d, want 403, body %s", res.Code, res.Body.String())
+	}
+}
+
+// TestUpdateCaseCannotReparentToOtherDistrictRecipe proves an editor cannot
+// move their own case onto a recipe owned by a district they cannot write:
+// the new recipe_id's district must be checked too, not just the case's
+// current one.
+func TestUpdateCaseCannotReparentToOtherDistrictRecipe(t *testing.T) {
+	env := newCaseAPI(t)
+	cs := env.seedCase(env.recipe2.ID)
+
+	path := "/api/cases/" + strconv.FormatUint(uint64(cs.ID), 10)
+	res := env.doAsEditor2("PUT", path, env.caseBodyWithRecipe(env.recipe.ID, "cured"))
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("status %d, want 403, body %s", res.Code, res.Body.String())
+	}
+
+	var reloaded model.Case
+	if err := env.g.First(&reloaded, cs.ID).Error; err != nil {
+		t.Fatalf("reload case: %v", err)
+	}
+	if reloaded.RecipeID != env.recipe2.ID {
+		t.Fatalf("RecipeID = %d, want unchanged %d", reloaded.RecipeID, env.recipe2.ID)
+	}
+}
+
+func TestUpdateOtherDistrictCaseForbidden(t *testing.T) {
+	env := newCaseAPI(t)
+	cs := env.seedCase(env.recipe.ID)
+
+	path := "/api/cases/" + strconv.FormatUint(uint64(cs.ID), 10)
+	res := env.doAsEditor2("PUT", path, env.caseBodyWithRecipe(env.recipe.ID, "cured"))
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("status %d, want 403, body %s", res.Code, res.Body.String())
+	}
+}
+
+func TestDeleteOtherDistrictCaseForbidden(t *testing.T) {
+	env := newCaseAPI(t)
+	cs := env.seedCase(env.recipe.ID)
+
+	path := "/api/cases/" + strconv.FormatUint(uint64(cs.ID), 10)
+	res := env.doAsEditor2("DELETE", path, "")
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("status %d, want 403, body %s", res.Code, res.Body.String())
+	}
+
+	var count int64
+	env.g.Model(&model.Case{}).Where("id = ?", cs.ID).Count(&count)
+	if count != 1 {
+		t.Fatal("case should not have been deleted")
+	}
+}
+
+func TestUploadPhotoOnOtherDistrictCaseForbidden(t *testing.T) {
+	env := newCaseAPI(t)
+	cs := env.seedCase(env.recipe.ID)
+
+	path := "/api/cases/" + strconv.FormatUint(uint64(cs.ID), 10) + "/photo"
+	req := httptest.NewRequest("POST", path, strings.NewReader(""))
+	req.AddCookie(&http.Cookie{Name: "session", Value: env.editor2Token})
+	rec := httptest.NewRecorder()
+	env.r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status %d, want 403, body %s", rec.Code, rec.Body.String())
 	}
 }

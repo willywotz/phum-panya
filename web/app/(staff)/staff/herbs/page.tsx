@@ -3,6 +3,15 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { CrudTable } from '@/components/CrudTable';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { type CrudRow, rowId, rowValue } from '@/lib/crud';
 import { useT } from '@/lib/i18n';
@@ -49,35 +58,41 @@ function ReconcilePanel() {
     <section>
       <h2>{t('pendingHerbs')}</h2>
       <form onSubmit={handleSubmit}>
-        <label htmlFor="pending-name">{t('pendingHerbName')}</label>
-        <select
-          id="pending-name"
-          value={pendingName}
+        <Label htmlFor="pending-name">{t('pendingHerbName')}</Label>
+        <Select
+          value={pendingName || undefined}
           required
-          onChange={(event) => setPendingName(event.target.value)}
+          onValueChange={setPendingName}
         >
-          <option value="" />
-          {pendingNames.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-        <label htmlFor="reconcile-herb">{t('reconcileToHerb')}</label>
-        <select
-          id="reconcile-herb"
-          value={herbId}
+          <SelectTrigger id="pending-name" aria-label={t('pendingHerbName')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {pendingNames.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Label htmlFor="reconcile-herb">{t('reconcileToHerb')}</Label>
+        <Select
+          value={herbId || undefined}
           required
-          onChange={(event) => setHerbId(event.target.value)}
+          onValueChange={setHerbId}
         >
-          <option value="" />
-          {herbs.map((herb) => (
-            <option key={rowId(herb)} value={rowId(herb)}>
-              {String(rowValue(herb, 'thai_name'))}
-            </option>
-          ))}
-        </select>
-        <button type="submit">{t('reconcile')}</button>
+          <SelectTrigger id="reconcile-herb" aria-label={t('reconcileToHerb')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {herbs.map((herb) => (
+              <SelectItem key={rowId(herb)} value={String(rowId(herb))}>
+                {String(rowValue(herb, 'thai_name'))}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button type="submit">{t('reconcile')}</Button>
       </form>
     </section>
   );

@@ -10,6 +10,17 @@ import {
   toIngredientPayload,
   toIngredientRow,
 } from '@/components/IngredientEditor';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { type CrudRow, rowId, rowValue } from '@/lib/crud';
@@ -110,68 +121,68 @@ function RecipeForm({
 
   return (
     <form onSubmit={handleSubmit}>
-      <label htmlFor="recipe-code">{t('code')}</label>
-      <input
+      <Label htmlFor="recipe-code">{t('code')}</Label>
+      <Input
         id="recipe-code"
         type="text"
         required
         value={values.code}
         onChange={(event) => setField('code', event.target.value)}
       />
-      <label htmlFor="recipe-name">{t('name')}</label>
-      <input
+      <Label htmlFor="recipe-name">{t('name')}</Label>
+      <Input
         id="recipe-name"
         type="text"
         required
         value={values.name}
         onChange={(event) => setField('name', event.target.value)}
       />
-      <label htmlFor="recipe-indication">{t('indication')}</label>
-      <input
+      <Label htmlFor="recipe-indication">{t('indication')}</Label>
+      <Input
         id="recipe-indication"
         type="text"
         value={values.indication}
         onChange={(event) => setField('indication', event.target.value)}
       />
-      <label htmlFor="recipe-preparation">{t('preparation')}</label>
-      <textarea
+      <Label htmlFor="recipe-preparation">{t('preparation')}</Label>
+      <Textarea
         id="recipe-preparation"
         value={values.preparation}
         onChange={(event) => setField('preparation', event.target.value)}
       />
-      <label htmlFor="recipe-usage">{t('usage')}</label>
-      <textarea
+      <Label htmlFor="recipe-usage">{t('usage')}</Label>
+      <Textarea
         id="recipe-usage"
         value={values.usage}
         onChange={(event) => setField('usage', event.target.value)}
       />
-      <label htmlFor="recipe-caution">{t('caution')}</label>
-      <textarea
+      <Label htmlFor="recipe-caution">{t('caution')}</Label>
+      <Textarea
         id="recipe-caution"
         value={values.caution}
         onChange={(event) => setField('caution', event.target.value)}
       />
-      <label htmlFor="recipe-care-stage">{t('careStage')}</label>
-      <input
+      <Label htmlFor="recipe-care-stage">{t('careStage')}</Label>
+      <Input
         id="recipe-care-stage"
         type="text"
         value={values.care_stage}
         onChange={(event) => setField('care_stage', event.target.value)}
       />
-      <label htmlFor="recipe-data-year">{t('dataYear')}</label>
-      <input
+      <Label htmlFor="recipe-data-year">{t('dataYear')}</Label>
+      <Input
         id="recipe-data-year"
         type="number"
         value={values.data_year}
         onChange={(event) => setField('data_year', event.target.value)}
       />
       <IngredientEditor rows={ingredients} herbs={herbs} onChange={setIngredients} />
-      <button type="submit" disabled={submitting}>
+      <Button type="submit" disabled={submitting}>
         {t('save')}
-      </button>
-      <button type="button" onClick={onCancel}>
+      </Button>
+      <Button type="button" variant="outline" onClick={onCancel}>
         {t('cancel')}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -231,38 +242,46 @@ export default function RecipesPage() {
   return (
     <section>
       <h1>{t('recipes')}</h1>
-      <label htmlFor="recipe-district-filter">{t('district')}</label>
-      <select
-        id="recipe-district-filter"
-        value={districtId ?? ''}
-        onChange={(event) => {
-          setDistrictId(Number(event.target.value));
+      <Label htmlFor="recipe-district-filter">{t('district')}</Label>
+      <Select
+        value={districtId != null ? String(districtId) : ''}
+        onValueChange={(value) => {
+          setDistrictId(Number(value));
           setDoctorId(null);
         }}
       >
-        {districts.map((district) => (
-          <option key={rowId(district)} value={rowId(district)}>
-            {String(rowValue(district, 'name'))}
-          </option>
-        ))}
-      </select>
-      <label htmlFor="recipe-doctor-filter">{t('doctor')}</label>
-      <select
-        id="recipe-doctor-filter"
-        value={doctorId ?? ''}
-        onChange={(event) => setDoctorId(Number(event.target.value))}
+        <SelectTrigger id="recipe-district-filter" aria-label={t('district')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {districts.map((district) => (
+            <SelectItem key={rowId(district)} value={String(rowId(district))}>
+              {String(rowValue(district, 'name'))}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Label htmlFor="recipe-doctor-filter">{t('doctor')}</Label>
+      <Select
+        value={doctorId != null ? String(doctorId) : ''}
+        onValueChange={(value) => setDoctorId(Number(value))}
       >
-        {doctors.map((doctor) => (
-          <option key={rowId(doctor)} value={rowId(doctor)}>
-            {String(rowValue(doctor, 'full_name'))}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger id="recipe-doctor-filter" aria-label={t('doctor')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {doctors.map((doctor) => (
+            <SelectItem key={rowId(doctor)} value={String(rowId(doctor))}>
+              {String(rowValue(doctor, 'full_name'))}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <ExportLinks resource="recipes" districtId={districtId} />
       {doctorId !== null && (
-        <button type="button" onClick={() => setEditing('new')}>
+        <Button type="button" onClick={() => setEditing('new')}>
           {t('add')}
-        </button>
+        </Button>
       )}
       {editing !== null && doctorId !== null && (
         <RecipeForm
@@ -292,23 +311,23 @@ export default function RecipesPage() {
                 <td>{String(rowValue(row, 'code') ?? '')}</td>
                 <td>{String(rowValue(row, 'name') ?? '')}</td>
                 <td>
-                  <button type="button" onClick={() => setEditing(row)}>
+                  <Button type="button" variant="outline" onClick={() => setEditing(row)}>
                     {t('edit')}
-                  </button>
+                  </Button>
                   {confirmingId === id ? (
                     <span>
                       {t('confirmDelete')}
-                      <button type="button" onClick={() => handleDelete(row)}>
+                      <Button type="button" onClick={() => handleDelete(row)}>
                         {t('yes')}
-                      </button>
-                      <button type="button" onClick={() => setConfirmingId(null)}>
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setConfirmingId(null)}>
                         {t('no')}
-                      </button>
+                      </Button>
                     </span>
                   ) : (
-                    <button type="button" onClick={() => setConfirmingId(id)}>
+                    <Button type="button" variant="outline" onClick={() => setConfirmingId(id)}>
                       {t('delete')}
-                    </button>
+                    </Button>
                   )}
                 </td>
               </tr>

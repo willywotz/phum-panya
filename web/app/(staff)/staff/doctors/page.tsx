@@ -5,6 +5,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { CrudTable } from '@/components/CrudTable';
 import { ExportLinks } from '@/components/ExportLinks';
 import { PhotoUpload } from '@/components/PhotoUpload';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { type CrudRow, rowId, rowValue } from '@/lib/crud';
@@ -40,18 +48,19 @@ export default function DoctorsPage() {
   return (
     <section>
       <h1>{t('doctors')}</h1>
-      <label htmlFor="doctor-district-filter">{t('district')}</label>
-      <select
-        id="doctor-district-filter"
-        value={districtId}
-        onChange={(event) => setDistrictId(Number(event.target.value))}
-      >
-        {districts.map((district) => (
-          <option key={rowId(district)} value={rowId(district)}>
-            {String(rowValue(district, 'name'))}
-          </option>
-        ))}
-      </select>
+      <Label htmlFor="doctor-district-filter">{t('district')}</Label>
+      <Select value={String(districtId)} onValueChange={(value) => setDistrictId(Number(value))}>
+        <SelectTrigger id="doctor-district-filter" aria-label={t('district')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {districts.map((district) => (
+            <SelectItem key={rowId(district)} value={String(rowId(district))}>
+              {String(rowValue(district, 'name'))}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <ExportLinks resource="doctors" districtId={districtId} />
       <CrudTable
         key={districtId}

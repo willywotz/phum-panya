@@ -4,6 +4,17 @@ import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import { ExportLinks } from '@/components/ExportLinks';
 import { PhotoUpload } from '@/components/PhotoUpload';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { type CrudRow, rowId, rowValue } from '@/lib/crud';
@@ -91,77 +102,86 @@ function CaseForm({
 
   return (
     <form onSubmit={handleSubmit}>
-      <label htmlFor="case-patient-gender">{t('patientGender')}</label>
-      <select
-        id="case-patient-gender"
-        value={values.patient_gender}
-        onChange={(event) => setField('patient_gender', event.target.value)}
+      <Label htmlFor="case-patient-gender">{t('patientGender')}</Label>
+      <Select
+        value={values.patient_gender || undefined}
+        onValueChange={(value) => setField('patient_gender', value)}
       >
-        <option value="" />
-        <option value="male">{t('genderMale')}</option>
-        <option value="female">{t('genderFemale')}</option>
-        <option value="other">{t('genderOther')}</option>
-      </select>
-      <label htmlFor="case-patient-age-range">{t('patientAgeRange')}</label>
-      <select
-        id="case-patient-age-range"
-        value={values.patient_age_range}
-        onChange={(event) => setField('patient_age_range', event.target.value)}
+        <SelectTrigger id="case-patient-gender" aria-label={t('patientGender')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="male">{t('genderMale')}</SelectItem>
+          <SelectItem value="female">{t('genderFemale')}</SelectItem>
+          <SelectItem value="other">{t('genderOther')}</SelectItem>
+        </SelectContent>
+      </Select>
+      <Label htmlFor="case-patient-age-range">{t('patientAgeRange')}</Label>
+      <Select
+        value={values.patient_age_range || undefined}
+        onValueChange={(value) => setField('patient_age_range', value)}
       >
-        <option value="" />
-        <option value="0-12">{t('ageRange0to12')}</option>
-        <option value="13-19">{t('ageRange13to19')}</option>
-        <option value="20-39">{t('ageRange20to39')}</option>
-        <option value="40-59">{t('ageRange40to59')}</option>
-        <option value="60+">{t('ageRange60plus')}</option>
-      </select>
-      <label htmlFor="case-condition">{t('condition')}</label>
-      <input
+        <SelectTrigger id="case-patient-age-range" aria-label={t('patientAgeRange')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="0-12">{t('ageRange0to12')}</SelectItem>
+          <SelectItem value="13-19">{t('ageRange13to19')}</SelectItem>
+          <SelectItem value="20-39">{t('ageRange20to39')}</SelectItem>
+          <SelectItem value="40-59">{t('ageRange40to59')}</SelectItem>
+          <SelectItem value="60+">{t('ageRange60plus')}</SelectItem>
+        </SelectContent>
+      </Select>
+      <Label htmlFor="case-condition">{t('condition')}</Label>
+      <Input
         id="case-condition"
         type="text"
         required
         value={values.condition}
         onChange={(event) => setField('condition', event.target.value)}
       />
-      <label htmlFor="case-treatment">{t('treatment')}</label>
-      <textarea
+      <Label htmlFor="case-treatment">{t('treatment')}</Label>
+      <Textarea
         id="case-treatment"
         value={values.treatment}
         onChange={(event) => setField('treatment', event.target.value)}
       />
-      <label htmlFor="case-result">{t('result')}</label>
-      <select
-        id="case-result"
+      <Label htmlFor="case-result">{t('result')}</Label>
+      <Select
+        value={values.result || undefined}
         required
-        value={values.result}
-        onChange={(event) => setField('result', event.target.value)}
+        onValueChange={(value) => setField('result', value)}
       >
-        <option value="" />
-        <option value="cured">{t('resultCured')}</option>
-        <option value="better">{t('resultBetter')}</option>
-        <option value="no_change">{t('resultNoChange')}</option>
-      </select>
-      <label htmlFor="case-duration">{t('duration')}</label>
-      <input
+        <SelectTrigger id="case-result" aria-label={t('result')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="cured">{t('resultCured')}</SelectItem>
+          <SelectItem value="better">{t('resultBetter')}</SelectItem>
+          <SelectItem value="no_change">{t('resultNoChange')}</SelectItem>
+        </SelectContent>
+      </Select>
+      <Label htmlFor="case-duration">{t('duration')}</Label>
+      <Input
         id="case-duration"
         type="text"
         value={values.duration}
         onChange={(event) => setField('duration', event.target.value)}
       />
-      <label htmlFor="case-data-year">{t('dataYear')}</label>
-      <input
+      <Label htmlFor="case-data-year">{t('dataYear')}</Label>
+      <Input
         id="case-data-year"
         type="number"
         value={values.data_year}
         onChange={(event) => setField('data_year', event.target.value)}
       />
       {editing && <PhotoUpload uploadPath={`/api/cases/${rowId(editing)}/photo`} />}
-      <button type="submit" disabled={submitting}>
+      <Button type="submit" disabled={submitting}>
         {t('save')}
-      </button>
-      <button type="button" onClick={onCancel}>
+      </Button>
+      <Button type="button" variant="outline" onClick={onCancel}>
         {t('cancel')}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -233,47 +253,59 @@ export default function CasesPage() {
   return (
     <section>
       <h1>{t('cases')}</h1>
-      <label htmlFor="case-district-filter">{t('district')}</label>
-      <select
-        id="case-district-filter"
-        value={districtId ?? ''}
-        onChange={(event) => setDistrictId(Number(event.target.value))}
+      <Label htmlFor="case-district-filter">{t('district')}</Label>
+      <Select
+        value={districtId != null ? String(districtId) : ''}
+        onValueChange={(value) => setDistrictId(Number(value))}
       >
-        {districts.map((district) => (
-          <option key={rowId(district)} value={rowId(district)}>
-            {String(rowValue(district, 'name'))}
-          </option>
-        ))}
-      </select>
-      <label htmlFor="case-doctor-filter">{t('doctor')}</label>
-      <select
-        id="case-doctor-filter"
-        value={doctorId ?? ''}
-        onChange={(event) => setDoctorId(Number(event.target.value))}
+        <SelectTrigger id="case-district-filter" aria-label={t('district')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {districts.map((district) => (
+            <SelectItem key={rowId(district)} value={String(rowId(district))}>
+              {String(rowValue(district, 'name'))}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Label htmlFor="case-doctor-filter">{t('doctor')}</Label>
+      <Select
+        value={doctorId != null ? String(doctorId) : ''}
+        onValueChange={(value) => setDoctorId(Number(value))}
       >
-        {doctors.map((doctor) => (
-          <option key={rowId(doctor)} value={rowId(doctor)}>
-            {String(rowValue(doctor, 'full_name'))}
-          </option>
-        ))}
-      </select>
-      <label htmlFor="case-recipe-filter">{t('recipe')}</label>
-      <select
-        id="case-recipe-filter"
-        value={recipeId ?? ''}
-        onChange={(event) => setRecipeId(Number(event.target.value))}
+        <SelectTrigger id="case-doctor-filter" aria-label={t('doctor')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {doctors.map((doctor) => (
+            <SelectItem key={rowId(doctor)} value={String(rowId(doctor))}>
+              {String(rowValue(doctor, 'full_name'))}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Label htmlFor="case-recipe-filter">{t('recipe')}</Label>
+      <Select
+        value={recipeId != null ? String(recipeId) : ''}
+        onValueChange={(value) => setRecipeId(Number(value))}
       >
-        {recipes.map((recipe) => (
-          <option key={rowId(recipe)} value={rowId(recipe)}>
-            {String(rowValue(recipe, 'name'))}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger id="case-recipe-filter" aria-label={t('recipe')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {recipes.map((recipe) => (
+            <SelectItem key={rowId(recipe)} value={String(rowId(recipe))}>
+              {String(rowValue(recipe, 'name'))}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <ExportLinks resource="cases" districtId={districtId} />
       {recipeId !== null && (
-        <button type="button" onClick={() => setEditing('new')}>
+        <Button type="button" onClick={() => setEditing('new')}>
           {t('add')}
-        </button>
+        </Button>
       )}
       {editing !== null && recipeId !== null && (
         <CaseForm
@@ -302,23 +334,23 @@ export default function CasesPage() {
                 <td>{String(rowValue(row, 'condition') ?? '')}</td>
                 <td>{String(rowValue(row, 'result') ?? '')}</td>
                 <td>
-                  <button type="button" onClick={() => setEditing(row)}>
+                  <Button type="button" variant="outline" onClick={() => setEditing(row)}>
                     {t('edit')}
-                  </button>
+                  </Button>
                   {confirmingId === id ? (
                     <span>
                       {t('confirmDelete')}
-                      <button type="button" onClick={() => handleDelete(row)}>
+                      <Button type="button" onClick={() => handleDelete(row)}>
                         {t('yes')}
-                      </button>
-                      <button type="button" onClick={() => setConfirmingId(null)}>
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setConfirmingId(null)}>
                         {t('no')}
-                      </button>
+                      </Button>
                     </span>
                   ) : (
-                    <button type="button" onClick={() => setConfirmingId(id)}>
+                    <Button type="button" variant="outline" onClick={() => setConfirmingId(id)}>
                       {t('delete')}
-                    </button>
+                    </Button>
                   )}
                 </td>
               </tr>

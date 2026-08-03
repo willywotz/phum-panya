@@ -84,7 +84,7 @@ test('SRS §6.1 UAT: editor lifecycle, consent gate, public discovery, export sc
   // A consented doctor in the OTHER district, owned by admin: proves step
   // 10's export excludes doctors outside the editor's own district.
   await page.goto('/staff/doctors');
-  await page.getByLabel('อำเภอ').selectOption({ label: otherDistrictName });
+  await selectByName(page, 'อำเภอ', otherDistrictName);
   await page.getByRole('button', { name: 'เพิ่ม' }).click();
   await page.getByLabel('รหัส').fill(`OTH${stamp}`);
   await page.getByLabel('ชื่อ-นามสกุล').fill(otherDoctorName);
@@ -162,17 +162,20 @@ test('SRS §6.1 UAT: editor lifecycle, consent gate, public discovery, export sc
   await logout(page);
   await login(page, 'admin@test', 'pw123456');
   await page.goto('/staff/herbs');
-  const pendingSelect = page.getByLabel('ชื่อสมุนไพรที่รอตรวจสอบ');
-  await expect(pendingSelect.locator('option', { hasText: pendingHerbName })).toHaveCount(1);
-  await pendingSelect.selectOption({ label: pendingHerbName });
-  await page.getByLabel('จับคู่กับสมุนไพร').selectOption({ label: herbName });
+  await selectByName(page, 'ชื่อสมุนไพรที่รอตรวจสอบ', pendingHerbName);
+  await selectByName(page, 'จับคู่กับสมุนไพร', herbName);
   await page.getByRole('button', { name: 'จับคู่' }).click();
   // The pending-herb select is a global list across every district editor's
   // still-unreconciled herbs, so assert only this test's herb is gone from
-  // it (another spec's pending herb may legitimately still be there).
-  await expect(
-    page.getByLabel('ชื่อสมุนไพรที่รอตรวจสอบ').locator('option', { hasText: pendingHerbName }),
-  ).toHaveCount(0);
+  // it (another spec's pending herb may legitimately still be there, or the
+  // reconcile panel may unmount entirely once no pending herbs remain).
+  await page.waitForLoadState('networkidle');
+  const pendingTrigger = page.getByRole('combobox', { name: 'ชื่อสมุนไพรที่รอตรวจสอบ' });
+  if ((await pendingTrigger.count()) > 0) {
+    await pendingTrigger.click();
+    await expect(page.getByRole('option', { name: pendingHerbName, exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+  }
 
   // --- Step 6: the editor adds an anonymous Case linked to the Recipe.
   await logout(page);
@@ -180,9 +183,7 @@ test('SRS §6.1 UAT: editor lifecycle, consent gate, public discovery, export sc
   await page.goto('/staff/cases');
   await page.getByRole('button', { name: 'เพิ่ม' }).click();
   await page.getByLabel('อาการ').fill('ปวดหัว');
-  // The case result select is rendered by CaseForm's own native <select>
-  // (cases/page.tsx), not CrudForm, so it is untouched by this migration.
-  await page.getByLabel('ผลการรักษา').selectOption({ label: 'หายขาด' });
+  await selectByName(page, 'ผลการรักษา', 'หายขาด');
   await page.getByRole('button', { name: 'บันทึก' }).click();
   await expect(page.getByRole('row', { name: /ปวดหัว/ })).toBeVisible();
   await logout(page);

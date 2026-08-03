@@ -14,6 +14,14 @@ interface PublicCase {
   treatment: string;
   result: string;
   duration: string;
+  photo: string;
+}
+
+interface PublicIngredient {
+  herb_name: string;
+  amount: string;
+  unit: string;
+  note: string;
 }
 
 interface PublicRecipe {
@@ -25,6 +33,8 @@ interface PublicRecipe {
   caution: string;
   doctor_name: string;
   district_name: string;
+  photo: string;
+  ingredients: PublicIngredient[];
   cases: PublicCase[];
 }
 
@@ -37,6 +47,7 @@ interface PublicDoctorDetail {
   lineage: string;
   years_experience: number;
   first_year: number;
+  photo: string;
   recipes: PublicRecipe[];
 }
 
@@ -88,6 +99,10 @@ function DoctorDetail() {
         {t('print')}
       </button>
       <h1>{doctor.full_name}</h1>
+      {doctor.photo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={`/media/${doctor.photo}`} alt={doctor.full_name} />
+      )}
       {doctor.known_as && <p>{doctor.known_as}</p>}
       <dl>
         <dt>{t('specialty')}</dt>
@@ -120,12 +135,31 @@ function DoctorDetail() {
                 {t('caution')}: {recipe.caution}
               </p>
             )}
+            {recipe.photo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/media/${recipe.photo}`} alt={recipe.name} />
+            )}
+            <section>
+              <h4>{t('ingredients')}</h4>
+              <ul>
+                {recipe.ingredients.map((ing, index) => (
+                  <li key={index}>
+                    {ing.herb_name} {ing.amount} {ing.unit}
+                    {ing.note && ` (${ing.note})`}
+                  </li>
+                ))}
+              </ul>
+            </section>
             <section>
               <h4>{t('cases')}</h4>
               <ul>
                 {recipe.cases.map((c) => (
                   <li key={c.id}>
                     {c.condition} — {t('result')}: {c.result}
+                    {c.photo && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`/media/${c.photo}`} alt={c.condition} />
+                    )}
                   </li>
                 ))}
               </ul>

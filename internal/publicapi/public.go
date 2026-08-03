@@ -36,21 +36,37 @@ var doctorColumns = []string{
 }
 
 // Recipe is the public projection of a ตำรับยา formula, plus doctor/
-// district attribution. It has no audit fields.
+// district attribution and ingredients. It has no audit fields.
 type Recipe struct {
-	ID           uint   `json:"id"`
-	Code         string `json:"code"`
-	Name         string `json:"name"`
-	DoctorID     uint   `json:"doctor_id"`
-	Indication   string `json:"indication"`
-	Preparation  string `json:"preparation"`
-	Usage        string `json:"usage"`
-	Caution      string `json:"caution"`
-	CareStage    string `json:"care_stage"`
-	Photo        string `json:"photo"`
-	DataYear     int    `json:"data_year"`
-	DoctorName   string `json:"doctor_name"`
-	DistrictName string `json:"district_name"`
+	ID           uint               `json:"id"`
+	Code         string             `json:"code"`
+	Name         string             `json:"name"`
+	DoctorID     uint               `json:"doctor_id"`
+	Indication   string             `json:"indication"`
+	Preparation  string             `json:"preparation"`
+	Usage        string             `json:"usage"`
+	Caution      string             `json:"caution"`
+	CareStage    string             `json:"care_stage"`
+	Photo        string             `json:"photo"`
+	DataYear     int                `json:"data_year"`
+	DoctorName   string             `json:"doctor_name"`
+	DistrictName string             `json:"district_name"`
+	Ingredients  []PublicIngredient `json:"ingredients" gorm:"-"`
+}
+
+// PublicIngredient is the public projection of one Ingredient row inside a
+// Recipe (data model §4.5): the herb name (the catalog herb's thai_name
+// when reconciled, else the still-pending herb name), plus amount/unit/note.
+type PublicIngredient struct {
+	HerbName string `json:"herb_name"`
+	Amount   string `json:"amount"`
+	Unit     string `json:"unit"`
+	Note     string `json:"note"`
+}
+
+var ingredientColumns = []string{
+	"COALESCE(herbs.thai_name, ingredients.pending_herb_name) AS herb_name",
+	"ingredients.amount", "ingredients.unit", "ingredients.note",
 }
 
 var recipeColumns = []string{
@@ -96,6 +112,16 @@ type Herb struct {
 var herbColumns = []string{
 	"id", "thai_name", "local_name", "scientific_name", "photo", "part_used", "properties",
 }
+
+// District is the public projection of an อำเภอ, used to label the district
+// filter with a name instead of a raw id. Every district is public.
+type District struct {
+	ID       uint   `json:"id"`
+	Name     string `json:"name"`
+	Province string `json:"province"`
+}
+
+var districtColumns = []string{"id", "name", "province"}
 
 // Repo provides read-only, consent-filtered access to public data, backed
 // by GORM.
@@ -154,7 +180,7 @@ type RecipeFilter struct {
 }
 
 // ListRecipes returns every recipe of a consented doctor matching f, with
-// attribution.
+// attribution and ingredients.
 func (r *Repo) ListRecipes(f RecipeFilter) ([]Recipe, error) {
 	var out []Recipe
 	q := r.recipeQuery()
@@ -169,16 +195,45 @@ func (r *Repo) ListRecipes(f RecipeFilter) ([]Recipe, error) {
 		q = q.Where("recipes.id IN (?)",
 			r.g.Table("ingredients").Select("recipe_id").Where("herb_id = ?", *f.HerbID))
 	}
-	err := q.Find(&out).Error
-	return out, err
+	if err := q.Find(&out).Error; err != nil {
+		return nil, err
+	}
+	return out, r.attachIngredients(out)
 }
 
-// ListRecipesByDoctor returns every recipe belonging to doctorID, provided
-// the doctor has consented. It returns an empty slice for an unconsented or
-// missing doctor.
+// ListRecipesByDoctor returns every recipe belonging to doctorID, with
+// ingredients, provided the doctor has consented. It returns an empty slice
+// for an unconsented or missing doctor.
 func (r *Repo) ListRecipesByDoctor(doctorID uint) ([]Recipe, error) {
 	var out []Recipe
-	err := r.recipeQuery().Where("recipes.doctor_id = ?", doctorID).Find(&out).Error
+	if err := r.recipeQuery().Where("recipes.doctor_id = ?", doctorID).Find(&out).Error; err != nil {
+		return nil, err
+	}
+	return out, r.attachIngredients(out)
+}
+
+// attachIngredients populates the Ingredients field of every recipe in
+// recipes in place, one query per recipe (fine at this scale).
+func (r *Repo) attachIngredients(recipes []Recipe) error {
+	for i := range recipes {
+		ings, err := r.ListIngredientsByRecipe(recipes[i].ID)
+		if err != nil {
+			return err
+		}
+		recipes[i].Ingredients = ings
+	}
+	return nil
+}
+
+// ListIngredientsByRecipe returns the public ingredients of recipeID: each
+// herb's catalog thai_name (when reconciled) or its pending name, plus
+// amount/unit/note.
+func (r *Repo) ListIngredientsByRecipe(recipeID uint) ([]PublicIngredient, error) {
+	out := []PublicIngredient{}
+	err := r.g.Table("ingredients").Select(ingredientColumns).
+		Joins("LEFT JOIN herbs ON herbs.id = ingredients.herb_id").
+		Where("ingredients.recipe_id = ?", recipeID).
+		Find(&out).Error
 	return out, err
 }
 
@@ -208,5 +263,13 @@ func (r *Repo) ListCasesByRecipe(recipeID uint) ([]Case, error) {
 func (r *Repo) ListHerbs() ([]Herb, error) {
 	var out []Herb
 	err := r.g.Table("herbs").Select(herbColumns).Find(&out).Error
+	return out, err
+}
+
+// ListDistricts returns every district, for labelling the public district
+// filter with a name instead of a raw id.
+func (r *Repo) ListDistricts() ([]District, error) {
+	var out []District
+	err := r.g.Table("districts").Select(districtColumns).Find(&out).Error
 	return out, err
 }

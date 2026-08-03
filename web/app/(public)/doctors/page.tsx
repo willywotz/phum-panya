@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
@@ -13,17 +13,21 @@ interface PublicDoctor {
   district_id: number;
 }
 
+interface PublicDistrict {
+  id: number;
+  name: string;
+  province: string;
+}
+
 export default function DoctorsPage() {
   const t = useT();
-  const [allDoctors, setAllDoctors] = useState<PublicDoctor[]>([]);
+  const [districts, setDistricts] = useState<PublicDistrict[]>([]);
   const [doctors, setDoctors] = useState<PublicDoctor[]>([]);
   const [q, setQ] = useState('');
   const [districtId, setDistrictId] = useState('');
 
-  // Unfiltered once, so the district filter's options do not shrink as the
-  // visitor narrows their search.
   useEffect(() => {
-    api.get<PublicDoctor[]>('/api/public/doctors').then(setAllDoctors);
+    api.get<PublicDistrict[]>('/api/public/districts').then(setDistricts);
   }, []);
 
   useEffect(() => {
@@ -32,11 +36,6 @@ export default function DoctorsPage() {
     if (districtId) params.set('district_id', districtId);
     api.get<PublicDoctor[]>(`/api/public/doctors?${params}`).then(setDoctors);
   }, [q, districtId]);
-
-  const districtIds = useMemo(
-    () => Array.from(new Set(allDoctors.map((d) => d.district_id))).sort((a, b) => a - b),
-    [allDoctors],
-  );
 
   return (
     <section>
@@ -56,9 +55,9 @@ export default function DoctorsPage() {
           onChange={(event) => setDistrictId(event.target.value)}
         >
           <option value="">{t('allDistricts')}</option>
-          {districtIds.map((id) => (
-            <option key={id} value={id}>
-              {id}
+          {districts.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
             </option>
           ))}
         </select>

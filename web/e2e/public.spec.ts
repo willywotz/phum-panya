@@ -46,6 +46,16 @@ test('public visitor searches, filters by herb, and prints the healer page', asy
   });
   const { ID: doctorId } = await doctorRes.json();
 
+  // A 1x1 PNG, small enough to inline, so /media/<path> serves a real file.
+  const onePixelPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+  );
+  const photoRes = await request.post(`/api/doctors/${doctorId}/photo`, {
+    multipart: { photo: { name: 'photo.png', mimeType: 'image/png', buffer: onePixelPng } },
+  });
+  expect(photoRes.ok()).toBeTruthy();
+
   const recipeRes = await request.post('/api/recipes', {
     data: {
       code: `PR${stamp}`,
@@ -68,15 +78,23 @@ test('public visitor searches, filters by herb, and prints the healer page', asy
   await page.getByLabel('ค้นหา').fill(doctorName);
   await expect(page.getByRole('link', { name: new RegExp(doctorName) })).toBeVisible();
 
+  // The district filter shows the district's NAME, not its raw numeric id.
+  await expect(
+    page.locator(`#doctor-district-filter option[value="${districtId}"]`),
+  ).toHaveText(districtName);
+
   await page.getByLabel('ค้นหา').fill('');
   await page.getByLabel('อำเภอ').selectOption({ value: String(districtId) });
   await expect(page.getByRole('link', { name: new RegExp(doctorName) })).toBeVisible();
 
-  // 2. Open the doctor's ID card: name and its recipe are shown.
+  // 2. Open the doctor's ID card: name, its recipe, the recipe's ingredient
+  // (herb) name, and the uploaded ID-card photo are all shown.
   await page.getByRole('link', { name: new RegExp(doctorName) }).click();
   await expect(page).toHaveURL(new RegExp(`/doctor\\?id=${doctorId}$`));
   await expect(page.getByRole('heading', { name: doctorName })).toBeVisible();
   await expect(page.getByText(recipeName)).toBeVisible();
+  await expect(page.getByText(herbName)).toBeVisible();
+  await expect(page.locator('article > img').first()).toHaveAttribute('src', /^\/media\//);
 
   // 4. Print stylesheet hides the nav while the healer's name stays visible.
   await page.emulateMedia({ media: 'print' });

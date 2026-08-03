@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
@@ -11,8 +11,17 @@ interface PublicHerb {
   thai_name: string;
 }
 
-interface PublicDoctor {
-  district_id: number;
+interface PublicDistrict {
+  id: number;
+  name: string;
+  province: string;
+}
+
+interface PublicIngredient {
+  herb_name: string;
+  amount: string;
+  unit: string;
+  note: string;
 }
 
 interface PublicRecipe {
@@ -21,12 +30,13 @@ interface PublicRecipe {
   doctor_id: number;
   doctor_name: string;
   district_name: string;
+  ingredients: PublicIngredient[];
 }
 
 export default function RecipesPage() {
   const t = useT();
   const [herbs, setHerbs] = useState<PublicHerb[]>([]);
-  const [allDoctors, setAllDoctors] = useState<PublicDoctor[]>([]);
+  const [districts, setDistricts] = useState<PublicDistrict[]>([]);
   const [recipes, setRecipes] = useState<PublicRecipe[]>([]);
   const [q, setQ] = useState('');
   const [districtId, setDistrictId] = useState('');
@@ -34,7 +44,7 @@ export default function RecipesPage() {
 
   useEffect(() => {
     api.get<PublicHerb[]>('/api/public/herbs').then(setHerbs);
-    api.get<PublicDoctor[]>('/api/public/doctors').then(setAllDoctors);
+    api.get<PublicDistrict[]>('/api/public/districts').then(setDistricts);
   }, []);
 
   useEffect(() => {
@@ -44,11 +54,6 @@ export default function RecipesPage() {
     if (herbId) params.set('herb_id', herbId);
     api.get<PublicRecipe[]>(`/api/public/recipes?${params}`).then(setRecipes);
   }, [q, districtId, herbId]);
-
-  const districtIds = useMemo(
-    () => Array.from(new Set(allDoctors.map((d) => d.district_id))).sort((a, b) => a - b),
-    [allDoctors],
-  );
 
   return (
     <section>
@@ -68,9 +73,9 @@ export default function RecipesPage() {
           onChange={(event) => setDistrictId(event.target.value)}
         >
           <option value="">{t('allDistricts')}</option>
-          {districtIds.map((id) => (
-            <option key={id} value={id}>
-              {id}
+          {districts.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
             </option>
           ))}
         </select>
@@ -95,6 +100,9 @@ export default function RecipesPage() {
             <Link href={`/doctor?id=${recipe.doctor_id}`}>{recipe.name}</Link>
             {' — '}
             {recipe.doctor_name}, {recipe.district_name}
+            {recipe.ingredients.length > 0 && (
+              <span> ({recipe.ingredients.map((ing) => ing.herb_name).join(', ')})</span>
+            )}
           </li>
         ))}
       </ul>

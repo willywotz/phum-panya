@@ -31,6 +31,7 @@ func RegisterRoutes(r gin.IRouter, g *gorm.DB) {
 	r.GET("/api/public/doctors/:id", doctorDetailHandler(repo))
 	r.GET("/api/public/recipes", listRecipesHandler(repo))
 	r.GET("/api/public/herbs", listHerbsHandler(repo))
+	r.GET("/api/public/districts", listDistrictsHandler(repo))
 }
 
 func listDoctorsHandler(repo *Repo) gin.HandlerFunc {
@@ -104,6 +105,17 @@ func listHerbsHandler(repo *Repo) gin.HandlerFunc {
 			return
 		}
 		httpx.OK(c, http.StatusOK, herbs)
+	}
+}
+
+func listDistrictsHandler(repo *Repo) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		districts, err := repo.ListDistricts()
+		if err != nil {
+			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not list districts")
+			return
+		}
+		httpx.OK(c, http.StatusOK, districts)
 	}
 }
 

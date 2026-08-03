@@ -7,6 +7,7 @@ package router
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -74,6 +75,13 @@ func NewEngine(deps Deps) *gin.Engine {
 	publicapi.RegisterRoutes(api, deps.DB)
 	export.RegisterRoutes(api, deps.DB)
 	backup.RegisterRoutes(api, deps.DBPath, deps.MediaDir, deps.BackupDir, deps.BackupKeep, deps.Clk)
+
+	// MediaDir may not exist yet (nothing uploaded); Static on a missing dir
+	// would otherwise 500 instead of 404.
+	_ = os.MkdirAll(deps.Cfg.MediaDir, 0o755)
+	// Public, no-auth: registered before webui.Register so its SPA catch-all
+	// (NoRoute) never shadows an uploaded photo.
+	engine.Static("/media", deps.Cfg.MediaDir)
 
 	webui.Register(engine)
 

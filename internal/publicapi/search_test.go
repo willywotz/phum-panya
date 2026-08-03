@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"phum-panya/internal/model"
@@ -65,6 +66,53 @@ func (env *publicAPI) seedIngredient(recipeID, herbID uint) {
 	ing := model.Ingredient{RecipeID: recipeID, HerbID: &herbID, Amount: "1", Unit: "g"}
 	if err := env.g.Create(&ing).Error; err != nil {
 		env.t.Fatalf("create ingredient: %v", err)
+	}
+}
+
+// seedPendingIngredient links recipeID to a not-yet-catalogued herb name.
+func (env *publicAPI) seedPendingIngredient(recipeID uint, pendingHerbName, amount, unit string) {
+	env.t.Helper()
+	ing := model.Ingredient{RecipeID: recipeID, PendingHerbName: &pendingHerbName, Amount: amount, Unit: unit}
+	if err := env.g.Create(&ing).Error; err != nil {
+		env.t.Fatalf("create pending ingredient: %v", err)
+	}
+}
+
+// getDistricts performs a GET and decodes the response as a district list.
+func (env *publicAPI) getDistricts(path string) []publicapi.District {
+	env.t.Helper()
+	rec := env.get(path)
+	if rec.Code != http.StatusOK {
+		env.t.Fatalf("GET %s: status %d, body %s", path, rec.Code, rec.Body.String())
+	}
+	var out []publicapi.District
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		env.t.Fatalf("decode districts: %v", err)
+	}
+	return out
+}
+
+// TestPublicDistrictsListsNamesNoAuth confirms GET /api/public/districts
+// returns every district's id/name/province without requiring a login, so
+// the public filter can show names instead of raw ids.
+func TestPublicDistrictsListsNamesNoAuth(t *testing.T) {
+	env := newPublicAPI(t)
+	d1 := env.seedDistrict("Muang")
+	d2 := env.seedDistrict("Sankamphaeng")
+
+	districts := env.getDistricts("/api/public/districts")
+	byID := map[uint]publicapi.District{}
+	for _, d := range districts {
+		byID[d.ID] = d
+	}
+	if byID[d1.ID].Name != "Muang" {
+		t.Errorf("district %d name = %q, want Muang", d1.ID, byID[d1.ID].Name)
+	}
+	if byID[d2.ID].Name != "Sankamphaeng" {
+		t.Errorf("district %d name = %q, want Sankamphaeng", d2.ID, byID[d2.ID].Name)
+	}
+	if byID[d1.ID].Province != "Test" {
+		t.Errorf("district %d province = %q, want Test", d1.ID, byID[d1.ID].Province)
 	}
 }
 
@@ -160,6 +208,41 @@ func TestPublicRecipesHerbFilter(t *testing.T) {
 	}
 	if recipes[0].Name != "Recipe-Turmeric" {
 		t.Fatalf("expected Recipe-Turmeric, got %s", recipes[0].Name)
+	}
+}
+
+// TestPublicRecipesIncludeIngredients confirms both the recipe list and the
+// nested recipes inside a doctor detail expose herb ingredients (data model
+// §4.5): the catalog herb's Thai name for a linked HerbID, and the plain
+// pending name for a not-yet-catalogued herb.
+func TestPublicRecipesIncludeIngredients(t *testing.T) {
+	env := newPublicAPI(t)
+	dist := env.seedDistrict("D1")
+	doc := env.seedFullDoctor("Doc A", "", dist.ID, true)
+	ginger := env.seedHerb("ขิง")
+	rec := env.seedRecipe(doc.ID, "Recipe-Ing", "cold")
+	env.seedIngredient(rec.ID, ginger.ID)
+	pendingName := "ฟ้าทะลายโจร"
+	env.seedPendingIngredient(rec.ID, pendingName, "2", "ช้อน")
+
+	recipes := env.getRecipes("/api/public/recipes")
+	if len(recipes) != 1 {
+		t.Fatalf("expected 1 recipe, got %d: %+v", len(recipes), recipes)
+	}
+	names := map[string]bool{}
+	for _, ing := range recipes[0].Ingredients {
+		names[ing.HerbName] = true
+	}
+	if !names["ขิง"] {
+		t.Errorf("expected catalog herb name ขิง in ingredients, got %+v", recipes[0].Ingredients)
+	}
+	if !names[pendingName] {
+		t.Errorf("expected pending herb name %s in ingredients, got %+v", pendingName, recipes[0].Ingredients)
+	}
+
+	detail := env.get(fmt.Sprintf("/api/public/doctors/%d", doc.ID))
+	if !strings.Contains(detail.Body.String(), "ขิง") || !strings.Contains(detail.Body.String(), pendingName) {
+		t.Fatalf("doctor detail missing ingredient names: %s", detail.Body.String())
 	}
 }
 

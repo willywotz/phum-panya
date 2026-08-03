@@ -1,6 +1,8 @@
 # phum-panya — Handoff
 
-Date: 2026-08-04 · Branch: `feat/p1-launch` (53 commits ahead of `main`, **unmerged**)
+Date: 2026-08-04 · Branch: `feat/p1-launch` (70 commits ahead of `main`, **unmerged/unpushed**).
+Contains P1 + the styling pass + the dev compose stack (styling-pass and dev-compose-nginx
+branches fast-forward-merged in).
 
 ## 1. What this is
 
@@ -20,12 +22,21 @@ It ships as **one self-hosted Go binary** with the Next.js UI embedded and data 
 ## 2. Status
 
 **P1 is functionally complete and green**, built task-by-task with TDD + fresh-context
-review per task and a clean whole-branch final review.
+review per task and a clean whole-branch final review. Two follow-on passes have since landed
+on the same branch (also TDD + per-task fresh-context review):
 
-- **107 Go tests** (20 packages) + **7 Playwright e2e specs** (incl. the full SRS §6.1 UAT).
-- cgo-free single binary via `make build`; Docker image builds and runs (health, embedded
-  UI, seeded-admin login verified in-container).
-- **Not merged** to `main`; `main` == `origin/main` at the pre-build docs commit.
+- **Styling pass** — Tailwind v4 + shadcn/ui (Radix), a warm herbal theme with a light/dark
+  toggle, a real landing page, a vendored Thai font, and every shared control migrated to
+  shadcn/Radix. All offline; the single embedded binary is unchanged.
+- **Dev compose stack** — the frontend and API run as separate containers behind an nginx
+  reverse proxy for hot-reload development (`docker-compose.dev.yaml`); prod stays the single
+  binary.
+
+- **107 Go tests** (20 packages) + **9 Playwright e2e specs / 13 tests** (incl. the full SRS
+  §6.1 UAT, plus theme-toggle and landing specs).
+- cgo-free single binary via `make build`; the prod Docker image builds and runs (health,
+  embedded styled UI, vendored font, seeded-admin login verified in-container).
+- **Not merged** to `main`; `main` == `origin/main` (`03be3c4`) at the pre-build docs commit.
 
 ## 3. Stack (as built)
 
@@ -40,7 +51,9 @@ review per task and a clean whole-branch final review.
 | Images | `disintegration/imaging` — downscale ≤1600px + EXIF strip; JPEG/PNG/WebP in, JPEG out |
 | Export | `xuri/excelize` + stdlib CSV |
 | Frontend | **Next.js 15 static export** embedded via `//go:embed` (Node build-time only) |
+| UI/styling | **Tailwind CSS v4 + shadcn/ui** (Radix), warm herbal theme + **light/dark toggle** (`next-themes`), vendored **`@fontsource/noto-sans-thai`**. All offline — no CDN |
 | Config | 12/15-Factor: env vars (`config.Load`), logs to stdout, graceful shutdown |
+| Dev tooling | `docker-compose.dev.yaml`: web (`next dev` HMR) + api (`air` live-reload, Go 1.26) behind **nginx** on one origin, via **`docker compose watch`** (dev images under `deploy/dev/`) |
 
 ## 4. Repo layout
 
@@ -55,8 +68,11 @@ internal/
   media                     image store (downscale/EXIF/streaming multipart) + usage bytes
   doctor recipe caserec     staff CRUD: consent gate, own-district, audit, code linking, ingredients
   publicapi export backup   public read (consent-filtered, PDPA-safe), staff export, nightly backup
-web/                        Next.js: lib/{api,i18n,auth,crud}, components/{CrudTable,CrudForm,IngredientEditor,PhotoUpload,ExportLinks}, app/(staff|public)/*, e2e/*
-Dockerfile docker-compose.yaml .env.example
+web/                        Next.js: lib/{api,i18n,auth,crud,theme,utils}, app/globals.css (Tailwind v4 + theme tokens),
+                            components/{CrudTable,CrudForm,IngredientEditor,PhotoUpload,ExportLinks} + components/ui/* (shadcn),
+                            app/(staff|public)/*, e2e/* (+ e2e/fixtures/select.ts Radix helper)
+Dockerfile docker-compose.yaml .env.example          # prod: single embedded binary
+docker-compose.dev.yaml deploy/dev/* deploy/nginx/dev.conf .air.toml   # dev: web+api behind nginx (compose watch)
 ```
 
 ## 5. Build / run / deploy
@@ -73,6 +89,16 @@ terminates TLS itself via Let's Encrypt.
 - Host port is `${APP_HOST_PORT:-8080}` (8080 can be reserved on Windows/WSL2 — set
   `APP_HOST_PORT=18080` there).
 - All state (DB, media, backups, ACME certs) lives in the `/data` volume.
+
+**Dev stack (hot reload, split services):**
+`APP_ADMIN_PASSWORD=<pw> APP_HOST_PORT=18080 docker compose -f docker-compose.dev.yaml up --watch`
+- nginx (one origin) routes `/api` + `/media` → the Go `api` service and everything else →
+  the Next.js `web` dev server (incl. the HMR websocket). Only nginx is published.
+- Uses `docker compose watch`: edit `web/**` → synced + HMR; edit `*.go` → synced + air rebuild;
+  edit `deploy/nginx/dev.conf` → synced + nginx reload; change a lockfile / `go.mod` → image rebuild.
+- No app-code changes vs. prod — the frontend's relative `fetch('/api/...')` calls stay
+  same-origin through nginx, and the dev-mode CSRF/Origin check is a no-op.
+- This is dev-only; prod remains the single embedded binary (`docker-compose.yaml`).
 
 **Admin password** is seeded once into the volume. Change it later **in-app** (Staff → Users →
 set password), not via `APP_ADMIN_PASSWORD` (which only seeds when no admin exists). The
@@ -148,13 +174,20 @@ plain (rows still semantic `<tr>`).
 
 ## 9. Git state & next steps
 
-- Everything is on **`feat/p1-launch`** (`e31090c`), 53 commits ahead of `main`, **unmerged**,
+- Everything is on **`feat/p1-launch`** (`e005215`), **70 commits** ahead of `main`, **unmerged**,
   **unpushed**. `main` == `origin/main` at the pre-build docs commit (`03be3c4`).
-- The SDD ledger workspace was deleted after the clean final review — history lives in git
-  (`git log --oneline main..HEAD`); each commit maps to a reviewed task.
+- The branch bundles three reviewed bodies of work, each fast-forward-merged in:
+  P1 launch → **styling pass** (branch `feat/styling-pass`) → **dev compose stack** (branch
+  `feat/dev-compose-nginx`). Those two feature branches are fully contained here.
+- History lives in git (`git log --oneline main..HEAD`); each commit maps to a reviewed task.
+  The styling-pass SDD ledger is retained under `.superpowers/sdd/2026-08-04-styling-pass/`
+  (git-ignored) as the audit trail.
 
 **Immediate next steps:**
-1. Decide integration: merge `feat/p1-launch` → `main`, or open a PR.
-2. **Add the styling pass** (§8) — the one thing between "works" and "looks launch-ready".
-3. Run the SRS §6.1 UAT with the client; capture real district/scale numbers to firm up the
+1. Decide integration: merge `feat/p1-launch` → `main`, or open a PR (and whether to delete the
+   two now-merged feature branches).
+2. Run the SRS §6.1 UAT with the client; capture real district/scale numbers to firm up the
    provisional performance targets.
+3. Optional follow-ups (all non-blocking, see §8): role-based staff-nav hiding, `full_name` on
+   `/api/current-user`, ESLint config, recipe multi-photo, and — when scale calls for it — the
+   ADR-0001 SQLite→Postgres migration (a `postgres` dev service + a `db.Open` driver branch).

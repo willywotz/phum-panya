@@ -4,6 +4,7 @@
 - when task done must update `CONTEXT.md` then commit it
 - api endpoint route must full english name not short or alias
 - must strictly compliance with the 15-Factor App methodology
+- must strictly compliance with Hexagonal architecture methodology
 
 # Multi-agent workflow (opt-in)
 

@@ -370,7 +370,7 @@ here is a small script, not a DRaaS contract:
 4. **Multi-District Dashboard** (province-wide insights).
 
 ### Ongoing (Operational)
-1. **Daily Automated Backups** (DRaaS setup).
+1. **Daily Automated Backups** (cron dump + object storage).
 2. **Data Integrity Checks** (monthly).
 3. **Recovery Testing** (quarterly).
 4. **Healer Consent Agreements** (legal/admin process).

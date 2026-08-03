@@ -47,7 +47,23 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   (no MaxOpenConns(1) deadlock), `media` pkg rename, four stub tests given real assertions, embed
   placeholder tracked, single Playwright webServer, streaming multipart, consent filter on the recipe
   path. Recorded deviation: HEIC input out of P1 (needs cgo).
-- Next step: execute plan v2 (subagent-driven-development).
+- P1 build: **complete** on branch `feat/p1-launch` (49 commits, subagent-driven TDD).
+  All 33 plan tasks + a gap-remediation (public ingredients/media/districts) done; each
+  passed a fresh-context review. Suite: **107 Go tests + 11 Playwright**, cgo-free single
+  binary via `make build`; full SRS §6.1 UAT e2e passes. See `README.md` and
+  `docs/ops/restore.md`.
+  - Reviews caught and fixed real defects: login timing side-channel (account enumeration),
+    a case PUT cross-district re-parent bypass, a backup fd leak + swallowed zip-close errors,
+    and a photo-blanking-on-edit data loss (doctor + case). PDPA verified end-to-end
+    (public API/export/media never expose phone/consent/audit; consent filter on all paths).
+  - Stack as built: Gin + GORM (`glebarez/sqlite`, cgo-free) + bcrypt server-side sessions +
+    `SameSite=Strict`/Origin CSRF defense; Next.js static export embedded; Go-native TLS.
+  - 15-Factor applied in spirit (ADR-0001 deviations); API routes are full-English
+    (`/api/current-user`, not `/api/me`).
+  - Deferred polish (non-blocking, see SDD ledger): input `binding:required` tags, enum DB
+    CHECKs, role-based staff-nav hiding, `full_name` on `/api/current-user`, storage-meter
+    aria-label, ESLint config, Recipe multi-photo.
+- Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client.
 
 ## Data model (summary)
 

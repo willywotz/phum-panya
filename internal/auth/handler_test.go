@@ -159,19 +159,19 @@ func TestLogoutClearsSession(t *testing.T) {
 		t.Fatalf("logout status = %d, want 204", rec.Code)
 	}
 
-	meReq := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	meReq := httptest.NewRequest(http.MethodGet, "/api/current-user", nil)
 	meReq.AddCookie(sessionCookie)
 	meRec := httptest.NewRecorder()
 	r.ServeHTTP(meRec, meReq)
 	if meRec.Code != http.StatusUnauthorized {
-		t.Fatalf("me after logout status = %d, want 401", meRec.Code)
+		t.Fatalf("current-user after logout status = %d, want 401", meRec.Code)
 	}
 }
 
-func TestMeRequiresSession(t *testing.T) {
+func TestCurrentUserRequiresSession(t *testing.T) {
 	r, _ := newLoginRouter(t, 5)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/me", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/current-user", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {

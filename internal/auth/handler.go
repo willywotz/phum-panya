@@ -22,11 +22,11 @@ type loginRequest struct {
 // wrong password, preventing account enumeration via response timing.
 const dummyHash = "$2a$12$NvMgpYk902bQzaPhuRHRNukvkV2aF7/XOwd5wvua3z5dkgbgdi4Lq"
 
-// RegisterRoutes wires the login, logout, and me endpoints onto r.
+// RegisterRoutes wires the login, logout, and current-user endpoints onto r.
 func RegisterRoutes(r gin.IRouter, g *gorm.DB, store *SessionStore, th *Throttle, secure bool) {
 	r.POST("/api/login", loginHandler(g, store, th, secure))
 	r.POST("/api/logout", logoutHandler(store))
-	r.GET("/api/me", LoadUser(store, g), meHandler)
+	r.GET("/api/current-user", LoadUser(store, g), currentUserHandler)
 }
 
 func loginHandler(g *gorm.DB, store *SessionStore, th *Throttle, secure bool) gin.HandlerFunc {
@@ -85,7 +85,7 @@ func logoutHandler(store *SessionStore) gin.HandlerFunc {
 	}
 }
 
-func meHandler(c *gin.Context) {
+func currentUserHandler(c *gin.Context) {
 	user, ok := UserFrom(c)
 	if !ok {
 		httpx.Err(c, http.StatusUnauthorized, "unauthorized", "authentication required")

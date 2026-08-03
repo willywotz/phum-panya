@@ -53,3 +53,29 @@ is tiny (one editor per district), so SQLite is enough for a long time.
   sqlite`) pulls cgo `mattn/go-sqlite3`, which would break the static single
   binary. We use `github.com/glebarez/sqlite` (pure Go) and require
   `CGO_ENABLED=0 go build` to succeed.
+
+## 15-Factor App compliance
+
+The project rule is to follow the 15-Factor App methodology. We apply it **in
+the spirit that fits a single self-hosted binary**, not by re-architecting into
+stateless processes with attached network services (which the non-IT owner and
+one small VPS cannot support).
+
+We adopt: config from the environment (`config.Load`), logs to stdout, port
+binding (the binary owns its listener via autocert), graceful shutdown /
+disposability, dev-prod parity through the same binary and env vars, an
+API-first JSON layer, and explicit authn/authz.
+
+Documented deviations (deliberate, for cost and simplicity — not oversights):
+
+- **Embedded SQLite** instead of an attached database service. Portable through
+  GORM; the move to a PostgreSQL service stays the P5 trigger.
+- **Local media directory** instead of object storage. Backup captures it.
+- **In-memory login throttle** — process-local state; it resets on restart and
+  does not share across instances. Acceptable because the app runs as one
+  instance by design.
+- **Local nightly backup zips** on the same host; off-site copy is the owner's
+  job.
+
+If the app ever needs horizontal scaling, these four are the items to move to
+backing services first.

@@ -33,7 +33,14 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   session login with admin-managed resets (no SMTP); server-side image downscale + EXIF strip,
   no input cap; nightly single-zip backup (DB + images) + restore docs; print/PDF public page
   + staff-only bulk export; best-effort availability (no SLA); WCAG 2.1 AA basics.
-- Next step: write the implementation plan (writing-plans skill).
+- P1 implementation plan: written. See `docs/superpowers/plans/2026-08-03-p1-launch.md`.
+  One monolithic P1 plan, 33 TDD tasks in 8 parts (foundation → schema → auth → users/districts/herbs
+  → doctor/recipe/case → public/export/backup → Next.js frontend → UAT). Each task is test-first with
+  real Go/TS code. In-stack choices locked: `modernc.org/sqlite` (cgo-free), stdlib `net/http` ServeMux,
+  `autocert` TLS, `disintegration/imaging`, `xuri/excelize`; Next.js 15 static export embedded via
+  `embed.FS`. Generic repo + config-driven CRUD components keep the six entities DRY. Self-review maps
+  every SRS P1 requirement to a task. Recorded deviation: HEIC input out of P1 (needs cgo).
+- Next step: execute the plan (subagent-driven-development or executing-plans).
 
 ## Data model (summary)
 

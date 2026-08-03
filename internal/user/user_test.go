@@ -23,10 +23,15 @@ import (
 type userAPI struct {
 	g          *gorm.DB
 	engine     *gin.Engine
+	store      *auth.SessionStore
 	adminToken string
 }
 
 func (env *userAPI) do(method, path, body string) *httptest.ResponseRecorder {
+	return env.doAs(env.adminToken, method, path, body)
+}
+
+func (env *userAPI) doAs(token, method, path, body string) *httptest.ResponseRecorder {
 	var r *http.Request
 	if body == "" {
 		r = httptest.NewRequest(method, path, nil)
@@ -34,7 +39,7 @@ func (env *userAPI) do(method, path, body string) *httptest.ResponseRecorder {
 		r = httptest.NewRequest(method, path, strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
 	}
-	r.AddCookie(&http.Cookie{Name: "session", Value: env.adminToken})
+	r.AddCookie(&http.Cookie{Name: "session", Value: token})
 	rec := httptest.NewRecorder()
 	env.engine.ServeHTTP(rec, r)
 	return rec
@@ -78,7 +83,26 @@ func newUserAPI(t *testing.T) *userAPI {
 	engine.Use(auth.LoadUser(store, g))
 	user.RegisterRoutes(engine, user.NewRepo(g))
 
-	return &userAPI{g: g, engine: engine, adminToken: adminToken}
+	return &userAPI{g: g, engine: engine, store: store, adminToken: adminToken}
+}
+
+// newEditorSession seeds a district_editor for districtID and returns a
+// session token for them, built the same way newUserAPI builds the admin's.
+func (env *userAPI) newEditorSession(t *testing.T, districtID uint) string {
+	t.Helper()
+	active := true
+	editor := model.User{
+		FullName: "Editor", Email: "editor@x", PasswordHash: "hash",
+		Role: "district_editor", DistrictID: &districtID, Active: &active,
+	}
+	if err := env.g.Create(&editor).Error; err != nil {
+		t.Fatalf("create editor: %v", err)
+	}
+	token, err := env.store.Create(editor.ID)
+	if err != nil {
+		t.Fatalf("create editor session: %v", err)
+	}
+	return token
 }
 
 func TestUserResponseHidesHash(t *testing.T) {
@@ -133,5 +157,31 @@ func TestSetActivePersistsFalse(t *testing.T) {
 	}
 	if u.Active == nil || *u.Active {
 		t.Fatalf("Active = %v, want false", u.Active)
+	}
+}
+
+func TestSetActiveMissingIDReturns404(t *testing.T) {
+	env := newUserAPI(t)
+	res := env.do("POST", "/api/users/999/active", `{"active":false}`)
+	if res.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404, body = %s", res.Code, res.Body.String())
+	}
+}
+
+func TestSetPasswordMissingIDReturns404(t *testing.T) {
+	env := newUserAPI(t)
+	res := env.do("POST", "/api/users/999/password", `{"password":"abcdefgh"}`)
+	if res.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404, body = %s", res.Code, res.Body.String())
+	}
+}
+
+func TestListRequiresCentralAdmin(t *testing.T) {
+	env := newUserAPI(t)
+	editorToken := env.newEditorSession(t, 1)
+
+	res := env.doAs(editorToken, "GET", "/api/users", "")
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403, body = %s", res.Code, res.Body.String())
 	}
 }

@@ -55,12 +55,28 @@ func (r *Repo) Update(u *model.User) error {
 
 // SetActive sets the active flag for the user with id. A column update is
 // used because Active is a *bool: a struct Save would treat a false value
-// the same as an unset zero value and drop it.
+// the same as an unset zero value and drop it. It returns
+// gorm.ErrRecordNotFound if no user with id exists.
 func (r *Repo) SetActive(id uint, active bool) error {
-	return r.g.Model(&model.User{}).Where("id = ?", id).Update("active", active).Error
+	res := r.g.Model(&model.User{}).Where("id = ?", id).Update("active", active)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
-// SetPassword sets the password hash for the user with id.
+// SetPassword sets the password hash for the user with id. It returns
+// gorm.ErrRecordNotFound if no user with id exists.
 func (r *Repo) SetPassword(id uint, hash string) error {
-	return r.g.Model(&model.User{}).Where("id = ?", id).Update("password_hash", hash).Error
+	res := r.g.Model(&model.User{}).Where("id = ?", id).Update("password_hash", hash)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

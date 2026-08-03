@@ -118,7 +118,12 @@ test('staff flow: editor creates doctor, recipe, and case; admin reconciles a pe
   await pendingSelect.selectOption({ label: pendingHerbName });
   await page.getByLabel('จับคู่กับสมุนไพร').selectOption({ label: herbName });
   await page.getByRole('button', { name: 'จับคู่' }).click();
-  await expect(page.getByLabel('ชื่อสมุนไพรที่รอตรวจสอบ')).toHaveCount(0);
+  // The pending-herb select is a global list across every district editor's
+  // still-unreconciled herbs, so assert only this test's herb is gone from
+  // it (another spec's pending herb may legitimately still be there).
+  await expect(
+    page.getByLabel('ชื่อสมุนไพรที่รอตรวจสอบ').locator('option', { hasText: pendingHerbName }),
+  ).toHaveCount(0);
 
   // Editor: add a case under the recipe.
   await logout(page);

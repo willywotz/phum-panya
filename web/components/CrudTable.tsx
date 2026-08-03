@@ -8,6 +8,7 @@ import {
   type CrudRow,
   type FieldSpec,
   type ResourceSpec,
+  resourceUrl,
   rowId,
   rowValue,
 } from '@/lib/crud';
@@ -68,7 +69,7 @@ export function CrudTable({ spec, newDefaults, formExtra }: CrudTableProps) {
   };
 
   const handleDelete = async (row: CrudRow) => {
-    await api.send('DELETE', `${spec.basePath}/${rowId(row)}`);
+    await api.send('DELETE', resourceUrl(spec.basePath, rowId(row)));
     setConfirmingId(null);
     await refresh();
   };

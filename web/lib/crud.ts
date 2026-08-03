@@ -56,3 +56,11 @@ export function rowId(row: CrudRow): number {
 export function rowValue(row: CrudRow, name: string): unknown {
   return name in row ? row[name] : row[pascalCase(name)];
 }
+
+// resourceUrl builds an id-suffixed URL (for PUT/DELETE) from basePath.
+// basePath may carry a list-scoping query string (e.g. a district filter
+// used for GET); that query string must not leak into the id-suffixed URL,
+// so it is stripped before appending /id.
+export function resourceUrl(basePath: string, id: number): string {
+  return `${basePath.split('?')[0]}/${id}`;
+}

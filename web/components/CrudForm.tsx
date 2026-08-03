@@ -8,6 +8,7 @@ import {
   type FieldOption,
   type FieldSpec,
   type ResourceSpec,
+  resourceUrl,
   rowValue,
 } from '@/lib/crud';
 import { useT } from '@/lib/i18n';
@@ -92,7 +93,7 @@ export function CrudForm({ spec, id, initial, onDone, onCancel, formExtra }: Cru
       const response =
         id === undefined
           ? await api.send<CrudRow>('POST', spec.basePath, body)
-          : await api.send<CrudRow>('PUT', `${spec.basePath}/${id}`, body);
+          : await api.send<CrudRow>('PUT', resourceUrl(spec.basePath, id), body);
       onDone(response?.mismatch === true);
     } finally {
       setSubmitting(false);

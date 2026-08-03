@@ -1,0 +1,30 @@
+# Build artifacts and local state — keep the build context small and reproducible.
+.git
+.gitignore
+/server
+/data
+*.db
+*.db-*
+
+# Node / Next.js build output (rebuilt inside the image)
+web/node_modules
+web/out
+web/.next
+web/test-results
+web/playwright-report
+*.tsbuildinfo
+
+# Go embed placeholder is replaced by the fresh web build in the image
+internal/webui/dist
+
+# Docs, plans, and orchestration scratch — not needed to build the binary
+.superpowers
+.claude
+docs
+messages.txt
+README.md
+
+# The compose/Docker files themselves
+docker-compose.yaml
+Dockerfile
+.dockerignore

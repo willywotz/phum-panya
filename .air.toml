@@ -1,0 +1,20 @@
+# air live-reload config for the dev api container (docker-compose.dev.yaml).
+# Rebuilds ./cmd/server on any *.go change. Builds into /tmp/air (container-only)
+# so the bind-mounted host repo stays clean.
+
+root = "."
+tmp_dir = "/tmp/air"
+
+[build]
+cmd = "go build -o /tmp/air/main ./cmd/server"
+bin = "/tmp/air/main"
+include_ext = ["go"]
+# Watch only Go source; skip the frontend, embedded UI, tests, and scratch dirs.
+exclude_dir = ["web", "internal/webui/dist", "docs", ".git", ".superpowers", "tmp", "data"]
+exclude_regex = ["_test\\.go"]
+# Poll the filesystem — bind mounts on WSL2/Docker miss inotify events.
+poll = true
+delay = 500
+
+[misc]
+clean_on_exit = true

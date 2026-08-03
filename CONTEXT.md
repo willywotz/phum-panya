@@ -47,7 +47,84 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   (no MaxOpenConns(1) deadlock), `media` pkg rename, four stub tests given real assertions, embed
   placeholder tracked, single Playwright webServer, streaming multipart, consent filter on the recipe
   path. Recorded deviation: HEIC input out of P1 (needs cgo).
-- Next step: execute plan v2 (subagent-driven-development).
+- P1 build: **complete** on branch `feat/p1-launch` (49 commits, subagent-driven TDD).
+  All 33 plan tasks + a gap-remediation (public ingredients/media/districts) done; each
+  passed a fresh-context review. Suite: **107 Go tests + 11 Playwright**, cgo-free single
+  binary via `make build`; full SRS §6.1 UAT e2e passes. See `README.md` and
+  `docs/ops/restore.md`.
+  - Reviews caught and fixed real defects: login timing side-channel (account enumeration),
+    a case PUT cross-district re-parent bypass, a backup fd leak + swallowed zip-close errors,
+    and a photo-blanking-on-edit data loss (doctor + case). PDPA verified end-to-end
+    (public API/export/media never expose phone/consent/audit; consent filter on all paths).
+  - Stack as built: Gin + GORM (`glebarez/sqlite`, cgo-free) + bcrypt server-side sessions +
+    `SameSite=Strict`/Origin CSRF defense; Next.js static export embedded; Go-native TLS.
+  - 15-Factor applied in spirit (ADR-0001 deviations); API routes are full-English
+    (`/api/current-user`, not `/api/me`).
+  - Deferred polish (non-blocking, see SDD ledger): input `binding:required` tags, enum DB
+    CHECKs, role-based staff-nav hiding, `full_name` on `/api/current-user`,
+    ESLint config, Recipe multi-photo. (storage-meter aria-label: closed in styling pass.)
+- Containerized: `Dockerfile` (multi-stage: Node builds the Next.js export → Go embeds it →
+  cgo-free static binary on alpine + ca-certificates) + `docker-compose.yaml` (one `app`
+  service, `/data` volume for DB/media/backups/certs, required `APP_ADMIN_PASSWORD`, dev
+  plain-HTTP:8080 by default, commented prod TLS on 80/443). Image builds and runs; health,
+  embedded UI, and seeded-admin login verified in-container.
+- Styling pass: **complete** on branch `feat/styling-pass` (off `feat/p1-launch`, 8 TDD tasks,
+  subagent-driven build→verify). Adds **Tailwind CSS v4 + shadcn/ui** (Radix), a **warm herbal
+  theme** with a **light/dark toggle** (`next-themes`), a real **landing page** (hero + browse
+  cards), and a **vendored Thai font** (`@fontsource/sarabun`, weights 300/500/700; body 300,
+  titles 500) — no CDN, so the single
+  cgo-free binary and static export are unchanged. Shared `CrudForm`/`CrudTable`/`IngredientEditor`
+  now use shadcn controls: single-selects are Radix `Select`, the add/edit form is a modal `Dialog`,
+  delete is an `AlertDialog`; the e2e specs moved to role-based drivers (`selectByName` combobox
+  helper, `alertdialog`). Gate green: no-CDN grep clean, `web/out/` builds, **107 Go tests**,
+  **13 Playwright specs**, `tsc` clean; print rule (`.no-print` nav) kept. See
+  `docs/superpowers/plans/2026-08-04-styling-pass.md`.
+  - Follow-up done: the four hand-rolled staff pages (`cases`, `herbs`/ReconcilePanel, `doctors`,
+    `recipes`) were fully migrated too — all 11 remaining native `<select>` became Radix `Select`
+    and their raw inputs/buttons became shadcn. Only the doctor `specialty` `<select multiple>`
+    stays native (Radix has no multiselect). No native single-select `<select>` remains in the app.
+- Dev stack (branch `feat/dev-compose-nginx`, off `feat/p1-launch`): `docker-compose.dev.yaml`
+  runs the frontend and API as **separate** containers behind an **nginx** reverse proxy on one
+  origin — `nginx` (`nginx:alpine`) routes `/api` + `/media` → Go `api` service, everything else
+  → Next.js `web` (`next dev`, HMR). Uses **`docker compose watch`** (not bind mounts): each
+  service builds from a small dev image under `deploy/dev/` (source + deps baked in) and
+  `develop.watch` syncs later changes — `sync` for source, `rebuild` on lockfile/go.mod change,
+  `sync+restart` for the nginx conf. Hot reload both sides: `web` = `next dev`
+  (`WATCHPACK_POLLING`); `api` = `air` live-reload (v1.67.4) on `golang:1.26-alpine`. Only nginx
+  is published (`${APP_HOST_PORT:-8080}:80`). No app-code changes — the frontend's relative
+  `fetch('/api/...')` + the dev-mode no-op CSRF check make same-origin proxying work as-is.
+  Prod (single embedded binary, `docker-compose.yaml`) is untouched. Smoke-tested end-to-end:
+  health, landing, HMR websocket 101, auth 401 all via nginx, plus live `watch` sync verified
+  (web file synced ~2s, Go edit synced + air rebuilt). Run with `make dev`
+  (=`docker compose -f docker-compose.dev.yaml up -w --build --force-recreate`). See
+  `docs/superpowers/specs/2026-08-04-dev-compose-nginx-design.md`.
+- Go bump (branch `chore/bump-go-1.26`): `go.mod` `go 1.25.0` → `go 1.26.0` and the prod
+  `Dockerfile` build stage `golang:1.25-alpine` → `golang:1.26-alpine` (matches the dev API
+  image). Build and all **107 Go tests** stay green.
+- Font change (branch `feat/font-sarabun`, off `feat/p1-launch`): swapped the vendored Thai font
+  from Noto Sans Thai to **Sarabun** (`@fontsource/sarabun`, weights 300/500/700). Base `body`
+  now weight **300** (`font-light`); `h1`/`h2` now weight **500** (`font-medium`). Still no CDN
+  (Thai subset bundled). Gate: `tsc` clean, `web/out/` builds, Sarabun woff2 in output, no stray
+  Noto refs.
+- CI/CD (branch `chore/ci`): added `.github/workflows/ci.yml` (GitHub Actions). On push
+  (`main`, `feat/**`) + PR to `main`, three jobs run every gate — **go** (`go build`/`go test`),
+  **web** (`tsc` + static export), **e2e** (Playwright drives the real binary via the config's
+  `make build` webServer). A **release** job on `v*` tags builds the cgo-free binary and attaches
+  it to a GitHub Release; deploy stays manual. No CD to the VPS yet.
+- Windows service + MSI (branch `feat/windows-service-msi`): the binary now runs under the host
+  service manager via **kardianos/service** (`internal/svc`) — subcommands `service
+  install|uninstall|start|stop|restart` (Windows SCM / Linux systemd / macOS launchd). `httpx.Serve`
+  refactored to `ServeContext(ctx,…)` so the supervisor can stop it. `service install` takes
+  `--admin-email/--admin-password/--domain` and bakes them into the service env; data lives under
+  `%ProgramData%\phum-panya` (Windows) or `/var/lib/phum-panya`. Makefile `build-release`
+  cross-compiles `bin/server-linux-amd64` + `bin/server.exe` (cgo-free). A WiX v5 installer
+  (`deploy/windows/phum-panya.{wxs,wixproj}`) collects admin email/password/domain in a wizard page
+  and registers+starts the service on install, stops+removes on uninstall. CI gains a **windows**
+  job (build exe+msi, silent install/query/uninstall smoke test) and the **release** job now
+  attaches the linux binary + `.exe` + `.msi` on `v*` tags. 113 Go tests green.
+- Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client. The
+  styling pass sits on top of `feat/p1-launch` — decide merge order (styling → p1-launch → main,
+  or fold together). The dev-compose branch is a small independent add-on on top.
 
 ## Data model (summary)
 

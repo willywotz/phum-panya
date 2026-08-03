@@ -1,0 +1,7 @@
+/* Hides navigation and interactive controls on print / Save-as-PDF so a
+   healer's page (FR-PRINT-1) prints cleanly. */
+@media print {
+  .no-print {
+    display: none;
+  }
+}

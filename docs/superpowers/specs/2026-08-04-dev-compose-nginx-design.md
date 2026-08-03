@@ -50,7 +50,7 @@ Each service starts from a dev image with its source + deps baked in, and
 `develop.watch` syncs later host changes into the running container. This avoids
 bind-mount pitfalls (host `node_modules` shadowing the container install, flaky
 inotify over mounts) and keeps the container filesystem self-contained. Run with
-`docker compose -f docker-compose.dev.yaml up --watch`.
+`make dev` (= `docker compose -f docker-compose.dev.yaml up -w --build --force-recreate`).
 
 ### nginx (`deploy/dev/nginx.Dockerfile`, `deploy/nginx/dev.conf`)
 - `nginx:alpine`; the conf is baked into the image and published `${APP_HOST_PORT:-8080}:80`.
@@ -98,8 +98,7 @@ inotify over mounts) and keeps the container filesystem self-contained. Run with
 
 ## Verification
 
-`APP_ADMIN_PASSWORD=… docker compose -f docker-compose.dev.yaml up --watch`, then,
-through nginx on one origin:
+`APP_ADMIN_PASSWORD=… make dev`, then, through nginx on one origin:
 - `GET /` returns the Next.js dev landing page.
 - `GET /api/health` returns `{"status":"ok"}` from the Go service.
 - editing a `web/**` file syncs and hot-reloads; editing a `*.go` file syncs and

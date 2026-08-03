@@ -16,6 +16,12 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
+// dummyHash is a precomputed bcrypt hash (cost 12) of an unused value. It is
+// compared against on every failed lookup so that a login with an unknown or
+// inactive email costs the same bcrypt work as a login with a known email and
+// wrong password, preventing account enumeration via response timing.
+const dummyHash = "$2a$12$NvMgpYk902bQzaPhuRHRNukvkV2aF7/XOwd5wvua3z5dkgbgdi4Lq"
+
 // RegisterRoutes wires the login, logout, and me endpoints onto r.
 func RegisterRoutes(r gin.IRouter, g *gorm.DB, store *SessionStore, th *Throttle, secure bool) {
 	r.POST("/api/login", loginHandler(g, store, th, secure))
@@ -39,7 +45,11 @@ func loginHandler(g *gorm.DB, store *SessionStore, th *Throttle, secure bool) gi
 
 		var user model.User
 		err := g.Where("email = ? AND active = ?", req.Email, true).First(&user).Error
-		if err != nil || !CheckPassword(user.PasswordHash, req.Password) {
+		hash := dummyHash
+		if err == nil {
+			hash = user.PasswordHash
+		}
+		if err != nil || !CheckPassword(hash, req.Password) {
 			th.Fail(key)
 			httpx.Err(c, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
 			return

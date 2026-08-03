@@ -14,7 +14,7 @@ test('crud table adds, edits, and deletes a district', async ({ page }) => {
   const province = 'E2E Province';
 
   await login(page);
-  await page.goto('/crud-demo');
+  await page.goto('/staff/districts');
 
   // Add.
   await page.getByRole('button', { name: 'เพิ่ม' }).click();

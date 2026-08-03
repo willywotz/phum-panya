@@ -23,7 +23,15 @@ function labelKeyFor(fields: FieldSpec[], name: string): string {
   return fields.find((field) => field.name === name)?.labelKey ?? name;
 }
 
-export function CrudTable({ spec }: { spec: ResourceSpec }) {
+export interface CrudTableProps {
+  spec: ResourceSpec;
+  // Prefilled values for a new row (e.g. the currently selected district).
+  newDefaults?: CrudRow;
+  // Extra content (e.g. a photo upload widget) shown once a row exists.
+  formExtra?: (id: number) => React.ReactNode;
+}
+
+export function CrudTable({ spec, newDefaults, formExtra }: CrudTableProps) {
   const t = useT();
   const [rows, setRows] = useState<CrudRow[]>([]);
   const [editing, setEditing] = useState<CrudRow | 'new' | null>(null);
@@ -79,9 +87,10 @@ export function CrudTable({ spec }: { spec: ResourceSpec }) {
         <CrudForm
           spec={spec}
           id={editing === 'new' ? undefined : rowId(editing)}
-          initial={editing === 'new' ? undefined : editing}
+          initial={editing === 'new' ? newDefaults : editing}
           onDone={handleDone}
           onCancel={closeForm}
+          formExtra={formExtra}
         />
       )}
       <table>

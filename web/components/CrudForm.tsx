@@ -5,6 +5,7 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import {
   type CrudRow,
+  type FieldOption,
   type FieldSpec,
   type ResourceSpec,
   rowValue,
@@ -17,6 +18,18 @@ export interface CrudFormProps {
   initial?: CrudRow;
   onDone: (mismatch: boolean) => void;
   onCancel: () => void;
+  // Extra content (e.g. a photo upload widget) shown below the fields, only
+  // once a row exists to attach it to.
+  formExtra?: (id: number) => React.ReactNode;
+}
+
+// Fields hidden once a row already exists (e.g. a create-only password).
+function visibleFields(fields: FieldSpec[], editing: boolean): FieldSpec[] {
+  return fields.filter((field) => !(field.createOnly && editing));
+}
+
+function toDateInputValue(raw: unknown): string {
+  return typeof raw === 'string' ? raw.slice(0, 10) : '';
 }
 
 function initialValues(fields: FieldSpec[], initial?: CrudRow): CrudRow {
@@ -27,6 +40,8 @@ function initialValues(fields: FieldSpec[], initial?: CrudRow): CrudRow {
       values[field.name] = Boolean(raw);
     } else if (field.type === 'multiselect') {
       values[field.name] = Array.isArray(raw) ? raw : [];
+    } else if (field.type === 'date') {
+      values[field.name] = toDateInputValue(raw);
     } else {
       values[field.name] = raw ?? '';
     }
@@ -34,20 +49,28 @@ function initialValues(fields: FieldSpec[], initial?: CrudRow): CrudRow {
   return values;
 }
 
+// Builds the JSON request body: numbers and numeric-tagged selects become
+// Number (blank optional ones are omitted), and date inputs (YYYY-MM-DD)
+// become full timestamps or null.
 function toRequestBody(fields: FieldSpec[], values: CrudRow): CrudRow {
   const body: CrudRow = {};
   for (const field of fields) {
-    body[field.name] =
-      field.type === 'number' ? Number(values[field.name]) : values[field.name];
+    const raw = values[field.name];
+    if (field.type === 'number' || field.numeric) {
+      body[field.name] = raw === '' ? undefined : Number(raw);
+    } else if (field.type === 'date') {
+      body[field.name] = raw ? new Date(String(raw)).toISOString() : null;
+    } else {
+      body[field.name] = raw;
+    }
   }
   return body;
 }
 
-export function CrudForm({ spec, id, initial, onDone, onCancel }: CrudFormProps) {
+export function CrudForm({ spec, id, initial, onDone, onCancel, formExtra }: CrudFormProps) {
   const t = useT();
-  const [values, setValues] = useState<CrudRow>(() =>
-    initialValues(spec.fields, initial),
-  );
+  const fields = visibleFields(spec.fields, id !== undefined);
+  const [values, setValues] = useState<CrudRow>(() => initialValues(fields, initial));
   const [submitting, setSubmitting] = useState(false);
   const firstFieldRef = useRef<HTMLElement | null>(null);
 
@@ -65,7 +88,7 @@ export function CrudForm({ spec, id, initial, onDone, onCancel }: CrudFormProps)
     event.preventDefault();
     setSubmitting(true);
     try {
-      const body = toRequestBody(spec.fields, values);
+      const body = toRequestBody(fields, values);
       const response =
         id === undefined
           ? await api.send<CrudRow>('POST', spec.basePath, body)
@@ -78,7 +101,7 @@ export function CrudForm({ spec, id, initial, onDone, onCancel }: CrudFormProps)
 
   return (
     <form onSubmit={handleSubmit}>
-      {spec.fields.map((field, index) => (
+      {fields.map((field, index) => (
         <div key={field.name}>
           <label htmlFor={field.name}>{t(field.labelKey)}</label>
           {renderInput(
@@ -90,6 +113,7 @@ export function CrudForm({ spec, id, initial, onDone, onCancel }: CrudFormProps)
           )}
         </div>
       ))}
+      {id !== undefined && formExtra?.(id)}
       <button type="submit" disabled={submitting}>
         {t('save')}
       </button>
@@ -98,6 +122,10 @@ export function CrudForm({ spec, id, initial, onDone, onCancel }: CrudFormProps)
       </button>
     </form>
   );
+}
+
+function optionLabel(option: FieldOption, t: (key: string) => string): string {
+  return option.label ?? (option.labelKey ? t(option.labelKey) : option.value);
 }
 
 function renderInput(
@@ -130,6 +158,28 @@ function renderInput(
           onChange={(event) => setField(name, event.target.checked)}
         />
       );
+    case 'date':
+      return (
+        <input
+          id={name}
+          type="date"
+          ref={autoFocusRef}
+          value={String(values[name] ?? '')}
+          required={required}
+          onChange={(event) => setField(name, event.target.value)}
+        />
+      );
+    case 'password':
+      return (
+        <input
+          id={name}
+          type="password"
+          ref={autoFocusRef}
+          value={String(values[name] ?? '')}
+          required={required}
+          onChange={(event) => setField(name, event.target.value)}
+        />
+      );
     case 'select':
       return (
         <select
@@ -142,7 +192,7 @@ function renderInput(
           <option value="" />
           {options?.map((option) => (
             <option key={option.value} value={option.value}>
-              {t(option.labelKey)}
+              {optionLabel(option, t)}
             </option>
           ))}
         </select>
@@ -164,7 +214,7 @@ function renderInput(
         >
           {options?.map((option) => (
             <option key={option.value} value={option.value}>
-              {t(option.labelKey)}
+              {optionLabel(option, t)}
             </option>
           ))}
         </select>

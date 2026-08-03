@@ -3,10 +3,10 @@
 import { useRouter } from 'next/navigation';
 
 import { api } from '@/lib/api';
-import { RequireStaff, useMe } from '@/lib/auth';
+import { useMe } from '@/lib/auth';
 import { useT } from '@/lib/i18n';
 
-function StaffDashboard() {
+export default function StaffPage() {
   const router = useRouter();
   const t = useT();
   const { me } = useMe();
@@ -24,13 +24,5 @@ function StaffDashboard() {
         {t('logOut')}
       </button>
     </main>
-  );
-}
-
-export default function StaffPage() {
-  return (
-    <RequireStaff>
-      <StaffDashboard />
-    </RequireStaff>
   );
 }

@@ -41,33 +41,43 @@ true same-origin integration test of the API contract and auth behavior.
 
 ## Components
 
-New file `docker-compose.dev.yaml` with three services; prod
-`docker-compose.yaml` is untouched.
+New file `docker-compose.dev.yaml` with three services, each built from a small
+dev image under `deploy/dev/`; prod `docker-compose.yaml` is untouched.
 
-### nginx (`deploy/nginx/dev.conf`)
-- `nginx:1.27-alpine`, conf bind-mounted read-only, published `${APP_HOST_PORT:-8080}:80`.
+### Reload mechanism: `docker compose watch` (not bind mounts)
+
+Each service starts from a dev image with its source + deps baked in, and
+`develop.watch` syncs later host changes into the running container. This avoids
+bind-mount pitfalls (host `node_modules` shadowing the container install, flaky
+inotify over mounts) and keeps the container filesystem self-contained. Run with
+`docker compose -f docker-compose.dev.yaml up --watch`.
+
+### nginx (`deploy/dev/nginx.Dockerfile`, `deploy/nginx/dev.conf`)
+- `nginx:alpine`; the conf is baked into the image and published `${APP_HOST_PORT:-8080}:80`.
 - `location /api/` and `location /media/` → `http://api:8080` (full URI preserved).
 - `location /` → `http://web:3000`, with `Upgrade`/`Connection` set so the
   `/_next/webpack-hmr` WebSocket tunnels through for hot-module-reload.
+- watch: `sync+restart` on `deploy/nginx/dev.conf` reloads the proxy on edit.
 
-### api (Go)
-- `golang:1.25-alpine`, repo bind-mounted at `/app`.
-- Installs pinned **air `v1.67.0`** (newest release compatible with the project's
-  Go 1.25; v1.67.4+ requires Go 1.26) into the cached `/go` volume (only if absent),
-  then runs `air -c .air.toml`, which rebuilds `./cmd/server` on any `*.go` change.
+### api (`deploy/dev/api.Dockerfile`)
+- `golang:1.26-alpine`, with **air `v1.67.4`** (latest) and Go modules baked in.
+  `air -c .air.toml` rebuilds `./cmd/server` on any synced `*.go` change.
+- The image recreates the `internal/webui/dist` embed placeholder (`.dockerignore`
+  drops it) so `//go:embed all:dist` compiles; nginx serves pages, not Go.
 - Env: `APP_DEV=1`, `APP_HTTP_ADDR=:8080`, admin bootstrap
-  (`APP_ADMIN_EMAIL`/`APP_ADMIN_PASSWORD`), `/data` paths, `GOCACHE=/go/.cache`.
-- Volumes: repo source, named `dev-go-cache` (`/go`, module + build cache), named
-  `dev-data` (`/data`: SQLite DB, media, backups). Air builds to `/tmp/air`
-  (container-only) so the host repo stays clean.
+  (`APP_ADMIN_EMAIL`/`APP_ADMIN_PASSWORD`), `/data` paths.
+- Volumes (state, not source): `dev-go-cache` (`/root/.cache/go-build`, fast
+  rebuilds), `dev-data` (`/data`: SQLite DB, media, backups). Air builds to
+  `/tmp/air` (container-only).
+- watch: `sync` the repo (ignoring `web/`, `.git`, docs, data, `*.db`) into `/app`;
+  `rebuild` on `go.mod` change (fresh `go mod download`).
 
-### web (Next.js)
-- `node:24-alpine`, `./web` bind-mounted, with named volumes shadowing
-  `/app/web/node_modules` and `/app/web/.next` so the host does not clobber the
-  container install.
-- Installs deps once (`npm ci` if `node_modules/.bin/next` is missing), then runs
+### web (`deploy/dev/web.Dockerfile`)
+- `node:24-alpine`, with `node_modules` baked in (`npm ci`), runs
   `next dev -H 0.0.0.0 -p 3000`.
-- `WATCHPACK_POLLING=true` for reliable HMR over bind mounts on WSL2/Docker.
+- `WATCHPACK_POLLING=true` for reliable HMR over the synced filesystem.
+- watch: `sync` `./web` → `/app/web` (ignoring `node_modules/`, `.next/`);
+  `rebuild` on `web/package-lock.json` change (fresh `npm ci`).
 
 ## Data flow
 
@@ -88,11 +98,12 @@ New file `docker-compose.dev.yaml` with three services; prod
 
 ## Verification
 
-`APP_ADMIN_PASSWORD=… docker compose -f docker-compose.dev.yaml up`, then, through
-nginx on one origin:
+`APP_ADMIN_PASSWORD=… docker compose -f docker-compose.dev.yaml up --watch`, then,
+through nginx on one origin:
 - `GET /` returns the Next.js dev landing page.
 - `GET /api/health` returns `{"status":"ok"}` from the Go service.
-- editing a `web/**` file hot-reloads; editing a `*.go` file triggers an air rebuild.
+- editing a `web/**` file syncs and hot-reloads; editing a `*.go` file syncs and
+  triggers an air rebuild.
 
 ## Out of scope
 

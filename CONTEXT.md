@@ -84,13 +84,17 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
     stays native (Radix has no multiselect). No native single-select `<select>` remains in the app.
 - Dev stack (branch `feat/dev-compose-nginx`, off `feat/p1-launch`): `docker-compose.dev.yaml`
   runs the frontend and API as **separate** containers behind an **nginx** reverse proxy on one
-  origin — `nginx` routes `/api` + `/media` → Go `api` service, everything else → Next.js `web`
-  (`next dev`, HMR). Hot reload both sides: `web` = `next dev` with `WATCHPACK_POLLING`; `api` =
-  `air` live-reload (pinned v1.67.0, the newest air compatible with Go 1.25). Only nginx is
-  published (`${APP_HOST_PORT:-8080}:80`). No app-code changes — the frontend's relative
+  origin — `nginx` (`nginx:alpine`) routes `/api` + `/media` → Go `api` service, everything else
+  → Next.js `web` (`next dev`, HMR). Uses **`docker compose watch`** (not bind mounts): each
+  service builds from a small dev image under `deploy/dev/` (source + deps baked in) and
+  `develop.watch` syncs later changes — `sync` for source, `rebuild` on lockfile/go.mod change,
+  `sync+restart` for the nginx conf. Hot reload both sides: `web` = `next dev`
+  (`WATCHPACK_POLLING`); `api` = `air` live-reload (v1.67.4) on `golang:1.26-alpine`. Only nginx
+  is published (`${APP_HOST_PORT:-8080}:80`). No app-code changes — the frontend's relative
   `fetch('/api/...')` + the dev-mode no-op CSRF check make same-origin proxying work as-is.
-  Prod (single embedded binary, `docker-compose.yaml`) is untouched. Smoke-tested end-to-end
-  (health, landing, HMR websocket 101, auth 401 all via nginx). See
+  Prod (single embedded binary, `docker-compose.yaml`) is untouched. Smoke-tested end-to-end:
+  health, landing, HMR websocket 101, auth 401 all via nginx, plus live `watch` sync verified
+  (web file synced ~2s, Go edit synced + air rebuilt). Run with `up --watch`. See
   `docs/superpowers/specs/2026-08-04-dev-compose-nginx-design.md`.
 - Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client. The
   styling pass sits on top of `feat/p1-launch` — decide merge order (styling → p1-launch → main,

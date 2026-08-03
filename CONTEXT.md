@@ -16,6 +16,11 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   See `docs/superpowers/specs/2026-08-03-data-model-and-form-design.md`.
 - Price proposal (3 tiers): English draft + Thai version ready.
   See `docs/proposals/2026-08-03-price-proposal-en.md` and `-th.md`.
+- Feature research: done. Data model has no missing fields; gaps are operational/ethical.
+  See `docs/research/2026-08-03-feature-research.md`.
+  Top adds: healer consent + attribution, edit history, print/PDF, bulk export, feedback form.
+  Note: the report's USD 5k-15k/year backup cost does NOT fit this project; backup here is a
+  small script + cheap object storage.
 - Next step: pick a tier, then write the implementation plan (writing-plans skill).
 
 ## Data model (summary)

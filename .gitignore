@@ -1,0 +1,8 @@
+/server
+/internal/webui/dist/*
+!/internal/webui/dist/index.html
+/web/node_modules/
+/web/out/
+/data/
+*.db
+*.db-*

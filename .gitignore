@@ -6,3 +6,6 @@
 /data/
 *.db
 *.db-*
+
+# Local secrets/config — .env.example is the tracked template.
+.env

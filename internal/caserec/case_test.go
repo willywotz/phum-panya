@@ -264,6 +264,32 @@ func TestDeleteOtherDistrictCaseForbidden(t *testing.T) {
 	}
 }
 
+// TestUpdatePreservesPhoto proves that editing a case after its photo was
+// uploaded does not wipe the photo: the frontend PUT body carries no photo
+// field, and Update must not blank the stored path.
+func TestUpdatePreservesPhoto(t *testing.T) {
+	env := newCaseAPI(t)
+	cs := env.seedCase(env.recipe.ID)
+
+	if err := env.repo.SetPhoto(cs.ID, "uploads/case.jpg"); err != nil {
+		t.Fatalf("SetPhoto: %v", err)
+	}
+
+	path := "/api/cases/" + strconv.FormatUint(uint64(cs.ID), 10)
+	res := env.doAsEditor1("PUT", path, env.caseBody("better"))
+	if res.Code != http.StatusOK {
+		t.Fatalf("edit = %d, want 200, body = %s", res.Code, res.Body.String())
+	}
+
+	var reloaded model.Case
+	if err := env.g.First(&reloaded, cs.ID).Error; err != nil {
+		t.Fatalf("reload case: %v", err)
+	}
+	if reloaded.Photo != "uploads/case.jpg" {
+		t.Fatalf("Photo = %q, want unchanged %q", reloaded.Photo, "uploads/case.jpg")
+	}
+}
+
 func TestUploadPhotoOnOtherDistrictCaseForbidden(t *testing.T) {
 	env := newCaseAPI(t)
 	cs := env.seedCase(env.recipe.ID)

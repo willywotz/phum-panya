@@ -244,3 +244,34 @@ func TestPhotoUploadSetsPath(t *testing.T) {
 		t.Fatal("photo path was not saved")
 	}
 }
+
+// TestUpdatePreservesPhoto proves that editing a doctor after its photo was
+// uploaded does not wipe the photo: the frontend PUT body carries no photo
+// field, and Update must not blank the stored path.
+func TestUpdatePreservesPhoto(t *testing.T) {
+	env := newDoctorAPI(t)
+	create := `{"code":"MUE-07","full_name":"H7","district_id":1,"status":"active","first_year":2565,"specialty":["herbal"]}`
+	res := env.doAsEditor("POST", "/api/doctors", create)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("setup create = %d", res.Code)
+	}
+	var d model.Doctor
+	env.g.Where("code = ?", "MUE-07").First(&d)
+
+	if err := doctor.NewRepo(env.g, clock.Real{}).SetPhoto(d.ID, "uploads/h7.jpg"); err != nil {
+		t.Fatalf("SetPhoto: %v", err)
+	}
+
+	path := "/api/doctors/" + strconv.FormatUint(uint64(d.ID), 10)
+	edit := `{"code":"MUE-07","full_name":"H7","district_id":1,"status":"active","first_year":2565,"specialty":["herbal"],"consent_obtained":true}`
+	res = env.doAsEditor("PUT", path, edit)
+	if res.Code != http.StatusOK {
+		t.Fatalf("edit = %d, want 200, body = %s", res.Code, res.Body.String())
+	}
+
+	var reloaded model.Doctor
+	env.g.First(&reloaded, d.ID)
+	if reloaded.Photo != "uploads/h7.jpg" {
+		t.Fatalf("Photo = %q, want unchanged %q", reloaded.Photo, "uploads/h7.jpg")
+	}
+}

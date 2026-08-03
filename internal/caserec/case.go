@@ -45,11 +45,15 @@ func (r *Repo) Create(c *model.Case, actorID uint) error {
 // Update saves all fields of c, stamping its audit fields with actorID and
 // the current time. It returns gorm.ErrRecordNotFound if no case with c.ID
 // exists. Existence is checked first because Save, given a primary key with
-// no matching row, inserts rather than reports zero rows affected.
+// no matching row, inserts rather than reports zero rows affected. The
+// existing Photo is preserved: photo changes go only through SetPhoto, so
+// an edit here must never blank the stored path.
 func (r *Repo) Update(c *model.Case, actorID uint) error {
-	if _, err := r.Get(c.ID); err != nil {
+	existing, err := r.Get(c.ID)
+	if err != nil {
 		return err
 	}
+	c.Photo = existing.Photo
 	c.UpdatedBy = &actorID
 	c.UpdatedAt = r.clk.Now()
 	return r.g.Save(c).Error

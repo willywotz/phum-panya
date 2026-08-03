@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import '../print.css';
 import { I18nProvider } from '@/lib/i18n';
 
 export const metadata: Metadata = {

@@ -105,6 +105,14 @@ const th: Dictionary = {
   ageRange20to39: '20-39 ปี',
   ageRange40to59: '40-59 ปี',
   ageRange60plus: '60 ปีขึ้นไป',
+  home: 'หน้าแรก',
+  welcome: 'ยินดีต้อนรับสู่ภูมิปัญญา',
+  publicNav: 'เมนูสาธารณะ',
+  search: 'ค้นหา',
+  allDistricts: 'ทุกอำเภอ',
+  allHerbs: 'ทุกสมุนไพร',
+  print: 'พิมพ์',
+  doctorNotFound: 'ไม่พบข้อมูลหมอพื้นบ้าน',
 };
 
 const en: Dictionary = {
@@ -203,6 +211,14 @@ const en: Dictionary = {
   ageRange20to39: '20-39',
   ageRange40to59: '40-59',
   ageRange60plus: '60+',
+  home: 'Home',
+  welcome: 'Welcome to Phum Panya',
+  publicNav: 'Public menu',
+  search: 'Search',
+  allDistricts: 'All districts',
+  allHerbs: 'All herbs',
+  print: 'Print',
+  doctorNotFound: 'Doctor not found',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { th, en };

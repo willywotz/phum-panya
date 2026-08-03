@@ -32,6 +32,10 @@ func Register(r *gin.Engine) {
 			path = "index.html"
 		}
 		if fileExists(root, path) {
+			if path == "index.html" {
+				serveIndex(c, root)
+				return
+			}
 			fileServer.ServeHTTP(c.Writer, c.Request)
 			return
 		}

@@ -97,6 +97,9 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   (web file synced ~2s, Go edit synced + air rebuilt). Run with `make dev`
   (=`docker compose -f docker-compose.dev.yaml up -w --build --force-recreate`). See
   `docs/superpowers/specs/2026-08-04-dev-compose-nginx-design.md`.
+- Go bump (branch `chore/bump-go-1.26`): `go.mod` `go 1.25.0` → `go 1.26.0` and the prod
+  `Dockerfile` build stage `golang:1.25-alpine` → `golang:1.26-alpine` (matches the dev API
+  image). Build and all **107 Go tests** stay green.
 - Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client. The
   styling pass sits on top of `feat/p1-launch` — decide merge order (styling → p1-launch → main,
   or fold together). The dev-compose branch is a small independent add-on on top.

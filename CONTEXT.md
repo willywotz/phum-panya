@@ -14,8 +14,8 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
 - Design phase.
 - Data model + standard fill-in form: designed and approved.
   See `docs/superpowers/specs/2026-08-03-data-model-and-form-design.md`.
-- Price proposal (English draft, 3 tiers): drafted.
-  See `docs/proposals/2026-08-03-price-proposal-en.md`. Translate to Thai after review.
+- Price proposal (3 tiers): English draft + Thai version ready.
+  See `docs/proposals/2026-08-03-price-proposal-en.md` and `-th.md`.
 - Next step: pick a tier, then write the implementation plan (writing-plans skill).
 
 ## Data model (summary)

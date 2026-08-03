@@ -54,12 +54,35 @@ District ──< Doctor ──< Recipe ──< Case
 Three rules hold across all records:
 
 1. A district editor may write only rows where `district` is their own district.
-2. The public never sees `phone`, `password`, or audit fields.
-3. `data_year` groups data by year now. Locking old years is a later paid step.
+2. The public never sees `phone`, `password`, `consent_*`, or audit fields.
+3. Year fields group data by year now. Locking old years is a later paid step (§3.2).
 
 Search and filter: the public list of Doctors and the list of Recipes+Cases both support
 a keyword search and a district filter. The shared Herb catalog also lets the public filter
 recipes by one herb.
+
+### 3.1 Consent and privacy (must-do before launch)
+
+The site names real healers and shows their knowledge in public. So consent is required,
+not optional. Thai PDPA applies.
+
+- A Doctor may go public only when `consent_obtained` is yes. The healer, or the district
+  on their behalf, signs a short paper "Healer Knowledge Agreement". The central admin
+  keeps the signed copy. The app records `consent_obtained` and `consent_date`.
+- A healer may ask to remove their data. The central admin can unpublish or delete the
+  Doctor and its Recipes and Cases (opt-out right).
+- Every public Recipe credits its Doctor by name and district (attribution).
+- Cases stay anonymous (see §4.7). A case photo must not show the patient's face.
+
+### 3.2 Year rule (how a healer maps across years)
+
+The client wants data that many users update each year. This is the rule:
+
+- **One Doctor row per healer.** It does not duplicate each year. `first_year` marks the
+  year the healer was first documented.
+- **Recipes and Cases carry their own `data_year`** = the year that record was collected.
+  So a healer can gain new recipes in later years without a duplicate profile.
+- Full year snapshots and year locking (freeze a whole year) stay a later paid feature.
 
 ## 4. Fields
 
@@ -90,6 +113,7 @@ Legend: **R** = required, **O** = optional. "Public?" = the public sees it.
 | Field | Type | R/O | Public? | Note |
 |---|---|---|---|---|
 | id | number | R | – | System key. |
+| code | text | R | Yes | Short human code for linking, e.g. `MUE-01` (district + running number). |
 | photo | image | R | Yes | The card-like portrait. |
 | full_name | text | R | Yes | |
 | known_as | text | O | Yes | Nickname or title. |
@@ -101,13 +125,18 @@ Legend: **R** = required, **O** = optional. "Public?" = the public sees it.
 | specialty | choice (multi) | R | Yes | herbal, postpartum, bone, massage, other. |
 | years_experience | number | O | Yes | |
 | lineage | text | O | Yes | How they learned the skill. |
+| consent_obtained | yes/no | R | No | The healer agreed to publish. Default no. See §3.1. |
+| consent_date | date | O | No | When the signed agreement was dated. |
 | status | choice | R | Yes | active / inactive / deceased. |
-| data_year | number | R | Yes | The year of this record. |
+| first_year | number | R | Yes | The year the healer was first documented. See §3.2. |
 | updated_by, updated_at | audit | R | No | System fills. |
 
 ### 4.4 Herb (สมุนไพร)
 
-Central admin owns this catalog. District editors pick from it.
+Central admin owns this catalog. District editors pick from it. If a herb is not in the
+catalog yet, the district editor types the herb name as a **pending herb** (see 4.6). The
+recipe saves at once. The central admin later matches the pending name to a catalog herb, or
+adds a new herb. So data entry is never blocked.
 
 | Field | Type | R/O | Public? | Note |
 |---|---|---|---|---|
@@ -124,6 +153,7 @@ Central admin owns this catalog. District editors pick from it.
 | Field | Type | R/O | Public? | Note |
 |---|---|---|---|---|
 | id | number | R | – | System key. |
+| code | text | R | Yes | Short human code for linking, e.g. `MUE-01-R3` (doctor code + recipe number). |
 | name | text | R | Yes | Formula name. |
 | doctor | link → Doctor | R | Yes | The owner. District comes from the doctor. |
 | indication | text | R | Yes | What it treats. |
@@ -133,14 +163,15 @@ Central admin owns this catalog. District editors pick from it.
 | caution | text | O | Yes | Warnings. |
 | care_stage | choice | O | Yes | Optional tag, e.g. postpartum. |
 | photo | image (many) | O | Yes | |
-| data_year | number | R | Yes | |
+| data_year | number | R | Yes | The year this recipe was collected. |
 | updated_by, updated_at | audit | R | No | System fills. |
 
 ### 4.6 Ingredient (a row inside a Recipe)
 
 | Field | Type | R/O | Note |
 |---|---|---|---|
-| herb | link → Herb | R | Pick from the shared catalog. |
+| herb | link → Herb | R* | Pick from the shared catalog. |
+| pending_herb_name | text | R* | Use this instead when the herb is not in the catalog yet. Central admin reconciles it later. Exactly one of `herb` or `pending_herb_name` is set. |
 | amount | decimal | O | A number, e.g. 3, 0.5. |
 | unit | choice + text | O | g, kg, ml, l, leaf, piece, handful, tsp, tbsp, or type another. |
 | note | text | O | e.g. fresh, dried. |
@@ -172,7 +203,8 @@ doctor's recipes, then each recipe's cases. The sheets work on paper or as a Goo
 ### Sheet A — Doctor (แบบฟอร์มหมอพื้นบ้าน)
 
 ```
-District (อำเภอ): __________            Data year (ปีข้อมูล): ______
+District (อำเภอ): __________     Doctor code (รหัสหมอ): __________   *required
+First year documented (ปีที่เก็บครั้งแรก): ______
 Photo (รูปถ่าย): [ attach 1 photo — like an ID card ]
 1. Full name (ชื่อ–สกุล): ______________________________  *required
 2. Known as / title (ชื่อที่เรียก): ______________________
@@ -186,12 +218,20 @@ Photo (รูปถ่าย): [ attach 1 photo — like an ID card ]
 8. Years of experience (ประสบการณ์, ปี): ______
 9. How they learned the skill (การสืบทอด): ________________
 10. Status (สถานะ):  [ ] active  [ ] inactive  [ ] deceased   *required
+11. Consent (ความยินยอม):  [ ] The healer agreed to publish. Signed agreement on file.  *required
+    Date signed (วันที่ยินยอม): ______
 ```
+
+Rule: give each doctor a code = district short code + running number, e.g. `MUE-01`.
+Write the code on this sheet, and reuse it on the recipe sheet. Do not publish a doctor
+until the consent box is ticked and the paper agreement is signed.
 
 ### Sheet B — Recipe (แบบฟอร์มตำรับยา)
 
 ```
-Doctor name (ชื่อหมอเจ้าของตำรับ): ______________   *required
+Doctor code (รหัสหมอ — from Sheet A): __________   *required
+Doctor name (ชื่อหมอเจ้าของตำรับ): ______________   (to double-check the code)
+Recipe code (รหัสตำรับ): __________   *required   (doctor code + recipe number, e.g. MUE-01-R3)
 District (อำเภอ): __________            Data year (ปีข้อมูล): ______
 1. Recipe name (ชื่อตำรับ): ____________________________  *required
 2. What it treats (สรรพคุณ / อาการ): __________________   *required
@@ -207,16 +247,19 @@ District (อำเภอ): __________            Data year (ปีข้อม�
 8. Photo (รูป): [ attach if any ]
 ```
 
-Note on herbs: write the herb name as the doctor says it. The central admin matches each
-name to the shared Herb catalog and adds any new herb. So the districts do not manage the
-catalog. This keeps herb names clean and lets the public filter recipes by herb.
+Note on herbs: write the herb name as the doctor says it. In the app, the district editor
+picks the herb from the shared catalog. If the herb is not there yet, the editor saves it as
+a pending herb and moves on. The central admin later matches the pending name to a catalog
+herb, or adds a new herb. So the districts never manage the catalog and never get blocked.
+This keeps herb names clean and lets the public filter recipes by herb.
 
 ### Sheet C — Case (แบบฟอร์มเคส / ผลการรักษา)
 
 Keep the patient anonymous — no name, no ID.
 
 ```
-Recipe used (ชื่อตำรับที่ใช้): ________________________   *required
+Recipe code (รหัสตำรับที่ใช้ — from Sheet B): __________   *required
+Recipe name (ชื่อตำรับที่ใช้): ________________________   (to double-check the code)
 District (อำเภอ): __________            Data year (ปีข้อมูล): ______
 1. Patient gender (เพศผู้ป่วย):  [ ] male  [ ] female  [ ] other
 2. Patient age range (ช่วงอายุ):
@@ -231,8 +274,12 @@ District (อำเภอ): __________            Data year (ปีข้อม�
 
 ### How the sheets connect
 
-- Sheet B carries the doctor name → the app links the recipe to that doctor.
-- Sheet C carries the recipe name → the app links the case to that recipe.
+Records link by **code**, not by name, so duplicate or misspelled names never break the link.
+
+- Sheet B carries the **doctor code** → the app links the recipe to that doctor.
+- Sheet C carries the **recipe code** → the app links the case to that recipe.
+- The name field on each sheet is a double-check only. If the code and name disagree, the
+  data-entry step flags the row for the central admin.
 
 ## 6. Out of scope (later paid features)
 

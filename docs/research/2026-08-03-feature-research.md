@@ -14,7 +14,7 @@ Research into Thai Traditional Medicine standards (DTAM), herbal database system
 2. **Audit & Edit History** (Small effort, should-have for accountability)  
 3. **Print & PDF Export** (Small effort, should-have for accessibility)
 4. **View Analytics & Popular Content Tracking** (Small effort, nice-to-have for engagement)
-5. **Backup & Data Integrity** (Medium effort, MUST-HAVE for government use)
+5. **Backup & Data Integrity** (Small effort at this scale — a cron dump + object storage; MUST-HAVE for government use)
 
 Each can be implemented incrementally; none require the map/GPS or mobile-app features you rejected.
 
@@ -29,7 +29,7 @@ Each can be implemented incrementally; none require the map/GPS or mobile-app fe
 | **Print/PDF Export** | Small | SHOULD | NO | Rural access, offline use, Thai gov't accessibility standards | Yes |
 | **Analytics: View Counts & Popular Recipes** | Small | NICE | NO | Track engagement; inform content strategy | Yes |
 | **Image Licensing Metadata** | Small | NICE | NO | Public domain/CC attribution compliance | Yes |
-| **Data Backup & Integrity Checks** | Medium | MUST | YES | Government-adjacent client needs continuity | Yes, cloud-based DRaaS |
+| **Data Backup & Integrity Checks** | Small | MUST | YES | Government-adjacent client needs continuity | Yes — a cron dump + object storage, a few USD/mo |
 | **Bulk Export (JSON/CSV)** | Small | SHOULD | NO | Thai open-data standards; data portability | Yes |
 | **Audio Pronunciation (Local Names)** | Medium | NICE | NO | Tok Bidan app feature; aid for non-readers | Deferred to later release |
 | **Multi-District Comparison / Dashboard** | Medium | NICE | NO | Province-wide insight; not in scope yet | Deferred |
@@ -89,7 +89,10 @@ The reference app (Tok Bidan article) mentions audio pronunciation for local her
 **Effort:** Small (deferred). **Priority:** NICE-TO-HAVE (v2 feature).
 
 ### Sources
-- [MANOSROI III Thai Medicinal Plant Recipe Database](https://www.manose.co/portfolio-item/work-2/)
+- MANOSROI III medicinal-plant recipe database — the figures cited here come from a
+  commercial portfolio page ([manose.co](https://www.manose.co/portfolio-item/work-2/)),
+  NOT a primary source. Treat the recipe counts as indicative only. The field-structure
+  comparison stands on the peer-reviewed ethnobotany sources below.
 - [Ethnobotanical Documentation Framework](https://link.springer.com/article/10.1007/BF02859302) — Springer Ethnobotany
 - [Quantitative Ethnobotany Methods](https://frontiersin.org/articles/10.3389/fphar.2018.00040/full) — Frontiers in Pharmacology
 
@@ -218,7 +221,10 @@ Thai government open-data standards (via the Digital Government Development Agen
 ### 4.6 Contact & Feedback Form
 
 **Findings:**
-Thai government guidelines recommend a feedback mechanism on public websites. This helps with user engagement and identifies usability issues.
+A feedback mechanism on public sites is a widely-recommended e-government pattern (see the
+US Section 508 guidance below as an analogy; this is not a Thai-specific mandate). It helps
+with user engagement and, more important here, lets a viewer report a wrong or unsafe herbal
+entry — valuable for a public health resource.
 
 **Recommended Action:**
 - Add a simple "Feedback" or "Report an Error" button on the public site footer.
@@ -231,10 +237,12 @@ Thai government guidelines recommend a feedback mechanism on public websites. Th
 
 ### Sources
 - [Thai Health Information Standards](https://thaidj.org/index.php/JHS/article/view/17653) — Journal of Health Science of Thailand
-- [Thai Accessibility Standards (TWCAG 2025)](https://guidelines.india.gov.in/activity/transforming-government-websites-through-user-feedback-and-emerging-technologies/) — Thai Ministry of Digital Economy
+- Thai Web Content Accessibility (TWCAG) is published by Thailand's Electronic Transactions
+  Development Agency (ETDA) and is based on W3C WCAG 2.1. Primary source: [WCAG 2.1](https://www.w3.org/TR/WCAG21/) — W3C.
+  (The earlier India-government link was mislabeled as Thai and is removed.)
 - [Thai Open Government Data Standards](https://www.dga.or.th/en/our-services/digital-platform-services/open-government-data/) — Digital Government Development Agency
 - [Print-Friendly Design for Health Resources](https://odphp.health.gov/healthliteracyonline/2010/Web_Guide_Health_Lit_Online.pdf) — U.S. ODPHP Health Literacy Online
-- [Public Feedback Mechanisms in Government](https://www.section508.gov/manage/laws-and-policies/implementing-public-feedback-mechanism/) — U.S. Section 508 Guidance
+- [Public Feedback Mechanisms in Government](https://www.section508.gov/manage/laws-and-policies/implementing-public-feedback-mechanism/) — U.S. Section 508 Guidance (cited as an analogy, not a Thai standard)
 - [Image Attribution & Licensing](https://hslguides.med.nyu.edu/medicalimages) — NYU Health Sciences Library
 
 ---
@@ -246,11 +254,15 @@ Thai government guidelines recommend a feedback mechanism on public websites. Th
 **Government Data Protection Standards:**
 Thailand's Personal Data Protection Act (PDPA) and the Digitalization of Public Administration & Services Delivery Act (2019) require government agencies to protect data integrity, confidentiality, and availability. Small government databases are at risk of loss due to hardware failure, accidental deletion, or security breach.
 
-**Cost-Effective Disaster Recovery (DRaaS):**
-For a budget-limited provincial government app, cloud-based Disaster Recovery as a Service (DRaaS) is the most cost-effective option:
-- Small government apps typically spend USD 10,000–50,000/year on backup and recovery.
-- DRaaS providers (AWS Backup, Google Cloud DR, Azure Site Recovery) charge pay-as-you-go.
-- For a small app (10–50 GB), expect USD 5,000–15,000/year for automated daily backups and 24-hour recovery capability.
+**Cost-effective backup for THIS app (corrected):**
+The enterprise DRaaS figures often quoted (USD 5,000–50,000/year) do NOT fit this project.
+This app runs on a ~350 THB/month (~USD 10/month) server with ~30 GB. A right-sized backup
+here is a small script, not a DRaaS contract:
+- A daily `pg_dump` (or equivalent) plus a daily copy of the photo folder to cheap object
+  storage (e.g. S3/GCS/Backblaze, or a Thai provider). Storage for tens of GB with 30-day
+  retention costs roughly a few USD per month, not thousands per year.
+- A cron job runs the dump and the upload. No paid DR platform is needed at this size.
+- Estimated real cost: a few USD/month of storage, plus one-time setup. This is a Small task.
 
 **Recommended Action:**
 1. **Daily automated backups** to a cloud provider (AWS, Google Cloud, or Thai-local provider like NECTEC).

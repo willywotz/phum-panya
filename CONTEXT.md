@@ -19,8 +19,15 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
 - Feature research: done. Data model has no missing fields; gaps are operational/ethical.
   See `docs/research/2026-08-03-feature-research.md`.
   Top adds: healer consent + attribution, edit history, print/PDF, bulk export, feedback form.
-  Note: the report's USD 5k-15k/year backup cost does NOT fit this project; backup here is a
-  small script + cheap object storage.
+- Paranoid review (fresh-context verifier): done. Fixes applied to model, form, and research:
+  - Consent/PDPA: added `consent_obtained`/`consent_date` on Doctor, opt-out rule, form
+    consent box, and a "must-do before launch" section (spec §3.1).
+  - Record linking: added `code` on Doctor and Recipe; the form links by code, not name.
+  - Year rule: one Doctor row per healer with `first_year`; Recipe/Case keep `data_year` (§3.2).
+  - Herb fallback: a pending-herb name so district entry is never blocked.
+  - Research file: corrected the backup cost to real scale; fixed 3 mislabeled citations.
+- Deferred by user request: pricing findings (tier bundle inconsistency, the 8,000-baht
+  answer, and the Thai VAT line). Revisit before the proposal is sent.
 - Next step: pick a tier, then write the implementation plan (writing-plans skill).
 
 ## Data model (summary)
@@ -33,8 +40,11 @@ District ──< Doctor ──< Recipe ──< Case
 ```
 
 - Case links to one Recipe. Patient is anonymous.
-- Ingredient uses a decimal amount plus a unit, and links to the shared Herb catalog.
-- Every Doctor/Recipe/Case has a `data_year`. Year locking is a later paid feature.
+- Ingredient uses a decimal amount plus a unit, and links to the shared Herb catalog
+  (or a pending-herb name when the herb is not in the catalog yet).
+- Doctor and Recipe carry a short `code` for reliable linking on the paper form.
+- Doctor is one row per healer (`first_year`); Recipe/Case carry `data_year`.
+- Doctor needs consent before it goes public. Year locking is a later paid feature.
 
 ## Open items (deferred / paid)
 

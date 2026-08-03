@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { CrudTable } from '@/components/CrudTable';
+import { ExportLinks } from '@/components/ExportLinks';
 import { PhotoUpload } from '@/components/PhotoUpload';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
@@ -51,6 +52,7 @@ export default function DoctorsPage() {
           </option>
         ))}
       </select>
+      <ExportLinks resource="doctors" districtId={districtId} />
       <CrudTable
         key={districtId}
         spec={spec}

@@ -2,6 +2,7 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
+import { ExportLinks } from '@/components/ExportLinks';
 import {
   IngredientEditor,
   type IngredientRow,
@@ -257,6 +258,7 @@ export default function RecipesPage() {
           </option>
         ))}
       </select>
+      <ExportLinks resource="recipes" districtId={districtId} />
       {doctorId !== null && (
         <button type="button" onClick={() => setEditing('new')}>
           {t('add')}

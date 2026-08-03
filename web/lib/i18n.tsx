@@ -114,6 +114,10 @@ const th: Dictionary = {
   allHerbs: 'ทุกสมุนไพร',
   print: 'พิมพ์',
   doctorNotFound: 'ไม่พบข้อมูลหมอพื้นบ้าน',
+  exportCsv: 'ส่งออก CSV',
+  exportExcel: 'ส่งออก Excel',
+  storage: 'พื้นที่จัดเก็บ',
+  storageUsed: 'ใช้ไปแล้ว',
 };
 
 const en: Dictionary = {
@@ -221,6 +225,10 @@ const en: Dictionary = {
   allHerbs: 'All herbs',
   print: 'Print',
   doctorNotFound: 'Doctor not found',
+  exportCsv: 'Export CSV',
+  exportExcel: 'Export Excel',
+  storage: 'Storage',
+  storageUsed: 'Used',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { th, en };

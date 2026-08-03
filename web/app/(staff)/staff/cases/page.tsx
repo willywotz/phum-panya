@@ -2,6 +2,7 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
+import { ExportLinks } from '@/components/ExportLinks';
 import { PhotoUpload } from '@/components/PhotoUpload';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
@@ -268,6 +269,7 @@ export default function CasesPage() {
           </option>
         ))}
       </select>
+      <ExportLinks resource="cases" districtId={districtId} />
       {recipeId !== null && (
         <button type="button" onClick={() => setEditing('new')}>
           {t('add')}

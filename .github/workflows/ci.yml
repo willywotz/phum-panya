@@ -131,7 +131,8 @@ jobs:
       - name: Smoke test install / query / uninstall
         shell: pwsh
         run: |
-          $msi = "${{ steps.msi.outputs.path }}"
+          # find returned a ./forward/slash path; msiexec needs a full Windows path.
+          $msi = (Resolve-Path "${{ steps.msi.outputs.path }}").Path
           Write-Host "Installing $msi"
           $i = Start-Process msiexec -Wait -PassThru -ArgumentList `
             "/i","`"$msi`"","/quiet","/l*v","install.log", `

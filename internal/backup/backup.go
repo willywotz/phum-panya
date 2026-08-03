@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"phum-panya/internal/clock"
 	"phum-panya/internal/db"
@@ -48,6 +49,12 @@ func snapshotDB(dbPath string, clk clock.Clock) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("backup: open db: %w", err)
 	}
+	sqlDB, err := g.DB()
+	if err != nil {
+		return "", fmt.Errorf("backup: get sql.DB: %w", err)
+	}
+	defer sqlDB.Close()
+
 	if err := g.Exec(fmt.Sprintf("VACUUM INTO '%s'", tmp)).Error; err != nil {
 		return "", fmt.Errorf("backup: vacuum into: %w", err)
 	}
@@ -56,29 +63,40 @@ func snapshotDB(dbPath string, clk clock.Clock) (string, error) {
 
 // writeZip creates zipPath containing snapshot as app.db and every file
 // under mediaDir as media/<relative-path>. A missing mediaDir is skipped.
-func writeZip(zipPath, snapshot, mediaDir string) error {
+// The zip writer's central directory and the file are both closed and
+// checked before returning, so a flush failure (e.g. disk full) is
+// reported instead of silently producing a truncated zip.
+func writeZip(zipPath, snapshot, mediaDir string) (err error) {
 	f, err := os.Create(zipPath)
 	if err != nil {
 		return fmt.Errorf("backup: create zip: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+	}()
 
 	zw := zip.NewWriter(f)
-	defer zw.Close()
+	defer func() {
+		if cerr := zw.Close(); err == nil {
+			err = cerr
+		}
+	}()
 
 	if err := addFile(zw, snapshot, "app.db"); err != nil {
 		return err
 	}
-	if _, err := os.Stat(mediaDir); os.IsNotExist(err) {
+	if _, statErr := os.Stat(mediaDir); os.IsNotExist(statErr) {
 		return nil
 	}
-	return filepath.Walk(mediaDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return err
+	return filepath.Walk(mediaDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() {
+			return walkErr
 		}
-		rel, err := filepath.Rel(mediaDir, path)
-		if err != nil {
-			return err
+		rel, relErr := filepath.Rel(mediaDir, path)
+		if relErr != nil {
+			return relErr
 		}
 		return addFile(zw, path, filepath.Join("media", rel))
 	})
@@ -101,7 +119,8 @@ func addFile(zw *zip.Writer, srcPath, name string) error {
 }
 
 // prune keeps the newest keep backup-*.zip files in outDir (by filename
-// order) and removes the rest.
+// order) and removes the rest. Files that don't match the backup-*.zip
+// pattern are left alone and don't count toward keep.
 func prune(outDir string, keep int) error {
 	entries, err := os.ReadDir(outDir)
 	if err != nil {
@@ -109,7 +128,7 @@ func prune(outDir string, keep int) error {
 	}
 	var names []string
 	for _, e := range entries {
-		if !e.IsDir() {
+		if !e.IsDir() && isBackupName(e.Name()) {
 			names = append(names, e.Name())
 		}
 	}
@@ -121,4 +140,10 @@ func prune(outDir string, keep int) error {
 		names = names[1:]
 	}
 	return nil
+}
+
+// isBackupName reports whether name matches the backup-*.zip pattern
+// written by Run.
+func isBackupName(name string) bool {
+	return strings.HasPrefix(name, "backup-") && strings.HasSuffix(name, ".zip")
 }

@@ -137,9 +137,18 @@ jobs:
           $i = Start-Process msiexec -Wait -PassThru -ArgumentList `
             "/i","`"$msi`"","/quiet","/l*v","install.log", `
             "ADMINEMAIL=admin@test","ADMINPASSWORD=pw123456","APPDOMAIN="
-          if ($i.ExitCode -ne 0) { Get-Content install.log -Tail 200; throw "install failed ($($i.ExitCode))" }
+          Write-Host "install exit code: $($i.ExitCode)"
+          Write-Host "===== install.log (service custom actions) ====="
+          if (Test-Path install.log) {
+            Select-String -Path install.log -Pattern 'InstallSvc|StartSvc|CAQuietExec|WixQuietExec|Doing action|Action ended|service install|service start|phum-panya|CustomAction' |
+              Select-Object -Last 80 | ForEach-Object { $_.Line }
+          }
+          if ($i.ExitCode -ne 0) { throw "install failed ($($i.ExitCode))" }
+          Write-Host "===== sc query / qc ====="
           sc.exe query phum-panya
-          if ($LASTEXITCODE -ne 0) { throw "service phum-panya was not registered" }
+          $svc = $LASTEXITCODE
+          sc.exe qc phum-panya
+          if ($svc -ne 0) { throw "service phum-panya was not registered (sc=$svc)" }
           $u = Start-Process msiexec -Wait -PassThru -ArgumentList `
             "/x","`"$msi`"","/quiet","/l*v","uninstall.log"
           if ($u.ExitCode -ne 0) { Get-Content uninstall.log -Tail 200; throw "uninstall failed ($($u.ExitCode))" }

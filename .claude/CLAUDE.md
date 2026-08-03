@@ -2,6 +2,8 @@
 
 - Please talk to me in ASD-STE100 Simplified Technical English
 - when task done must update `CONTEXT.md` then commit it
+- api endpoint route must full english name not short or alias
+- must strictly compliance with the 15-Factor App methodology
 
 # Multi-agent workflow (opt-in)
 

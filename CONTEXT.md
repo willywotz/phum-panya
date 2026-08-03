@@ -61,14 +61,30 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   - 15-Factor applied in spirit (ADR-0001 deviations); API routes are full-English
     (`/api/current-user`, not `/api/me`).
   - Deferred polish (non-blocking, see SDD ledger): input `binding:required` tags, enum DB
-    CHECKs, role-based staff-nav hiding, `full_name` on `/api/current-user`, storage-meter
-    aria-label, ESLint config, Recipe multi-photo.
+    CHECKs, role-based staff-nav hiding, `full_name` on `/api/current-user`,
+    ESLint config, Recipe multi-photo. (storage-meter aria-label: closed in styling pass.)
 - Containerized: `Dockerfile` (multi-stage: Node builds the Next.js export → Go embeds it →
   cgo-free static binary on alpine + ca-certificates) + `docker-compose.yaml` (one `app`
   service, `/data` volume for DB/media/backups/certs, required `APP_ADMIN_PASSWORD`, dev
   plain-HTTP:8080 by default, commented prod TLS on 80/443). Image builds and runs; health,
   embedded UI, and seeded-admin login verified in-container.
-- Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client.
+- Styling pass: **complete** on branch `feat/styling-pass` (off `feat/p1-launch`, 8 TDD tasks,
+  subagent-driven build→verify). Adds **Tailwind CSS v4 + shadcn/ui** (Radix), a **warm herbal
+  theme** with a **light/dark toggle** (`next-themes`), a real **landing page** (hero + browse
+  cards), and a **vendored Thai font** (`@fontsource/noto-sans-thai`) — no CDN, so the single
+  cgo-free binary and static export are unchanged. Shared `CrudForm`/`CrudTable`/`IngredientEditor`
+  now use shadcn controls: single-selects are Radix `Select`, the add/edit form is a modal `Dialog`,
+  delete is an `AlertDialog`; the e2e specs moved to role-based drivers (`selectByName` combobox
+  helper, `alertdialog`). Gate green: no-CDN grep clean, `web/out/` builds, **107 Go tests**,
+  **13 Playwright specs**, `tsc` clean; print rule (`.no-print` nav) kept. See
+  `docs/superpowers/plans/2026-08-04-styling-pass.md`.
+  - Known coverage gaps (still native `<select>`, outside the plan's file list): the hand-rolled
+    `CaseForm` (`cases/page.tsx`), the `ReconcilePanel` herb selects (`staff/herbs/page.tsx`), and
+    the staff-side doctors `อำเภอ` filter. Tests pass (native drivers kept); a follow-up can
+    migrate them for visual consistency.
+- Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client. The
+  styling pass sits on top of `feat/p1-launch` — decide merge order (styling → p1-launch → main,
+  or fold together).
 
 ## Data model (summary)
 

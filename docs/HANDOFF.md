@@ -112,13 +112,18 @@ Settled during a grilling session (see git history / SRS):
 
 ## 8. Known gaps / not done
 
-### ⚠️ Biggest gap: NO visual styling / CSS
-The frontend is **semantic HTML with essentially no screen CSS** — only `print.css`
-(`@media print`). No `globals.css`, no Tailwind/CSS framework, near-zero `className` use. It is
-**functional and accessible but visually bare** (browser defaults). This was never in the
-SRS/plan (scope was function + best-effort a11y, no design task). A styling pass is the top
-follow-up. Because the markup is clean semantic HTML, a classless CSS framework (e.g. Pico.css)
-or a hand-rolled `globals.css` would style it with minimal component changes.
+### ✅ Closed: visual styling / CSS (styling pass, branch `feat/styling-pass`)
+The "no screen CSS" gap is now closed. The frontend uses **Tailwind CSS v4 + shadcn/ui**
+(Radix) with a **warm herbal theme**, a **light/dark toggle** (`next-themes`), a real
+**landing page**, and a **vendored Thai font** (`@fontsource/noto-sans-thai`). Everything stays
+**offline** (no CDN — shadcn files and fonts are local), so the single cgo-free binary and the
+`output: 'export'` static export are unchanged. Shared controls moved to shadcn: single-selects
+are Radix `Select`, the add/edit form is a modal `Dialog`, delete is an `AlertDialog`. `print.css`
+and its `.no-print` nav rule are kept. Gate: no-CDN grep clean, `web/out/` builds, 107 Go tests,
+13 Playwright specs, `tsc` clean. See `docs/superpowers/plans/2026-08-04-styling-pass.md`.
+Residual (follow-up): three hand-rolled/native `<select>` sites left native for consistency —
+`CaseForm` (`cases/page.tsx`), `ReconcilePanel` (`staff/herbs/page.tsx`), and the staff doctors
+`อำเภอ` filter; a `full_name`-less staff nav still shows role, not name.
 
 ### Deferred minors (from the final whole-branch review — all non-blocking for P1)
 - Handlers lack `binding:"required"` tags → empty strings accepted (staff-entered, trusted data).
@@ -126,7 +131,7 @@ or a hand-rolled `globals.css` would style it with minimal component changes.
 - `/api/current-user` omits `full_name` (staff dashboard shows role, not name).
 - No role-based nav hiding: a district_editor sees 403 on admin-only Herbs/Users pages (backend
   correctly enforces; only a UX wart).
-- Storage `<progress>` bar lacks an aria-label.
+- ~~Storage `<progress>` bar lacks an aria-label.~~ (closed in the styling pass.)
 - No "export all districts" UI control for admin (backend supports it).
 - Backup `MkdirAll` error is silently discarded (no log line).
 - No ESLint config (`tsc` + build are green).

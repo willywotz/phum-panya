@@ -13,7 +13,7 @@ COPY web/ ./
 RUN npm run build
 
 # --- Stage 2: build the cgo-free Go binary with the UI embedded ---
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /app
 # Download modules first so they cache across source changes.
 COPY go.mod go.sum ./

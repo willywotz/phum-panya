@@ -3,8 +3,12 @@
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { api, ApiError } from '@/lib/api';
 import { LangToggle, useT } from '@/lib/i18n';
+import { ThemeToggle } from '@/lib/theme';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,30 +37,41 @@ export default function LoginPage() {
   };
 
   return (
-    <main>
-      <LangToggle />
-      <h1>{t('signIn')}</h1>
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="email">{t('email')}</label>
-        <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          required
-        />
-        <label htmlFor="password">{t('password')}</label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          required
-        />
-        {error && <p role="alert">{t('loginError')}</p>}
-        <button type="submit" disabled={submitting}>
+    <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-4 px-4">
+      <div className="flex justify-end gap-2">
+        <LangToggle />
+        <ThemeToggle />
+      </div>
+      <h1 className="text-2xl font-bold">{t('signIn')}</h1>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="grid gap-1.5">
+          <Label htmlFor="email">{t('email')}</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            required
+            onChange={(event) => setEmail(event.target.value)}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="password">{t('password')}</Label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            required
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </div>
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {t('loginError')}
+          </p>
+        )}
+        <Button type="submit" disabled={submitting}>
           {t('signIn')}
-        </button>
+        </Button>
       </form>
     </main>
   );

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+import { Button } from '@/components/ui/button';
 import { LangToggle, useT } from '@/lib/i18n';
 import { ThemeToggle } from '@/lib/theme';
 
@@ -17,15 +18,20 @@ function PublicNav() {
   const t = useT();
   const router = useRouter();
   return (
-    <nav className="no-print" aria-label={t('publicNav')}>
-      {navLinks.map(({ href, key }) => (
-        <Link key={href} href={href}>
-          {t(key)}
-        </Link>
-      ))}
-      <button type="button" onClick={() => router.push('/login')}>
+    <nav
+      className="no-print flex items-center gap-4 border-b bg-card px-4 py-3"
+      aria-label={t('publicNav')}
+    >
+      <div className="mr-auto flex items-center gap-4">
+        {navLinks.map(({ href, key }) => (
+          <Link key={href} href={href} className="text-sm font-medium hover:text-primary">
+            {t(key)}
+          </Link>
+        ))}
+      </div>
+      <Button type="button" variant="outline" size="sm" onClick={() => router.push('/login')}>
         {t('signIn')}
-      </button>
+      </Button>
       <LangToggle />
       <ThemeToggle />
     </nav>
@@ -36,7 +42,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
   return (
     <>
       <PublicNav />
-      {children}
+      <div className="mx-auto max-w-5xl px-4 py-6">{children}</div>
     </>
   );
 }

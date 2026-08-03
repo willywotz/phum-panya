@@ -18,12 +18,17 @@ const navLinks = [
 function StaffNav() {
   const t = useT();
   return (
-    <nav aria-label={t('staffNav')}>
-      {navLinks.map(({ href, key }) => (
-        <Link key={href} href={href}>
-          {t(key)}
-        </Link>
-      ))}
+    <nav
+      className="flex items-center gap-4 border-b bg-card px-4 py-3"
+      aria-label={t('staffNav')}
+    >
+      <div className="mr-auto flex items-center gap-4">
+        {navLinks.map(({ href, key }) => (
+          <Link key={href} href={href} className="text-sm font-medium hover:text-primary">
+            {t(key)}
+          </Link>
+        ))}
+      </div>
       <LangToggle />
       <ThemeToggle />
     </nav>
@@ -34,7 +39,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
   return (
     <RequireStaff>
       <StaffNav />
-      {children}
+      <div className="mx-auto max-w-5xl px-4 py-6">{children}</div>
     </RequireStaff>
   );
 }

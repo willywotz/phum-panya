@@ -2,6 +2,8 @@
 
 import { type ChangeEvent, useState } from 'react';
 
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useT } from '@/lib/i18n';
 
 // Multipart upload; unlike lib/api.ts this posts a FormData body directly
@@ -35,16 +37,16 @@ export function PhotoUpload({ uploadPath }: { uploadPath: string }) {
   };
 
   return (
-    <div>
-      <label htmlFor="photo-upload">{t('photo')}</label>
-      <input
+    <div className="grid gap-1.5">
+      <Label htmlFor="photo-upload">{t('photo')}</Label>
+      <Input
         id="photo-upload"
         type="file"
         accept="image/*"
         disabled={uploading}
         onChange={handleChange}
       />
-      {photo && <p>{photo}</p>}
+      {photo && <p className="text-sm text-muted-foreground">{photo}</p>}
     </div>
   );
 }

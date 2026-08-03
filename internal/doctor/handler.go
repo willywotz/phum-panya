@@ -70,6 +70,7 @@ func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore *media.Store) {
 	r.PUT("/api/doctors/:id", requireAuth, updateHandler(repo))
 	r.DELETE("/api/doctors/:id", requireAuth, deleteHandler(repo))
 	r.POST("/api/doctors/:id/photo", requireAuth, photoHandler(repo, mediaStore))
+	r.POST("/api/doctors/:id/unpublish", requireAuth, unpublishHandler(repo))
 }
 
 func listHandler(repo *Repo) gin.HandlerFunc {
@@ -156,6 +157,32 @@ func deleteHandler(repo *Repo) gin.HandlerFunc {
 		}
 		if err := repo.Delete(id); err != nil {
 			writeRepoError(c, err, "could not delete doctor")
+			return
+		}
+		c.Status(http.StatusNoContent)
+	}
+}
+
+// unpublishHandler clears the doctor's consent_obtained flag, hiding it from
+// the public view without deleting its rows.
+func unpublishHandler(repo *Repo) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, ok := parseID(c)
+		if !ok {
+			return
+		}
+		existing, err := repo.Get(id)
+		if err != nil {
+			writeRepoError(c, err, "could not unpublish doctor")
+			return
+		}
+		user, _ := auth.UserFrom(c)
+		if !auth.CanWriteDistrict(user, existing.DistrictID) {
+			httpx.Err(c, http.StatusForbidden, "forbidden", "cannot write to this district")
+			return
+		}
+		if err := repo.Unpublish(id); err != nil {
+			writeRepoError(c, err, "could not unpublish doctor")
 			return
 		}
 		c.Status(http.StatusNoContent)

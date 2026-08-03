@@ -80,3 +80,17 @@ func (r *Repo) SetPhoto(id uint, path string) error {
 	}
 	return nil
 }
+
+// Unpublish clears consent_obtained for the doctor with id, hiding it from
+// public view without deleting its rows. It returns gorm.ErrRecordNotFound
+// if no doctor with id exists.
+func (r *Repo) Unpublish(id uint) error {
+	res := r.g.Model(&model.Doctor{}).Where("id = ?", id).Update("consent_obtained", false)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}

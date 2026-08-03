@@ -55,6 +55,7 @@ test('storage meter shows used bytes for central_admin', async ({ page }) => {
   await login(page, 'admin@test', 'pw123456');
   await page.goto('/staff');
   await expect(page.getByText(/\d+(\.\d+)? MB/)).toBeVisible();
+  await expect(page.getByRole('progressbar', { name: 'พื้นที่จัดเก็บ' })).toBeVisible();
 });
 
 // NFR-A11Y-1 (best-effort): no critical/serious axe violations on public pages.

@@ -7,6 +7,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogTitle,
   AlertDialogTrigger,
@@ -160,7 +161,10 @@ export function CrudTable({ spec, newDefaults, formExtra }: CrudTableProps) {
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
-                      <AlertDialogTitle>{t('confirmDelete')}</AlertDialogTitle>
+                      <AlertDialogTitle>{t('delete')}</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {t('confirmDelete')}
+                      </AlertDialogDescription>
                       <AlertDialogFooter>
                         <AlertDialogCancel>{t('no')}</AlertDialogCancel>
                         <AlertDialogAction onClick={() => handleDelete(row)}>

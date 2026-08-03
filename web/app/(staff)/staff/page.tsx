@@ -30,7 +30,7 @@ function StorageMeter() {
       <p>
         {t('storageUsed')}: {usedMb.toFixed(1)} MB
       </p>
-      <progress value={usedBytes} max={STORAGE_CEILING_BYTES} />
+      <progress aria-label={t('storage')} value={usedBytes} max={STORAGE_CEILING_BYTES} />
     </section>
   );
 }

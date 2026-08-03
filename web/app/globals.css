@@ -126,4 +126,14 @@
   html {
     @apply font-sans;
     }
+  h1 {
+    @apply text-2xl font-bold;
+    }
+  h2 {
+    @apply text-xl font-semibold;
+    }
+  th,
+  td {
+    @apply p-2 text-left;
+    }
 }

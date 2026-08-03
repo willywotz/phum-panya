@@ -189,6 +189,52 @@ func TestCreateRecipeIngredientXORViolationRejected(t *testing.T) {
 	}
 }
 
+// TestCreateRecipeBlankPendingNameTreatedAsUnset proves a present-but-empty
+// pending_herb_name is normalized to NULL, not passed through to the DB
+// check as an empty string: herb_id + "" succeeds as a herb-only ingredient
+// (never a 500 from chk_herb_xor).
+func TestCreateRecipeBlankPendingNameTreatedAsUnset(t *testing.T) {
+	env := newRecipeAPI(t)
+	body := `{"code":"REC-04","name":"Yaa Hom","doctor_id":` + strconv.FormatUint(uint64(env.doctor1.ID), 10) + `,
+		"indication":"fever","preparation":"boil","usage":"drink","care_stage":"acute","data_year":2565,
+		"ingredients":[
+			{"herb_id":` + strconv.FormatUint(uint64(env.herb.ID), 10) + `,"pending_herb_name":"","amount":"1","unit":"g","note":""}
+		]}`
+	res := env.doAsEditor("POST", "/api/recipes", body)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("status %d, want 201, body %s", res.Code, res.Body.String())
+	}
+
+	var rec model.Recipe
+	if err := env.g.Where("code = ?", "REC-04").First(&rec).Error; err != nil {
+		t.Fatalf("reload recipe: %v", err)
+	}
+	var ings []model.Ingredient
+	if err := env.g.Where("recipe_id = ?", rec.ID).Find(&ings).Error; err != nil {
+		t.Fatalf("reload ingredients: %v", err)
+	}
+	if len(ings) != 1 {
+		t.Fatalf("ingredient count = %d, want 1", len(ings))
+	}
+	if ings[0].HerbID == nil || ings[0].PendingHerbName != nil {
+		t.Fatalf("ingredient = %+v, want HerbID set and PendingHerbName nil", ings[0])
+	}
+}
+
+// TestCreateRecipeNeitherHerbNorPendingRejected proves an ingredient with a
+// blank pending_herb_name and no herb_id (i.e. neither really set) is a
+// clean 400, not a DB-CHECK 500.
+func TestCreateRecipeNeitherHerbNorPendingRejected(t *testing.T) {
+	env := newRecipeAPI(t)
+	body := `{"code":"REC-05","name":"Yaa Hom","doctor_id":` + strconv.FormatUint(uint64(env.doctor1.ID), 10) + `,
+		"indication":"fever","preparation":"boil","usage":"drink","care_stage":"acute","data_year":2565,
+		"ingredients":[{"pending_herb_name":"","amount":"1","unit":"g","note":""}]}`
+	res := env.doAsEditor("POST", "/api/recipes", body)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400, body %s", res.Code, res.Body.String())
+	}
+}
+
 func TestCreateRecipeCrossDistrictForbidden(t *testing.T) {
 	env := newRecipeAPI(t)
 	body := `{"code":"REC-03","name":"Yaa Hom","doctor_id":` + strconv.FormatUint(uint64(env.doctor2.ID), 10) + `,

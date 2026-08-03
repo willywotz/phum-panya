@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -34,11 +35,19 @@ func (req ingredientRequest) toModel() model.Ingredient {
 	}
 }
 
+// normalize clears a present-but-blank PendingHerbName, treating it the same
+// as absent. It must run before valid() and toModel() so a blank string
+// never reaches the chk_herb_xor DB check as a non-NULL value.
+func (req *ingredientRequest) normalize() {
+	if req.PendingHerbName != nil && strings.TrimSpace(*req.PendingHerbName) == "" {
+		req.PendingHerbName = nil
+	}
+}
+
 // valid reports whether exactly one of HerbID or PendingHerbName is set.
+// Callers must call normalize() first.
 func (req ingredientRequest) valid() bool {
-	herbSet := req.HerbID != nil
-	pendingSet := req.PendingHerbName != nil && *req.PendingHerbName != ""
-	return herbSet != pendingSet
+	return (req.HerbID != nil) != (req.PendingHerbName != nil)
 }
 
 // recipeRequest is the JSON body for POST/PUT /api/recipes.
@@ -78,6 +87,15 @@ func (req recipeRequest) toIngredients() []model.Ingredient {
 		ings[i] = ing.toModel()
 	}
 	return ings
+}
+
+// normalizeIngredients clears a present-but-blank pending_herb_name on each
+// ingredient so it is treated as absent by invalidIngredient() and
+// toIngredients(). Callers must run this before both.
+func (req *recipeRequest) normalizeIngredients() {
+	for i := range req.Ingredients {
+		req.Ingredients[i].normalize()
+	}
 }
 
 // invalidIngredient returns the index of the first ingredient that does not
@@ -140,6 +158,7 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 			httpx.Err(c, http.StatusBadRequest, "invalid_request", "invalid recipe body")
 			return
 		}
+		req.normalizeIngredients()
 		if i := req.invalidIngredient(); i >= 0 {
 			httpx.Err(c, http.StatusBadRequest, "invalid_request", "ingredient must set exactly one of herb_id or pending_herb_name")
 			return
@@ -179,6 +198,7 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 			httpx.Err(c, http.StatusBadRequest, "invalid_request", "invalid recipe body")
 			return
 		}
+		req.normalizeIngredients()
 		if i := req.invalidIngredient(); i >= 0 {
 			httpx.Err(c, http.StatusBadRequest, "invalid_request", "ingredient must set exactly one of herb_id or pending_herb_name")
 			return

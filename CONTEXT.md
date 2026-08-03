@@ -24,6 +24,15 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   - Year rule: one Doctor row per healer with `first_year`; Recipe/Case keep `data_year` (§3.2).
   - Herb fallback: a pending-herb name so district entry is never blocked.
   - Research file: corrected the backup cost to real scale; fixed 3 mislabeled citations.
+- SRS: written and approved. See `docs/superpowers/specs/2026-08-03-srs.md`.
+  Build-facing, English (STE). Covers all phases (P1 launch → P5), each requirement phase-tagged.
+  Stack locked in `docs/adr/0001-single-go-binary-embedded-nextjs.md`:
+  one Go binary + embedded Next.js static export; SQLite → PostgreSQL (portable SQL,
+  performance-triggered); Go-native ACME/TLS (client provides the domain).
+  Key P1 decisions: bilingual UI (Thai default + English label toggle, content untranslated);
+  session login with admin-managed resets (no SMTP); server-side image downscale + EXIF strip,
+  no input cap; nightly single-zip backup (DB + images) + restore docs; print/PDF public page
+  + staff-only bulk export; best-effort availability (no SLA); WCAG 2.1 AA basics.
 - Next step: write the implementation plan (writing-plans skill).
 
 ## Data model (summary)

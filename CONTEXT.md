@@ -33,14 +33,21 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   session login with admin-managed resets (no SMTP); server-side image downscale + EXIF strip,
   no input cap; nightly single-zip backup (DB + images) + restore docs; print/PDF public page
   + staff-only bulk export; best-effort availability (no SLA); WCAG 2.1 AA basics.
-- P1 implementation plan: written. See `docs/superpowers/plans/2026-08-03-p1-launch.md`.
-  One monolithic P1 plan, 33 TDD tasks in 8 parts (foundation → schema → auth → users/districts/herbs
-  → doctor/recipe/case → public/export/backup → Next.js frontend → UAT). Each task is test-first with
-  real Go/TS code. In-stack choices locked: `modernc.org/sqlite` (cgo-free), stdlib `net/http` ServeMux,
-  `autocert` TLS, `disintegration/imaging`, `xuri/excelize`; Next.js 15 static export embedded via
-  `embed.FS`. Generic repo + config-driven CRUD components keep the six entities DRY. Self-review maps
-  every SRS P1 requirement to a task. Recorded deviation: HEIC input out of P1 (needs cgo).
-- Next step: execute the plan (subagent-driven-development or executing-plans).
+- P1 implementation plan: written, reviewed, and revised (v2). See
+  `docs/superpowers/plans/2026-08-03-p1-launch.md`. One monolithic P1 plan, 33 TDD tasks in 8 parts
+  (foundation → models → auth → users/districts/herbs/media → doctor/recipe/case → public/export/backup
+  → Next.js frontend → UAT). Each task is test-first with real Go/TS code.
+- Stack (revised after a pre-execution verifier review): **Gin + GORM** with the **pure-Go
+  `glebarez/sqlite`** driver (cgo-free), `autocert` TLS, `disintegration/imaging`, `xuri/excelize`;
+  Next.js 15 static export embedded via `embed.FS`. Auth = **server-side session** (bcrypt + session
+  row + Gin middleware), **no JWT**; CSRF defense = **`SameSite=Strict` cookie + Origin check, no CSRF
+  token**. ADR-0001 updated to match.
+- Pre-execution review (obs 13325): 15 findings, 2 Critical. All folded into plan v2, marked [FIX-n]:
+  first-admin bootstrap (Task 6), Next.js `generateStaticParams`→[], `Serve` error handling, GORM tx
+  (no MaxOpenConns(1) deadlock), `media` pkg rename, four stub tests given real assertions, embed
+  placeholder tracked, single Playwright webServer, streaming multipart, consent filter on the recipe
+  path. Recorded deviation: HEIC input out of P1 (needs cgo).
+- Next step: execute plan v2 (subagent-driven-development).
 
 ## Data model (summary)
 

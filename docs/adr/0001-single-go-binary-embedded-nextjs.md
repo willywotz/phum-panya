@@ -4,12 +4,18 @@ Status: accepted
 
 ## Decision
 
-We build the app as **one Go binary**. The Go binary serves a JSON API and
-also serves the frontend, which is a **Next.js static export embedded with
-`embed.FS`**. Node is a build-time tool only; the runtime is one file. The
-database is **SQLite** at launch, with a portable data-access layer that lets
-us move to **PostgreSQL** later. The Go binary terminates **TLS itself** with
-built-in ACME (Let's Encrypt); it does not need a reverse proxy.
+We build the app as **one Go binary**. The Go binary serves a JSON API (with
+**Gin**) and also serves the frontend, which is a **Next.js static export
+embedded with `embed.FS`**. Node is a build-time tool only; the runtime is one
+file. The database is **SQLite through GORM**, with the **pure-Go
+`github.com/glebarez/sqlite` driver** so the binary stays cgo-free; GORM's
+dialect layer lets us move to **PostgreSQL** later by swapping the driver. The
+Go binary terminates **TLS itself** with built-in ACME (Let's Encrypt); it does
+not need a reverse proxy.
+
+Auth is a **server-side session** (bcrypt + a session row + Gin middleware), not
+JWT, so a login is revoked instantly. CSRF is defended by a `SameSite=Strict`
+session cookie plus an Origin check — there is no CSRF token.
 
 ## Why
 
@@ -38,6 +44,12 @@ is tiny (one editor per district), so SQLite is enough for a long time.
 - **Weak SEO for detail pages.** A static export is client-rendered for dynamic
   pages, so search engines index individual healer/recipe pages poorly. Access
   is by QR to a direct link, not by Google, so this is acceptable.
-- **Portability constraint.** The data-access layer must use standard SQL that
-  runs on both SQLite and PostgreSQL. No SQLite-only features. The switch to
-  PostgreSQL is triggered by a measured performance need, not a fixed date.
+- **Portability via GORM.** All data access goes through GORM, whose dialect
+  layer runs on both SQLite and PostgreSQL. No hand-written dialect-specific SQL
+  except two documented raw statements (the backup `VACUUM INTO` and the DSN
+  pragmas). The switch to PostgreSQL is triggered by a measured performance
+  need, not a fixed date.
+- **cgo-free is a hard rule.** GORM's default SQLite driver (`gorm.io/driver/
+  sqlite`) pulls cgo `mattn/go-sqlite3`, which would break the static single
+  binary. We use `github.com/glebarez/sqlite` (pure Go) and require
+  `CGO_ENABLED=0 go build` to succeed.

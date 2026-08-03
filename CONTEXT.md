@@ -125,9 +125,11 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   and registers+starts the service on install, stops+removes on uninstall. CI gains a **windows**
   job (build exe+msi, silent install/query/uninstall smoke test) and the **release** job now
   attaches the linux binary + `.exe` + `.msi` on `v*` tags. 113 Go tests green.
-- Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client. The
-  styling pass sits on top of `feat/p1-launch` — decide merge order (styling → p1-launch → main,
-  or fold together). The dev-compose branch is a small independent add-on on top.
+- **Shipped**: all work merged to `main` (107 commits) and released as **`v1.0.0`** (PR #1 merged;
+  PR #2 split CI into `ci.yml` + `release.yml`). The release has three assets — linux binary,
+  Windows `.exe`, and `.msi`. One trunk; all feature branches deleted. 114 Go tests green.
+- Next step: **deploy `v1.0.0`** to the client VPS (deployment is manual — no CD yet), then run the
+  SRS §6.1 UAT with the client. See `docs/HANDOFF.md` for the full picture.
 
 ## Data model (summary)
 

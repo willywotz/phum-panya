@@ -20,7 +20,13 @@ services:
       dockerfile: deploy/dev/nginx.Dockerfile
     image: phum-panya-dev-nginx
     container_name: phum-panya-dev-nginx
-    depends_on: [web, api]
+    depends_on:
+      web:
+        condition: service_started
+        restart: true
+      api:
+        condition: service_started
+        restart: true
     ports:
       - "${APP_HOST_PORT:-8080}:80"
     restart: unless-stopped

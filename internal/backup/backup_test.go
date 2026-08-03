@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -49,23 +50,58 @@ func TestBackupProducesZipAndPrunes(t *testing.T) {
 }
 
 // TestBackupRunRepeatedDoesNotLeakConnections guards against fd/connection
-// pool exhaustion: snapshotDB opens a *gorm.DB per Run call, and if it isn't
-// closed, enough repeated Runs eventually fail (hitting the open-file
-// limit or connection pool errors).
+// pool exhaustion: snapshotDB opens a *gorm.DB per Run call, and if the
+// underlying *sql.DB isn't closed, the process's open-fd count grows with
+// every call. err == nil is not a reliable signal here (db.Open caps its
+// pool at 4 conns and this env's ulimit is far above what a few dozen runs
+// would leak), so this compares /proc/self/fd counts before and after many
+// runs instead.
 func TestBackupRunRepeatedDoesNotLeakConnections(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("fd-count leak check is linux-only")
+	}
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "app.db")
 	g, _ := db.Open(dbPath)
 	_ = model.AutoMigrate(g)
 	outDir := filepath.Join(dir, "out")
+	mediaDir := filepath.Join(dir, "media")
 
 	fake := &clock.Fake{T: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)}
-	for i := 0; i < 20; i++ {
+	run := func() {
 		fake.T = fake.T.AddDate(0, 0, 1)
-		if _, err := backup.Run(dbPath, filepath.Join(dir, "media"), outDir, 5, fake); err != nil {
-			t.Fatalf("run %d: %v", i, err)
+		if _, err := backup.Run(dbPath, mediaDir, outDir, 100, fake); err != nil {
+			t.Fatalf("run: %v", err)
 		}
 	}
+
+	// Warm up so any one-time fds (lazily opened files, etc.) settle before
+	// measuring.
+	for i := 0; i < 5; i++ {
+		run()
+	}
+
+	before := openFDCount(t)
+	const iterations = 30
+	for i := 0; i < iterations; i++ {
+		run()
+	}
+	after := openFDCount(t)
+
+	const slack = 5
+	if after > before+slack {
+		t.Fatalf("open fds grew from %d to %d after %d runs (leak)", before, after, iterations)
+	}
+}
+
+// openFDCount returns the number of open file descriptors for this process.
+func openFDCount(t *testing.T) int {
+	t.Helper()
+	entries, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		t.Fatalf("read /proc/self/fd: %v", err)
+	}
+	return len(entries)
 }
 
 // TestPruneIgnoresNonBackupFiles ensures a stray file in outDir is left

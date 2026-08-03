@@ -24,6 +24,10 @@ func Register(r *gin.Engine) {
 	if err != nil {
 		panic(err)
 	}
+	register(r, root)
+}
+
+func register(r *gin.Engine, root fs.FS) {
 	fileServer := http.FileServer(http.FS(root))
 
 	r.NoRoute(func(c *gin.Context) {
@@ -37,6 +41,13 @@ func Register(r *gin.Engine) {
 				return
 			}
 			fileServer.ServeHTTP(c.Writer, c.Request)
+			return
+		}
+		// Next.js static export writes each app-router route to its own
+		// "<route>.html" shell (clean-URL convention); a bare client route
+		// like /login must resolve to login.html, not the "/" shell.
+		if htmlPath := path + ".html"; fileExists(root, htmlPath) {
+			serveHTML(c, root, htmlPath)
 			return
 		}
 		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
@@ -55,7 +66,11 @@ func Register(r *gin.Engine) {
 // http.FileServer, which redirects any request whose path ends in
 // "index.html" to "./" (FIX-13: SPA fallback must return 200, not 301).
 func serveIndex(c *gin.Context, root fs.FS) {
-	body, err := fs.ReadFile(root, "index.html")
+	serveHTML(c, root, "index.html")
+}
+
+func serveHTML(c *gin.Context, root fs.FS, path string) {
+	body, err := fs.ReadFile(root, path)
 	if err != nil {
 		c.Status(http.StatusNotFound)
 		return

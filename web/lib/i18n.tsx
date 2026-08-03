@@ -11,10 +11,20 @@ type Dictionary = Record<string, string>;
 
 const th: Dictionary = {
   signIn: 'เข้าสู่ระบบ',
+  email: 'อีเมล',
+  password: 'รหัสผ่าน',
+  loginError: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+  staffDashboard: 'แดชบอร์ดเจ้าหน้าที่',
+  logOut: 'ออกจากระบบ',
 };
 
 const en: Dictionary = {
   signIn: 'Sign in',
+  email: 'Email',
+  password: 'Password',
+  loginError: 'Wrong email or password',
+  staffDashboard: 'Staff dashboard',
+  logOut: 'Log out',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { th, en };

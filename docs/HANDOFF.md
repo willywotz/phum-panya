@@ -121,9 +121,11 @@ The "no screen CSS" gap is now closed. The frontend uses **Tailwind CSS v4 + sha
 are Radix `Select`, the add/edit form is a modal `Dialog`, delete is an `AlertDialog`. `print.css`
 and its `.no-print` nav rule are kept. Gate: no-CDN grep clean, `web/out/` builds, 107 Go tests,
 13 Playwright specs, `tsc` clean. See `docs/superpowers/plans/2026-08-04-styling-pass.md`.
-Residual (follow-up): three hand-rolled/native `<select>` sites left native for consistency —
-`CaseForm` (`cases/page.tsx`), `ReconcilePanel` (`staff/herbs/page.tsx`), and the staff doctors
-`อำเภอ` filter; a `full_name`-less staff nav still shows role, not name.
+Follow-up completed: the four hand-rolled staff pages (`cases`, `herbs`/ReconcilePanel,
+`doctors`, `recipes`) were migrated too — all 11 remaining native single `<select>` are now
+Radix `Select` (only the doctor `specialty` multiselect stays native, by design). Residual: a
+`full_name`-less staff nav still shows role not name; the case/recipe list `<table>` markup is
+plain (rows still semantic `<tr>`).
 
 ### Deferred minors (from the final whole-branch review — all non-blocking for P1)
 - Handlers lack `binding:"required"` tags → empty strings accepted (staff-entered, trusted data).

@@ -78,10 +78,10 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   helper, `alertdialog`). Gate green: no-CDN grep clean, `web/out/` builds, **107 Go tests**,
   **13 Playwright specs**, `tsc` clean; print rule (`.no-print` nav) kept. See
   `docs/superpowers/plans/2026-08-04-styling-pass.md`.
-  - Known coverage gaps (still native `<select>`, outside the plan's file list): the hand-rolled
-    `CaseForm` (`cases/page.tsx`), the `ReconcilePanel` herb selects (`staff/herbs/page.tsx`), and
-    the staff-side doctors `อำเภอ` filter. Tests pass (native drivers kept); a follow-up can
-    migrate them for visual consistency.
+  - Follow-up done: the four hand-rolled staff pages (`cases`, `herbs`/ReconcilePanel, `doctors`,
+    `recipes`) were fully migrated too — all 11 remaining native `<select>` became Radix `Select`
+    and their raw inputs/buttons became shadcn. Only the doctor `specialty` `<select multiple>`
+    stays native (Radix has no multiselect). No native single-select `<select>` remains in the app.
 - Next step: merge `feat/p1-launch` to `main`; then P1 acceptance/UAT with the client. The
   styling pass sits on top of `feat/p1-launch` — decide merge order (styling → p1-launch → main,
   or fold together).

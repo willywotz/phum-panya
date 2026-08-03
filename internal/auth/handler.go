@@ -1,0 +1,85 @@
+package auth
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
+	"phum-panya/internal/httpx"
+	"phum-panya/internal/model"
+)
+
+// loginRequest is the JSON body for POST /api/login.
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// RegisterRoutes wires the login, logout, and me endpoints onto r.
+func RegisterRoutes(r gin.IRouter, g *gorm.DB, store *SessionStore, th *Throttle, secure bool) {
+	r.POST("/api/login", loginHandler(g, store, th, secure))
+	r.POST("/api/logout", logoutHandler(store))
+	r.GET("/api/me", LoadUser(store, g), meHandler)
+}
+
+func loginHandler(g *gorm.DB, store *SessionStore, th *Throttle, secure bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req loginRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			httpx.Err(c, http.StatusBadRequest, "invalid_request", "email and password are required")
+			return
+		}
+
+		key := req.Email + "|" + c.ClientIP()
+		if !th.Allowed(key) {
+			httpx.Err(c, http.StatusTooManyRequests, "too_many_attempts", "too many login attempts, try again later")
+			return
+		}
+
+		var user model.User
+		err := g.Where("email = ? AND active = ?", req.Email, true).First(&user).Error
+		if err != nil || !CheckPassword(user.PasswordHash, req.Password) {
+			th.Fail(key)
+			httpx.Err(c, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
+			return
+		}
+
+		th.Reset(key)
+		raw, err := store.Create(user.ID)
+		if err != nil {
+			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not create session")
+			return
+		}
+		SetSessionCookie(c, raw, secure)
+		httpx.OK(c, http.StatusOK, gin.H{
+			"id":          user.ID,
+			"full_name":   user.FullName,
+			"role":        user.Role,
+			"district_id": user.DistrictID,
+		})
+	}
+}
+
+func logoutHandler(store *SessionStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if raw, err := c.Cookie(sessionCookieName); err == nil && raw != "" {
+			_ = store.Delete(raw)
+		}
+		ClearSessionCookie(c)
+		c.Status(http.StatusNoContent)
+	}
+}
+
+func meHandler(c *gin.Context) {
+	user, ok := UserFrom(c)
+	if !ok {
+		httpx.Err(c, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	httpx.OK(c, http.StatusOK, gin.H{
+		"id":          user.ID,
+		"role":        user.Role,
+		"district_id": user.DistrictID,
+	})
+}

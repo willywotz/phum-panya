@@ -69,7 +69,7 @@ func NewEngine(deps Deps) *gin.Engine {
 	api.GET("/api/health", func(c *gin.Context) { httpx.OK(c, http.StatusOK, gin.H{"status": "ok"}) })
 
 	rev := revision.NewRepo(deps.DB, deps.Clk)
-	// lockRepo is also used by the yearlock routes registered in a later task.
+	// lockRepo is also used by the yearlock routes registered below.
 	lockRepo := yearlock.NewRepo(deps.DB, deps.Clk)
 
 	auth.RegisterRoutes(api, deps.DB, deps.Store, deps.Throttle, deps.Secure)
@@ -83,6 +83,7 @@ func NewEngine(deps Deps) *gin.Engine {
 	publicapi.RegisterRoutes(api, deps.DB)
 	export.RegisterRoutes(api, deps.DB)
 	backup.RegisterRoutes(api, deps.DBPath, deps.MediaDir, deps.BackupDir, deps.BackupKeep, deps.Clk)
+	yearlock.RegisterRoutes(api, lockRepo)
 
 	// MediaDir may not exist yet (nothing uploaded); Static on a missing dir
 	// would otherwise 500 instead of 404.

@@ -25,6 +25,7 @@ import (
 	"phum-panya/internal/media"
 	"phum-panya/internal/publicapi"
 	"phum-panya/internal/recipe"
+	"phum-panya/internal/review"
 	"phum-panya/internal/revision"
 	"phum-panya/internal/user"
 	"phum-panya/internal/webui"
@@ -75,6 +76,7 @@ func NewEngine(deps Deps) *gin.Engine {
 	doctor.RegisterRoutes(api, doctor.NewRepo(deps.DB, deps.Clk, rev), deps.Media)
 	recipe.RegisterRoutes(api, recipe.NewRepo(deps.DB, deps.Clk, rev))
 	caserec.RegisterRoutes(api, caserec.NewRepo(deps.DB, deps.Clk, rev), deps.Media)
+	review.RegisterRoutes(api, review.NewRepo(deps.DB, rev))
 	publicapi.RegisterRoutes(api, deps.DB)
 	export.RegisterRoutes(api, deps.DB)
 	backup.RegisterRoutes(api, deps.DBPath, deps.MediaDir, deps.BackupDir, deps.BackupKeep, deps.Clk)

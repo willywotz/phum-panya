@@ -126,10 +126,17 @@ test('SRS §6.1 UAT: editor lifecycle, consent gate, public discovery, export sc
   const afterConsent = await request.get(
     `/api/public/doctors?q=${encodeURIComponent(doctorName)}`,
   );
-  const afterConsentDoctors: Array<{ id: number; full_name: string }> =
-    await afterConsent.json();
-  expect(afterConsentDoctors.map((d) => d.full_name)).toContain(doctorName);
-  const doctorId = afterConsentDoctors.find((d) => d.full_name === doctorName)!.id;
+  // P2: an editor's create + consent edit are queued as pending, so the public
+  // does not see the doctor until the central admin approves it (Step 6b below).
+  expect(await afterConsent.json()).toEqual([]);
+
+  const editorDistricts: Array<{ ID: number; Name: string }> =
+    await (await page.request.get('/api/districts')).json();
+  const editorDistrictId = editorDistricts.find((d) => d.Name === districtName)!.ID;
+  const editorDoctors: Array<{ ID: number; FullName: string }> = await (
+    await page.request.get(`/api/doctors?district_id=${editorDistrictId}`)
+  ).json();
+  const doctorId = editorDoctors.find((d) => d.FullName === doctorName)!.ID;
 
   // --- Step 4: the editor adds a Recipe with one catalog herb and one
   // pending herb; it saves.
@@ -186,6 +193,15 @@ test('SRS §6.1 UAT: editor lifecycle, consent gate, public discovery, export sc
   await selectByName(page, 'ผลการรักษา', 'หายขาด');
   await page.getByRole('button', { name: 'บันทึก' }).click();
   await expect(page.getByRole('row', { name: /ปวดหัว/ })).toBeVisible();
+  await logout(page);
+
+  // --- Step 6b: the central admin approves the pending doctor, recipe, and
+  // case so the public can discover them (P2 approval gate).
+  await login(page, 'admin@test', 'pw123456');
+  const approveRes = await page.request.post(`/api/review/doctor/${doctorId}/approve-all`);
+  expect(approveRes.ok()).toBeTruthy();
+  const approved: { approved: number } = await approveRes.json();
+  expect(approved.approved).toBeGreaterThanOrEqual(3); // doctor + recipe + case
   await logout(page);
 
   // --- Step 7: the public finds the Doctor by keyword and by district

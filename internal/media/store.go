@@ -3,6 +3,7 @@
 package media
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -34,7 +36,19 @@ type Store struct {
 // path derived from the SHA-256 of the encoded bytes and returns that path
 // relative to Dir.
 func (s *Store) SaveReader(r io.Reader) (string, error) {
-	img, err := imaging.Decode(r)
+	// Sniff the type before decoding and accept only JPEG/PNG/WebP. This keeps
+	// the input to the formats the spec declares (NFR-IMG-1) and blocks other
+	// decoders (e.g. the TIFF path in the imaging dependency, which has no
+	// upstream fix for a crafted-file crash). bufio.Peek does not consume r.
+	br := bufio.NewReader(r)
+	head, _ := br.Peek(512)
+	switch ct := http.DetectContentType(head); ct {
+	case "image/jpeg", "image/png", "image/webp":
+	default:
+		return "", fmt.Errorf("media: unsupported image type %q (want JPEG, PNG, or WebP)", ct)
+	}
+
+	img, err := imaging.Decode(br)
 	if err != nil {
 		return "", fmt.Errorf("media: decode image: %w", err)
 	}

@@ -17,6 +17,7 @@ import (
 	"phum-panya/internal/clock"
 	"phum-panya/internal/db"
 	"phum-panya/internal/model"
+	"phum-panya/internal/revision"
 )
 
 // caseAPI wires a caserec router with an admin (id 1), a district_editor
@@ -125,7 +126,7 @@ func newCaseAPI(t *testing.T) *caseAPI {
 
 	r := gin.New()
 	r.Use(auth.LoadUser(store, g))
-	repo := caserec.NewRepo(g, clock.Real{})
+	repo := caserec.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{}))
 	caserec.RegisterRoutes(r, repo, nil)
 
 	return &caseAPI{
@@ -143,10 +144,14 @@ func (env *caseAPI) seedCase(recipeID uint) model.Case {
 		Condition: "fever", Treatment: "herbal tea", Result: "cured",
 		Duration: "3 days", DataYear: 2565,
 	}
-	if err := env.repo.Create(&cs, 1); err != nil {
+	if err := env.repo.Create(&cs, 1, true); err != nil {
 		env.t.Fatalf("seedCase: %v", err)
 	}
 	return cs
+}
+
+func (env *caseAPI) doAsAdmin(method, path, body string) *httptest.ResponseRecorder {
+	return env.do(method, path, env.adminToken, body)
 }
 
 func (env *caseAPI) doAsEditor1(method, path, body string) *httptest.ResponseRecorder {
@@ -287,6 +292,32 @@ func TestUpdatePreservesPhoto(t *testing.T) {
 	}
 	if reloaded.Photo != "uploads/case.jpg" {
 		t.Fatalf("Photo = %q, want unchanged %q", reloaded.Photo, "uploads/case.jpg")
+	}
+}
+
+// TestCaseAdminDeleteIsImmediateAndLogged proves an admin delete removes the
+// row right away and appends a delete revision, unlike an editor delete
+// which only queues pending_delete.
+func TestCaseAdminDeleteIsImmediateAndLogged(t *testing.T) {
+	env := newCaseAPI(t)
+	cs := env.seedCase(env.recipe.ID)
+
+	path := "/api/cases/" + strconv.FormatUint(uint64(cs.ID), 10)
+	rec := env.doAsAdmin("DELETE", path, "")
+	if rec.Code != http.StatusOK && rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", rec.Code)
+	}
+
+	var count int64
+	env.g.Model(&model.Case{}).Where("id = ?", cs.ID).Count(&count)
+	if count != 0 {
+		t.Fatalf("admin delete must remove the row")
+	}
+	env.g.Model(&model.Revision{}).
+		Where("entity_type = ? AND entity_id = ? AND action = ?", "case", cs.ID, model.ActionDelete).
+		Count(&count)
+	if count != 1 {
+		t.Fatalf("admin delete must append a delete revision, got %d", count)
 	}
 }
 

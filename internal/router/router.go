@@ -74,7 +74,7 @@ func NewEngine(deps Deps) *gin.Engine {
 	herb.RegisterRoutes(api, herb.NewRepo(deps.DB), deps.Media)
 	doctor.RegisterRoutes(api, doctor.NewRepo(deps.DB, deps.Clk, rev), deps.Media)
 	recipe.RegisterRoutes(api, recipe.NewRepo(deps.DB, deps.Clk, rev))
-	caserec.RegisterRoutes(api, caserec.NewRepo(deps.DB, deps.Clk), deps.Media)
+	caserec.RegisterRoutes(api, caserec.NewRepo(deps.DB, deps.Clk, rev), deps.Media)
 	publicapi.RegisterRoutes(api, deps.DB)
 	export.RegisterRoutes(api, deps.DB)
 	backup.RegisterRoutes(api, deps.DBPath, deps.MediaDir, deps.BackupDir, deps.BackupKeep, deps.Clk)

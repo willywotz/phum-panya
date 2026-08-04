@@ -29,6 +29,7 @@ import (
 	"phum-panya/internal/revision"
 	"phum-panya/internal/user"
 	"phum-panya/internal/webui"
+	"phum-panya/internal/yearlock"
 )
 
 // Deps bundles everything NewEngine needs to assemble the API.
@@ -68,14 +69,16 @@ func NewEngine(deps Deps) *gin.Engine {
 	api.GET("/api/health", func(c *gin.Context) { httpx.OK(c, http.StatusOK, gin.H{"status": "ok"}) })
 
 	rev := revision.NewRepo(deps.DB, deps.Clk)
+	// lockRepo is also used by the yearlock routes registered in a later task.
+	lockRepo := yearlock.NewRepo(deps.DB, deps.Clk)
 
 	auth.RegisterRoutes(api, deps.DB, deps.Store, deps.Throttle, deps.Secure)
 	district.RegisterRoutes(api, district.NewRepo(deps.DB))
 	user.RegisterRoutes(api, user.NewRepo(deps.DB))
 	herb.RegisterRoutes(api, herb.NewRepo(deps.DB), deps.Media)
 	doctor.RegisterRoutes(api, doctor.NewRepo(deps.DB, deps.Clk, rev), deps.Media)
-	recipe.RegisterRoutes(api, recipe.NewRepo(deps.DB, deps.Clk, rev))
-	caserec.RegisterRoutes(api, caserec.NewRepo(deps.DB, deps.Clk, rev), deps.Media)
+	recipe.RegisterRoutes(api, recipe.NewRepo(deps.DB, deps.Clk, rev, lockRepo))
+	caserec.RegisterRoutes(api, caserec.NewRepo(deps.DB, deps.Clk, rev, lockRepo), deps.Media)
 	review.RegisterRoutes(api, review.NewRepo(deps.DB, rev))
 	publicapi.RegisterRoutes(api, deps.DB)
 	export.RegisterRoutes(api, deps.DB)

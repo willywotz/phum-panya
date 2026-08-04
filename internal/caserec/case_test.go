@@ -18,6 +18,7 @@ import (
 	"phum-panya/internal/db"
 	"phum-panya/internal/model"
 	"phum-panya/internal/revision"
+	"phum-panya/internal/yearlock"
 )
 
 // caseAPI wires a caserec router with an admin (id 1), a district_editor
@@ -126,7 +127,7 @@ func newCaseAPI(t *testing.T) *caseAPI {
 
 	r := gin.New()
 	r.Use(auth.LoadUser(store, g))
-	repo := caserec.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{}))
+	repo := caserec.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{}), yearlock.NewRepo(g, clock.Real{}))
 	caserec.RegisterRoutes(r, repo, nil)
 
 	return &caseAPI{
@@ -318,6 +319,18 @@ func TestCaseAdminDeleteIsImmediateAndLogged(t *testing.T) {
 		Count(&count)
 	if count != 1 {
 		t.Fatalf("admin delete must append a delete revision, got %d", count)
+	}
+}
+
+func TestCaseEditorUpdateRefusedInLockedYear(t *testing.T) {
+	env := newCaseAPI(t)
+	cs := env.seedCase(env.recipe.ID)
+	env.g.Create(&model.YearLock{DataYear: cs.DataYear, LockedBy: 1})
+
+	path := "/api/cases/" + strconv.FormatUint(uint64(cs.ID), 10)
+	rec := env.doAsEditor1("PUT", path, env.caseBody("better"))
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("editor update in locked year must be 409, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

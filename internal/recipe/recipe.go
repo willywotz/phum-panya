@@ -11,6 +11,7 @@ import (
 	"phum-panya/internal/db"
 	"phum-panya/internal/model"
 	"phum-panya/internal/revision"
+	"phum-panya/internal/yearlock"
 )
 
 // recipePayload composes a recipe with its ingredients for the pending-edit
@@ -22,15 +23,30 @@ type recipePayload struct {
 
 // Repo provides CRUD access to recipes and ingredients backed by GORM.
 type Repo struct {
-	g   *gorm.DB
-	clk clock.Clock
-	rev *revision.Repo
+	g    *gorm.DB
+	clk  clock.Clock
+	rev  *revision.Repo
+	lock *yearlock.Repo
 }
 
-// NewRepo returns a Repo backed by g, using clk to stamp audit timestamps
-// and rev to log immediate (admin) writes.
-func NewRepo(g *gorm.DB, clk clock.Clock, rev *revision.Repo) *Repo {
-	return &Repo{g: g, clk: clk, rev: rev}
+// NewRepo returns a Repo backed by g, using clk to stamp audit timestamps,
+// rev to log immediate (admin) writes, and lock to refuse writes into a
+// locked data_year.
+func NewRepo(g *gorm.DB, clk clock.Clock, rev *revision.Repo, lock *yearlock.Repo) *Repo {
+	return &Repo{g: g, clk: clk, rev: rev, lock: lock}
+}
+
+// guardYearWrite refuses the write with yearlock.ErrYearLocked if dataYear
+// is locked.
+func (r *Repo) guardYearWrite(dataYear int) error {
+	locked, err := r.lock.IsLocked(dataYear)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return yearlock.ErrYearLocked
+	}
+	return nil
 }
 
 // ListByDoctor returns every recipe belonging to doctorID.
@@ -58,6 +74,9 @@ func (r *Repo) Get(id uint) (model.Recipe, error) {
 // fields with actorID and the current time. Editor creates enter the
 // pending queue; admin creates publish immediately and are logged.
 func (r *Repo) Create(rec *model.Recipe, ings []model.Ingredient, actorID uint, immediate bool) error {
+	if err := r.guardYearWrite(rec.DataYear); err != nil {
+		return err
+	}
 	if immediate {
 		rec.ReviewState = model.ReviewApproved
 	} else {
@@ -92,6 +111,14 @@ func (r *Repo) Update(rec *model.Recipe, ings []model.Ingredient, actorID uint, 
 	var existing model.Recipe
 	if err := r.g.First(&existing, rec.ID).Error; err != nil {
 		return err
+	}
+	if err := r.guardYearWrite(existing.DataYear); err != nil {
+		return err
+	}
+	if rec.DataYear != existing.DataYear {
+		if err := r.guardYearWrite(rec.DataYear); err != nil {
+			return err
+		}
 	}
 	rec.Photo = existing.Photo
 
@@ -164,6 +191,14 @@ func (r *Repo) Delete(id, actorID uint, immediate bool) error {
 			return gorm.ErrRecordNotFound
 		}
 		return r.rev.Append("recipe", id, actorID, model.ActionDelete, existing)
+	}
+	// editor queued delete: refuse if the row's data_year is locked (admin erasure is exempt)
+	var existing model.Recipe
+	if err := r.g.First(&existing, id).Error; err != nil {
+		return err
+	}
+	if err := r.guardYearWrite(existing.DataYear); err != nil {
+		return err
 	}
 	res := r.g.Model(&model.Recipe{}).Where("id = ?", id).
 		Updates(map[string]any{"pending_delete": true, "rejection_reason": nil})

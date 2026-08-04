@@ -19,6 +19,7 @@ import (
 	"phum-panya/internal/model"
 	"phum-panya/internal/recipe"
 	"phum-panya/internal/revision"
+	"phum-panya/internal/yearlock"
 )
 
 // recipeAPI wires a recipe router with an admin (id 1) and a district_editor
@@ -115,7 +116,7 @@ func newRecipeAPI(t *testing.T) *recipeAPI {
 
 	r := gin.New()
 	r.Use(auth.LoadUser(store, g))
-	repo := recipe.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{}))
+	repo := recipe.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{}), yearlock.NewRepo(g, clock.Real{}))
 	recipe.RegisterRoutes(r, repo)
 
 	return &recipeAPI{
@@ -281,6 +282,47 @@ func TestRecipeEditorEditStashesCompositeProposal(t *testing.T) {
 	}
 	if got.Name == "Edited Name" {
 		t.Fatalf("real columns must not change on an editor edit")
+	}
+}
+
+func TestEditorCreateRefusedInLockedYear(t *testing.T) {
+	env := newRecipeAPI(t)
+	env.g.Create(&model.YearLock{DataYear: 2567, LockedBy: 1})
+	body := `{"code":"R-LK","name":"Yaa Hom","doctor_id":` + strconv.FormatUint(uint64(env.doctor1.ID), 10) + `,
+		"indication":"fever","preparation":"boil","usage":"drink","care_stage":"acute","data_year":2567,
+		"ingredients":[{"pending_herb_name":"Root","amount":"1","unit":"g","note":""}]}`
+	rec := env.doAsEditor("POST", "/api/recipes", body)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("editor create in locked year must be 409, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminEditRefusedInLockedYear(t *testing.T) {
+	env := newRecipeAPI(t) // recipe1 seeded with data_year 2565
+	env.g.Create(&model.YearLock{DataYear: env.recipe1.DataYear, LockedBy: 1})
+	path := "/api/recipes/" + strconv.FormatUint(uint64(env.recipe1.ID), 10)
+	body := `{"code":"REC-SEED","name":"Edited Name","doctor_id":` + strconv.FormatUint(uint64(env.doctor1.ID), 10) + `,
+		"indication":"fever","preparation":"boil","usage":"drink","care_stage":"acute","data_year":` +
+		strconv.Itoa(env.recipe1.DataYear) + `,
+		"ingredients":[{"pending_herb_name":"New Root","amount":"1","unit":"g","note":""}]}`
+	rec := env.doAsAdmin("PUT", path, body)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("admin edit in locked year must be 409, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminDeleteAllowedInLockedYear(t *testing.T) {
+	env := newRecipeAPI(t) // recipe1 seeded with data_year 2565
+	env.g.Create(&model.YearLock{DataYear: env.recipe1.DataYear, LockedBy: 1})
+	path := "/api/recipes/" + strconv.FormatUint(uint64(env.recipe1.ID), 10)
+	rec := env.doAsAdmin("DELETE", path, "")
+	if rec.Code != http.StatusOK && rec.Code != http.StatusNoContent {
+		t.Fatalf("admin erasure must bypass the lock, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var n int64
+	env.g.Model(&model.Recipe{}).Where("id = ?", env.recipe1.ID).Count(&n)
+	if n != 0 {
+		t.Fatalf("admin delete must remove the row even in a locked year")
 	}
 }
 

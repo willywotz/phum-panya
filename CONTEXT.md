@@ -130,10 +130,16 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   Windows `.exe`, and `.msi`. One trunk; all feature branches deleted. 114 Go tests green.
 - Next step: **deploy `v1.0.0`** to the client VPS (deployment is manual — no CD yet), then run the
   SRS §6.1 UAT with the client. See `docs/HANDOFF.md` for the full picture.
-- **Paid phases scoped**: `docs/superpowers/plans/2026-08-04-p2-p5-scope.md` gives one roadmap-level
-  scope for P2 (approval + edit history), P3 (year snapshots/locking), P4 (bulk import), and P5
-  (district-managed herb catalog + Postgres move). Not funded; each phase gets its own task plan
-  when funded.
+- **Paid phases scoped + design settled** (grilling, 2026-08-04):
+  `docs/superpowers/plans/2026-08-04-p2-p5-scope.md`. Engineering-readiness depth — core decisions
+  settled so each phase can start a TDD task plan when funded. P2 (approval + edit history): every
+  editor save goes pending, public keeps last-approved (Model B), per-record, consent+review as
+  independent gates, on-row pending state + append-only Revision, admin writes immediate,
+  reject-returns-with-reason. P3 (year locking): lock-only, Recipe/Case only (Doctor exempt),
+  erasure overrides. P4 (bulk import): canonical Excel template, imported rows approved+consent-gated,
+  insert-only skip-and-report. P5 (district herb catalog): one shared catalog, add+edit-own +
+  admin-merge. **SQLite→Postgres migration moved to OUT OF SCOPE** (re-scope only if list >1s /
+  search >2s at real load, or SQLITE_BUSY contention). Not funded.
 
 ## Data model (summary)
 

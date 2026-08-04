@@ -122,3 +122,23 @@ func TestAutoMigrateCreatesRevisionAndPendingColumns(t *testing.T) {
 		t.Fatalf("review_state = %q, want %q", got.ReviewState, model.ReviewPending)
 	}
 }
+
+func TestYearLockMigrates(t *testing.T) {
+	g, err := db.Open(filepath.Join(t.TempDir(), "yl.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := model.AutoMigrate(g); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if err := g.Create(&model.YearLock{DataYear: 2567, LockedBy: 1}).Error; err != nil {
+		t.Fatalf("insert year lock: %v", err)
+	}
+	var got model.YearLock
+	if err := g.First(&got, "data_year = ?", 2567).Error; err != nil {
+		t.Fatalf("read year lock: %v", err)
+	}
+	if got.DataYear != 2567 || got.LockedBy != 1 {
+		t.Fatalf("year lock = %+v, want DataYear 2567 LockedBy 1", got)
+	}
+}

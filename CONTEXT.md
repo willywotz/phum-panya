@@ -141,6 +141,14 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   admin-merge. **SQLite→Postgres migration moved to OUT OF SCOPE** (re-scope only if list >1s /
   search >2s at real load, or SQLITE_BUSY contention). Not funded.
 
+- **Security (Dependabot)**: cleared 6 alerts. npm (5) fixed via `web/package.json` `overrides`
+  (`postcss ^8.5.23`, `sharp ^0.35.0`) — both were transitive via Next 15; resolved to postcss
+  8.5.25 + sharp 0.35.3, `npm audit` clean, `tsc` + static export green. `shadcn` (scaffolding CLI,
+  no runtime import) moved to devDependencies. Go (1): `disintegration/imaging` crafted-TIFF crash
+  has no upstream patch, so `internal/media/store.go` now sniffs content-type and accepts only
+  JPEG/PNG/WebP (NFR-IMG-1), making the TIFF decode path unreachable (TDD: `TestSaveReaderRejectsTIFF`).
+  115 Go tests green.
+
 ## Data model (summary)
 
 Six records: District, User, Doctor, Herb (shared catalog), Recipe, Case.

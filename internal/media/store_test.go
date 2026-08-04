@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"golang.org/x/image/tiff"
+
 	"phum-panya/internal/media"
 )
 
@@ -68,6 +70,21 @@ func TestSaveReaderDownscalesPNGToJPEG(t *testing.T) {
 	}
 	if w > 1600 || h > 1600 {
 		t.Errorf("size = %dx%d, want longest side <= 1600", w, h)
+	}
+}
+
+func TestSaveReaderRejectsTIFF(t *testing.T) {
+	dir := t.TempDir()
+	store := &media.Store{Dir: dir}
+
+	src := stdimage.NewNRGBA(stdimage.Rect(0, 0, 64, 64))
+	var tiffBuf bytes.Buffer
+	if err := tiff.Encode(&tiffBuf, src, nil); err != nil {
+		t.Fatalf("tiff.Encode: %v", err)
+	}
+
+	if _, err := store.SaveReader(&tiffBuf); err == nil {
+		t.Fatal("SaveReader accepted a TIFF, want rejection (NFR-IMG-1: JPEG/PNG/WebP only)")
 	}
 }
 

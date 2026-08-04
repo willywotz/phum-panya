@@ -1,6 +1,7 @@
 package review_test
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"phum-panya/internal/model"
 	"phum-panya/internal/review"
 	"phum-panya/internal/revision"
+	"phum-panya/internal/yearlock"
 )
 
 func setup(t *testing.T) (*review.Repo, *gorm.DB, uint) {
@@ -117,6 +119,28 @@ func TestApproveRecipeEditReplacesIngredients(t *testing.T) {
 	g.Where("recipe_id = ?", rec.ID).Find(&ings)
 	if len(ings) != 1 || ings[0].Amount != "2" {
 		t.Fatalf("ingredients = %+v, want one with amount 2", ings)
+	}
+}
+
+func TestApproveRefusesEditIntoLockedYear(t *testing.T) {
+	repo, g, did := setup(t)
+	d := seedDoctor(t, g, did, "D1", "x", model.ReviewApproved)
+	rec := model.Recipe{Code: "R1", Name: "old", DoctorID: d.ID, Indication: "-", Preparation: "-", Usage: "-", DataYear: 2565, ReviewState: model.ReviewApproved}
+	g.Create(&rec)
+	// editor proposed moving the recipe into year 2567 (stashed overlay), while 2567 was open
+	payload := fmt.Sprintf(`{"recipe":{"ID":%d,"Code":"R1","Name":"moved","DoctorID":%d,"Indication":"-","Preparation":"-","Usage":"-","DataYear":2567,"ReviewState":"approved"},"ingredients":[]}`, rec.ID, d.ID)
+	g.Model(&model.Recipe{}).Where("id = ?", rec.ID).Update("pending_json", payload)
+	// admin then locks 2567 (precondition sees no real 2567 rows)
+	g.Create(&model.YearLock{DataYear: 2567, LockedBy: 1})
+
+	err := repo.Approve("recipe", rec.ID, 99)
+	if !errors.Is(err, yearlock.ErrYearLocked) {
+		t.Fatalf("approve into locked year must return ErrYearLocked, got %v", err)
+	}
+	var got model.Recipe
+	g.First(&got, rec.ID)
+	if got.DataYear == 2567 || got.Name == "moved" {
+		t.Fatalf("recipe must NOT be written into locked year 2567 (got year=%d name=%q)", got.DataYear, got.Name)
 	}
 }
 

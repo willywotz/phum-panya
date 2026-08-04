@@ -1,6 +1,7 @@
 package review
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -9,6 +10,7 @@ import (
 	"phum-panya/internal/auth"
 	"phum-panya/internal/httpx"
 	"phum-panya/internal/model"
+	"phum-panya/internal/yearlock"
 )
 
 // RegisterRoutes wires the central-admin review queue endpoints.
@@ -40,6 +42,10 @@ func approveHandler(repo *Repo) gin.HandlerFunc {
 			return
 		}
 		if err := repo.Approve(c.Param("entityType"), uint(id), user.ID); err != nil {
+			if errors.Is(err, yearlock.ErrYearLocked) {
+				httpx.Err(c, http.StatusConflict, "year_locked", "the target data year is locked")
+				return
+			}
 			httpx.Err(c, http.StatusBadRequest, "approve_failed", err.Error())
 			return
 		}
@@ -80,6 +86,10 @@ func approveTreeHandler(repo *Repo) gin.HandlerFunc {
 		}
 		n, err := repo.ApproveDoctorTree(uint(id), user.ID)
 		if err != nil {
+			if errors.Is(err, yearlock.ErrYearLocked) {
+				httpx.Err(c, http.StatusConflict, "year_locked", "the target data year is locked")
+				return
+			}
 			httpx.Err(c, http.StatusBadRequest, "approve_failed", err.Error())
 			return
 		}

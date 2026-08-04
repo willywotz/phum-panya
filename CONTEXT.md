@@ -170,9 +170,11 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   queued delete is refused; an **admin delete is the PDPA-erasure exemption and is always allowed**.
   Design note (refines the plan): admin edits/creates into a locked year are refused too — a locked
   year is read-only, and only erasure/unpublish overrides the freeze; this also makes P4 imports into
-  a locked year refused for free. Not guarded (known follow-up): `SetPhoto` photo swaps. Lock-only —
+  a locked year refused for free. The approval path also re-checks the target `data_year` at approve
+  time, so a cross-year pending edit cannot be promoted into a year that was locked after the edit was
+  queued. Not guarded (known follow-up): `SetPhoto` photo swaps. Lock-only —
   no materialized snapshot; point-in-time state, if ever needed, reconstructs from the P2 `Revision`
-  trail + the nightly backup. 140 Go tests green.
+  trail + the nightly backup. 141 Go tests green.
 
 ## Data model (summary)
 

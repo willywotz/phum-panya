@@ -10,6 +10,7 @@ import (
 	"phum-panya/internal/db"
 	"phum-panya/internal/model"
 	"phum-panya/internal/revision"
+	"phum-panya/internal/yearlock"
 )
 
 // Repo runs the central-admin approval queue: it promotes or rolls back the on-row
@@ -227,6 +228,11 @@ func approveCase(tx *gorm.DB, id, actorID uint, log *[]revEntry) error {
 		if err := json.Unmarshal([]byte(*c.PendingJSON), &overlay); err != nil {
 			return err
 		}
+		if locked, err := yearlock.IsLockedTx(tx, overlay.DataYear); err != nil {
+			return err
+		} else if locked {
+			return yearlock.ErrYearLocked
+		}
 		overlay.ID = id
 		overlay.Photo = c.Photo
 		overlay.ReviewState = model.ReviewApproved
@@ -238,6 +244,11 @@ func approveCase(tx *gorm.DB, id, actorID uint, log *[]revEntry) error {
 		*log = append(*log, revEntry{"case", id, actorID, model.ActionUpdate, overlay})
 		return nil
 	case c.ReviewState == model.ReviewPending:
+		if locked, err := yearlock.IsLockedTx(tx, c.DataYear); err != nil {
+			return err
+		} else if locked {
+			return yearlock.ErrYearLocked
+		}
 		if err := tx.Model(&model.Case{}).Where("id = ?", id).
 			Updates(map[string]any{"review_state": model.ReviewApproved, "rejection_reason": nil}).Error; err != nil {
 			return err
@@ -267,6 +278,11 @@ func approveRecipe(tx *gorm.DB, id, actorID uint, log *[]revEntry) error {
 		if err := json.Unmarshal([]byte(*rec.PendingJSON), &payload); err != nil {
 			return err
 		}
+		if locked, err := yearlock.IsLockedTx(tx, payload.Recipe.DataYear); err != nil {
+			return err
+		} else if locked {
+			return yearlock.ErrYearLocked
+		}
 		newRec := payload.Recipe
 		newRec.ID = id
 		newRec.Photo = rec.Photo
@@ -290,6 +306,11 @@ func approveRecipe(tx *gorm.DB, id, actorID uint, log *[]revEntry) error {
 		*log = append(*log, revEntry{"recipe", id, actorID, model.ActionUpdate, payload})
 		return nil
 	case rec.ReviewState == model.ReviewPending:
+		if locked, err := yearlock.IsLockedTx(tx, rec.DataYear); err != nil {
+			return err
+		} else if locked {
+			return yearlock.ErrYearLocked
+		}
 		if err := tx.Model(&model.Recipe{}).Where("id = ?", id).
 			Updates(map[string]any{"review_state": model.ReviewApproved, "rejection_reason": nil}).Error; err != nil {
 			return err

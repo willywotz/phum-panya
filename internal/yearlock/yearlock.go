@@ -26,8 +26,14 @@ func NewRepo(g *gorm.DB, clk clock.Clock) *Repo {
 
 // IsLocked reports whether a data_year is frozen.
 func (r *Repo) IsLocked(dataYear int) (bool, error) {
+	return IsLockedTx(r.g, dataYear)
+}
+
+// IsLockedTx reports whether a data_year is frozen, using the given *gorm.DB
+// (which may be an open transaction).
+func IsLockedTx(db *gorm.DB, dataYear int) (bool, error) {
 	var n int64
-	err := r.g.Model(&model.YearLock{}).Where("data_year = ?", dataYear).Count(&n).Error
+	err := db.Model(&model.YearLock{}).Where("data_year = ?", dataYear).Count(&n).Error
 	return n > 0, err
 }
 

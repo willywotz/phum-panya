@@ -3,21 +3,26 @@
 package caserec
 
 import (
+	"encoding/json"
+
 	"gorm.io/gorm"
 
 	"phum-panya/internal/clock"
 	"phum-panya/internal/model"
+	"phum-panya/internal/revision"
 )
 
 // Repo provides CRUD access to cases backed by GORM.
 type Repo struct {
 	g   *gorm.DB
 	clk clock.Clock
+	rev *revision.Repo
 }
 
-// NewRepo returns a Repo backed by g, using clk to stamp audit timestamps.
-func NewRepo(g *gorm.DB, clk clock.Clock) *Repo {
-	return &Repo{g: g, clk: clk}
+// NewRepo returns a Repo backed by g, using clk to stamp audit timestamps
+// and rev to log immediate (admin) writes.
+func NewRepo(g *gorm.DB, clk clock.Clock, rev *revision.Repo) *Repo {
+	return &Repo{g: g, clk: clk, rev: rev}
 }
 
 // ListByRecipe returns every case belonging to recipeID.
@@ -34,35 +39,88 @@ func (r *Repo) Get(id uint) (model.Case, error) {
 	return c, err
 }
 
-// Create inserts c, stamping its audit fields with actorID and the current
-// time.
-func (r *Repo) Create(c *model.Case, actorID uint) error {
+// Create inserts a case. Editor creates enter the pending queue; admin
+// creates publish immediately and are logged.
+func (r *Repo) Create(c *model.Case, actorID uint, immediate bool) error {
 	c.UpdatedBy = &actorID
 	c.UpdatedAt = r.clk.Now()
-	return r.g.Create(c).Error
+	if immediate {
+		c.ReviewState = model.ReviewApproved
+	} else {
+		c.ReviewState = model.ReviewPending
+	}
+	if err := r.g.Create(c).Error; err != nil {
+		return err
+	}
+	if immediate {
+		return r.rev.Append("case", c.ID, actorID, model.ActionCreate, c)
+	}
+	return nil
 }
 
-// Update saves all fields of c, stamping its audit fields with actorID and
-// the current time. It returns gorm.ErrRecordNotFound if no case with c.ID
-// exists. Existence is checked first because Save, given a primary key with
-// no matching row, inserts rather than reports zero rows affected. The
-// existing Photo is preserved: photo changes go only through SetPhoto, so
-// an edit here must never blank the stored path.
-func (r *Repo) Update(c *model.Case, actorID uint) error {
-	existing, err := r.Get(c.ID)
-	if err != nil {
+// Update: admin writes real columns immediately; editor writes stash the
+// proposal in pending_json and leave the approved columns visible. It
+// returns gorm.ErrRecordNotFound if no case with c.ID exists. Existence is
+// checked first because Save, given a primary key with no matching row,
+// inserts rather than reports zero rows affected. The existing Photo is
+// preserved: photo changes go only through SetPhoto, so an edit here must
+// never blank the stored path.
+func (r *Repo) Update(c *model.Case, actorID uint, immediate bool) error {
+	var existing model.Case
+	if err := r.g.First(&existing, c.ID).Error; err != nil {
 		return err
 	}
 	c.Photo = existing.Photo
-	c.UpdatedBy = &actorID
-	c.UpdatedAt = r.clk.Now()
-	return r.g.Save(c).Error
+
+	if immediate {
+		c.UpdatedBy = &actorID
+		c.UpdatedAt = r.clk.Now()
+		c.ReviewState = model.ReviewApproved
+		c.PendingJSON = nil
+		c.RejectionReason = nil
+		if err := r.g.Save(c).Error; err != nil {
+			return err
+		}
+		return r.rev.Append("case", c.ID, actorID, model.ActionUpdate, c)
+	}
+
+	proposal := *c
+	proposal.ReviewState = existing.ReviewState
+	blob, err := json.Marshal(&proposal)
+	if err != nil {
+		return err
+	}
+	overlay := string(blob)
+	return r.g.Model(&model.Case{}).Where("id = ?", c.ID).
+		Updates(map[string]any{
+			"pending_json":     overlay,
+			"pending_delete":   false,
+			"rejection_reason": nil,
+			"updated_by":       actorID,
+			"updated_at":       r.clk.Now(),
+		}).Error
 }
 
-// Delete removes the case with id. It returns gorm.ErrRecordNotFound if no
-// case with id exists.
-func (r *Repo) Delete(id uint) error {
-	res := r.g.Delete(&model.Case{}, id)
+// Delete: admin deletes now (+revision); editor delete is queued as
+// pending_delete. It returns gorm.ErrRecordNotFound if no case with id
+// exists.
+func (r *Repo) Delete(id, actorID uint, immediate bool) error {
+	if immediate {
+		var existing model.Case
+		if err := r.g.First(&existing, id).Error; err != nil {
+			return err
+		}
+		res := r.g.Delete(&model.Case{}, id)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return r.rev.Append("case", id, actorID, model.ActionDelete, existing)
+	}
+	res := r.g.Model(&model.Case{}).Where("id = ?", id).
+		Updates(map[string]any{"pending_delete": true, "rejection_reason": nil})
 	if res.Error != nil {
 		return res.Error
 	}

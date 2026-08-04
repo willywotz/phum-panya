@@ -18,11 +18,12 @@ import (
 	"phum-panya/internal/db"
 	"phum-panya/internal/model"
 	"phum-panya/internal/recipe"
+	"phum-panya/internal/revision"
 )
 
 // recipeAPI wires a recipe router with an admin (id 1) and a district_editor
 // (id 2, district 1) session, a doctor in district 1, a doctor in district 2,
-// and a seeded herb.
+// a seeded herb, and an approved recipe owned by the district-1 doctor.
 type recipeAPI struct {
 	t           *testing.T
 	g           *gorm.DB
@@ -33,6 +34,7 @@ type recipeAPI struct {
 	doctor1     model.Doctor
 	doctor2     model.Doctor
 	herb        model.Herb
+	recipe1     model.Recipe
 }
 
 func newRecipeAPI(t *testing.T) *recipeAPI {
@@ -76,6 +78,15 @@ func newRecipeAPI(t *testing.T) *recipeAPI {
 		t.Fatalf("create herb: %v", err)
 	}
 
+	recipe1 := model.Recipe{
+		Code: "REC-SEED", Name: "Seed Recipe", DoctorID: doctor1.ID,
+		Indication: "fever", Preparation: "boil", Usage: "drink",
+		CareStage: "acute", DataYear: 2565, ReviewState: model.ReviewApproved,
+	}
+	if err := g.Create(&recipe1).Error; err != nil {
+		t.Fatalf("create recipe1: %v", err)
+	}
+
 	active := true
 	admin := model.User{
 		FullName: "Admin", Email: "admin@x", PasswordHash: "hash",
@@ -104,13 +115,13 @@ func newRecipeAPI(t *testing.T) *recipeAPI {
 
 	r := gin.New()
 	r.Use(auth.LoadUser(store, g))
-	repo := recipe.NewRepo(g, clock.Real{})
+	repo := recipe.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{}))
 	recipe.RegisterRoutes(r, repo)
 
 	return &recipeAPI{
 		t: t, g: g, r: r, repo: repo,
 		adminToken: adminToken, editorToken: editorToken,
-		doctor1: doctor1, doctor2: doctor2, herb: herb,
+		doctor1: doctor1, doctor2: doctor2, herb: herb, recipe1: recipe1,
 	}
 }
 
@@ -243,6 +254,33 @@ func TestCreateRecipeCrossDistrictForbidden(t *testing.T) {
 	res := env.doAsEditor("POST", "/api/recipes", body)
 	if res.Code != http.StatusForbidden {
 		t.Fatalf("status %d, want 403, body %s", res.Code, res.Body.String())
+	}
+}
+
+// TestRecipeEditorEditStashesCompositeProposal proves an editor edit of an
+// approved recipe keeps review_state=approved, stashes the recipe+ingredient
+// proposal in pending_json, and leaves the real columns untouched.
+func TestRecipeEditorEditStashesCompositeProposal(t *testing.T) {
+	env := newRecipeAPI(t)
+
+	path := "/api/recipes/" + strconv.FormatUint(uint64(env.recipe1.ID), 10)
+	body := `{"code":"REC-SEED","name":"Edited Name","doctor_id":` + strconv.FormatUint(uint64(env.doctor1.ID), 10) + `,
+		"indication":"fever","preparation":"boil","usage":"drink","care_stage":"acute","data_year":2565,
+		"ingredients":[{"pending_herb_name":"New Root","amount":"1","unit":"g","note":""}]}`
+	rec := env.doAsEditor("PUT", path, body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var got model.Recipe
+	env.g.First(&got, env.recipe1.ID)
+	if got.ReviewState != model.ReviewApproved {
+		t.Fatalf("edit must keep review_state approved, got %q", got.ReviewState)
+	}
+	if got.PendingJSON == nil {
+		t.Fatalf("edit must set pending_json")
+	}
+	if got.Name == "Edited Name" {
+		t.Fatalf("real columns must not change on an editor edit")
 	}
 }
 

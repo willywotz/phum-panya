@@ -22,6 +22,7 @@ import (
 	"phum-panya/internal/doctor"
 	"phum-panya/internal/media"
 	"phum-panya/internal/model"
+	"phum-panya/internal/revision"
 )
 
 // doctorAPI wires a doctor router with an admin (id 1) and a district_editor
@@ -87,7 +88,7 @@ func newDoctorAPI(t *testing.T) *doctorAPI {
 	r := gin.New()
 	r.Use(auth.LoadUser(store, g))
 	mediaStore := &media.Store{Dir: t.TempDir()}
-	doctor.RegisterRoutes(r, doctor.NewRepo(g, clock.Real{}), mediaStore)
+	doctor.RegisterRoutes(r, doctor.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{})), mediaStore)
 
 	return &doctorAPI{
 		t: t, g: g, r: r,
@@ -258,7 +259,8 @@ func TestUpdatePreservesPhoto(t *testing.T) {
 	var d model.Doctor
 	env.g.Where("code = ?", "MUE-07").First(&d)
 
-	if err := doctor.NewRepo(env.g, clock.Real{}).SetPhoto(d.ID, "uploads/h7.jpg"); err != nil {
+	repo := doctor.NewRepo(env.g, clock.Real{}, revision.NewRepo(env.g, clock.Real{}))
+	if err := repo.SetPhoto(d.ID, "uploads/h7.jpg"); err != nil {
 		t.Fatalf("SetPhoto: %v", err)
 	}
 
@@ -273,5 +275,44 @@ func TestUpdatePreservesPhoto(t *testing.T) {
 	env.g.First(&reloaded, d.ID)
 	if reloaded.Photo != "uploads/h7.jpg" {
 		t.Fatalf("Photo = %q, want unchanged %q", reloaded.Photo, "uploads/h7.jpg")
+	}
+}
+
+// TestEditorCreateGoesPendingAdminIsImmediate proves the doctor write path
+// branches on role: an editor create enters the pending queue with no
+// revision logged yet, while an admin create publishes immediately and is
+// logged as one revision.
+func TestEditorCreateGoesPendingAdminIsImmediate(t *testing.T) {
+	env := newDoctorAPI(t)
+
+	body := `{"code":"D9","full_name":"เจ้าของ","specialty":["ยาต้ม"],"status":"active","first_year":2568,"district_id":1}`
+	rec := env.doAsEditor("POST", "/api/doctors", body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("editor create status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var created model.Doctor
+	env.g.Where("code = ?", "D9").First(&created)
+	if created.ReviewState != model.ReviewPending {
+		t.Fatalf("editor create review_state = %q, want pending", created.ReviewState)
+	}
+	var revCount int64
+	env.g.Model(&model.Revision{}).Where("entity_type = ? AND entity_id = ?", "doctor", created.ID).Count(&revCount)
+	if revCount != 0 {
+		t.Fatalf("editor create should not append a revision yet, got %d", revCount)
+	}
+
+	body2 := `{"code":"D10","full_name":"แอดมิน","specialty":["ยาต้ม"],"status":"active","first_year":2568,"district_id":1}`
+	rec2 := env.doAsAdmin("POST", "/api/doctors", body2)
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("admin create status = %d", rec2.Code)
+	}
+	var adminDoc model.Doctor
+	env.g.Where("code = ?", "D10").First(&adminDoc)
+	if adminDoc.ReviewState != model.ReviewApproved {
+		t.Fatalf("admin create review_state = %q, want approved", adminDoc.ReviewState)
+	}
+	env.g.Model(&model.Revision{}).Where("entity_type = ? AND entity_id = ?", "doctor", adminDoc.ID).Count(&revCount)
+	if revCount != 1 {
+		t.Fatalf("admin create revisions = %d, want 1", revCount)
 	}
 }

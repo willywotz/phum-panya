@@ -6,7 +6,11 @@
 // unconsented healers never leave this package.
 package publicapi
 
-import "gorm.io/gorm"
+import (
+	"gorm.io/gorm"
+
+	"phum-panya/internal/model"
+)
 
 // Doctor is the public projection of a หมอพื้นบ้าน profile. It has no
 // phone, consent, or audit fields.
@@ -147,7 +151,7 @@ type DoctorFilter struct {
 func (r *Repo) ListDoctors(f DoctorFilter) ([]Doctor, error) {
 	var out []Doctor
 	q := r.g.Table("doctors").Select(doctorColumns).
-		Where("consent_obtained = ?", true)
+		Where("consent_obtained = ? AND review_state = ?", true, model.ReviewApproved)
 	if f.Q != "" {
 		like := "%" + f.Q + "%"
 		q = q.Where("(LOWER(full_name) LIKE LOWER(?) OR LOWER(known_as) LIKE LOWER(?))", like, like)
@@ -164,7 +168,7 @@ func (r *Repo) ListDoctors(f DoctorFilter) ([]Doctor, error) {
 func (r *Repo) GetDoctor(id uint) (Doctor, error) {
 	var out Doctor
 	err := r.g.Table("doctors").Select(doctorColumns).
-		Where("id = ? AND consent_obtained = ?", id, true).
+		Where("id = ? AND consent_obtained = ? AND review_state = ?", id, true, model.ReviewApproved).
 		First(&out).Error
 	return out, err
 }
@@ -244,7 +248,8 @@ func (r *Repo) recipeQuery() *gorm.DB {
 		Select(recipeColumns).
 		Joins("JOIN doctors ON doctors.id = recipes.doctor_id").
 		Joins("JOIN districts ON districts.id = doctors.district_id").
-		Where("doctors.consent_obtained = ?", true)
+		Where("doctors.consent_obtained = ? AND doctors.review_state = ? AND recipes.review_state = ?",
+			true, model.ReviewApproved, model.ReviewApproved)
 }
 
 // ListCasesByRecipe returns every case belonging to recipeID, provided the
@@ -254,7 +259,8 @@ func (r *Repo) ListCasesByRecipe(recipeID uint) ([]Case, error) {
 	err := r.g.Table("cases").Select(caseColumns).
 		Joins("JOIN recipes ON recipes.id = cases.recipe_id").
 		Joins("JOIN doctors ON doctors.id = recipes.doctor_id").
-		Where("cases.recipe_id = ? AND doctors.consent_obtained = ?", recipeID, true).
+		Where("cases.recipe_id = ? AND doctors.consent_obtained = ? AND doctors.review_state = ? AND recipes.review_state = ? AND cases.review_state = ?",
+			recipeID, true, model.ReviewApproved, model.ReviewApproved, model.ReviewApproved).
 		Find(&out).Error
 	return out, err
 }

@@ -41,7 +41,7 @@ func TestDeleteCascadesToRecipesAndCases(t *testing.T) {
 	doctorID, recipeID := env.seedDoctorWithRecipeAndCase(t, "MUE-E1", env.district1)
 
 	path := "/api/doctors/" + strconv.FormatUint(uint64(doctorID), 10)
-	res := env.doAsEditor("DELETE", path, "")
+	res := env.doAsAdmin("DELETE", path, "")
 	if res.Code != http.StatusNoContent {
 		t.Fatalf("delete = %d, want 204, body = %s", res.Code, res.Body.String())
 	}
@@ -54,6 +54,38 @@ func TestDeleteCascadesToRecipesAndCases(t *testing.T) {
 	}
 	if caseCount != 0 {
 		t.Errorf("case count = %d, want 0", caseCount)
+	}
+}
+
+// TestEditorDeleteQueuesWithoutCascade proves an editor delete is queued
+// (pending_delete=true) rather than executed: no rows are removed, so
+// recipes/cases under the doctor survive untouched.
+func TestEditorDeleteQueuesWithoutCascade(t *testing.T) {
+	env := newDoctorAPI(t)
+	doctorID, recipeID := env.seedDoctorWithRecipeAndCase(t, "MUE-E4", env.district1)
+
+	path := "/api/doctors/" + strconv.FormatUint(uint64(doctorID), 10)
+	res := env.doAsEditor("DELETE", path, "")
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("queued delete = %d, want 204, body = %s", res.Code, res.Body.String())
+	}
+
+	var d model.Doctor
+	if err := env.g.First(&d, doctorID).Error; err != nil {
+		t.Fatalf("reload doctor: %v", err)
+	}
+	if !d.PendingDelete {
+		t.Error("PendingDelete should be true after editor delete")
+	}
+
+	var recipeCount, caseCount int64
+	env.g.Model(&model.Recipe{}).Where("doctor_id = ?", doctorID).Count(&recipeCount)
+	env.g.Model(&model.Case{}).Where("recipe_id = ?", recipeID).Count(&caseCount)
+	if recipeCount != 1 {
+		t.Errorf("recipe count = %d, want 1 (nothing cascaded)", recipeCount)
+	}
+	if caseCount != 1 {
+		t.Errorf("case count = %d, want 1 (nothing cascaded)", caseCount)
 	}
 }
 

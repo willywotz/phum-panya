@@ -69,6 +69,37 @@ func (env *publicAPI) seedDoctor(name string, consented bool, recipeName string)
 	}
 }
 
+// seedDoctorState creates a district, a doctor named name with the given
+// consent and review state, and a recipe named recipeName under that
+// doctor with the same review state.
+func (env *publicAPI) seedDoctorState(t *testing.T, name string, consented bool, reviewState, recipeName string) {
+	t.Helper()
+
+	d := model.District{Name: "District-" + name, Province: "Test"}
+	if err := env.g.Create(&d).Error; err != nil {
+		t.Fatalf("create district: %v", err)
+	}
+
+	doc := model.Doctor{
+		Code: "DOC-" + name, Photo: "p.jpg", FullName: name,
+		DistrictID: d.ID, Phone: "0812345678", Specialty: "herbal",
+		Status: "active", FirstYear: 2020, ConsentObtained: consented,
+		ReviewState: reviewState,
+	}
+	if err := env.g.Create(&doc).Error; err != nil {
+		t.Fatalf("create doctor: %v", err)
+	}
+
+	rec := model.Recipe{
+		Code: "REC-" + name, Name: recipeName, DoctorID: doc.ID,
+		Indication: "cold", Preparation: "boil", Usage: "drink", DataYear: 2020,
+		ReviewState: reviewState,
+	}
+	if err := env.g.Create(&rec).Error; err != nil {
+		t.Fatalf("create recipe: %v", err)
+	}
+}
+
 // get performs an unauthenticated GET against the public router.
 func (env *publicAPI) get(path string) *httptest.ResponseRecorder {
 	env.t.Helper()
@@ -99,5 +130,27 @@ func TestPublicHidesUnconsentedAndPrivateFields(t *testing.T) {
 	}
 	if !strings.Contains(recs.Body.String(), "recipe-A") {
 		t.Fatal("recipe of consented doctor A missing")
+	}
+}
+
+func TestPublicHidesPendingDoctorsAndRecipes(t *testing.T) {
+	env := newPublicAPI(t)
+	env.seedDoctorState(t, "A", true, model.ReviewApproved, "recipe-A")
+	env.seedDoctorState(t, "P", true, model.ReviewPending, "recipe-P")
+
+	body := env.get("/api/public/doctors").Body.String()
+	if !strings.Contains(body, "A") {
+		t.Fatalf("approved doctor A must be visible")
+	}
+	if strings.Contains(body, `"P"`) {
+		t.Fatalf("pending doctor P must be hidden")
+	}
+
+	rbody := env.get("/api/public/recipes").Body.String()
+	if strings.Contains(rbody, "recipe-P") {
+		t.Fatalf("recipe of a pending doctor must be hidden")
+	}
+	if !strings.Contains(rbody, "recipe-A") {
+		t.Fatalf("recipe of an approved doctor must be visible")
 	}
 }

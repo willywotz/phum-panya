@@ -25,6 +25,8 @@ import (
 	"phum-panya/internal/media"
 	"phum-panya/internal/publicapi"
 	"phum-panya/internal/recipe"
+	"phum-panya/internal/review"
+	"phum-panya/internal/revision"
 	"phum-panya/internal/user"
 	"phum-panya/internal/webui"
 )
@@ -65,13 +67,16 @@ func NewEngine(deps Deps) *gin.Engine {
 	api.Use(auth.LoadUser(deps.Store, deps.DB))
 	api.GET("/api/health", func(c *gin.Context) { httpx.OK(c, http.StatusOK, gin.H{"status": "ok"}) })
 
+	rev := revision.NewRepo(deps.DB, deps.Clk)
+
 	auth.RegisterRoutes(api, deps.DB, deps.Store, deps.Throttle, deps.Secure)
 	district.RegisterRoutes(api, district.NewRepo(deps.DB))
 	user.RegisterRoutes(api, user.NewRepo(deps.DB))
 	herb.RegisterRoutes(api, herb.NewRepo(deps.DB), deps.Media)
-	doctor.RegisterRoutes(api, doctor.NewRepo(deps.DB, deps.Clk), deps.Media)
-	recipe.RegisterRoutes(api, recipe.NewRepo(deps.DB, deps.Clk))
-	caserec.RegisterRoutes(api, caserec.NewRepo(deps.DB, deps.Clk), deps.Media)
+	doctor.RegisterRoutes(api, doctor.NewRepo(deps.DB, deps.Clk, rev), deps.Media)
+	recipe.RegisterRoutes(api, recipe.NewRepo(deps.DB, deps.Clk, rev))
+	caserec.RegisterRoutes(api, caserec.NewRepo(deps.DB, deps.Clk, rev), deps.Media)
+	review.RegisterRoutes(api, review.NewRepo(deps.DB, rev))
 	publicapi.RegisterRoutes(api, deps.DB)
 	export.RegisterRoutes(api, deps.DB)
 	backup.RegisterRoutes(api, deps.DBPath, deps.MediaDir, deps.BackupDir, deps.BackupKeep, deps.Clk)

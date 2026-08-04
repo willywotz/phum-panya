@@ -8,6 +8,20 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	RoleCentralAdmin   = "central_admin"
+	RoleDistrictEditor = "district_editor"
+
+	ReviewPending  = "pending"
+	ReviewApproved = "approved"
+	ReviewRejected = "rejected"
+
+	ActionCreate = "create"
+	ActionUpdate = "update"
+	ActionDelete = "delete"
+	ActionReject = "reject"
+)
+
 // District is อำเภอ, the unit that groups all data.
 type District struct {
 	ID       uint   `gorm:"primaryKey"`
@@ -58,6 +72,10 @@ type Doctor struct {
 	FirstYear       int    `gorm:"not null"`
 	UpdatedBy       *uint
 	UpdatedAt       time.Time
+	ReviewState     string `gorm:"not null;default:approved;index"`
+	PendingJSON     *string
+	PendingDelete   bool `gorm:"not null;default:false"`
+	RejectionReason *string
 }
 
 // Herb is สมุนไพร, the shared catalog for the whole province.
@@ -73,20 +91,24 @@ type Herb struct {
 
 // Recipe is ตำรับยา, a formula belonging to one doctor.
 type Recipe struct {
-	ID          uint   `gorm:"primaryKey"`
-	Code        string `gorm:"uniqueIndex;not null"`
-	Name        string `gorm:"not null"`
-	DoctorID    uint   `gorm:"not null;index"`
-	Doctor      Doctor `gorm:"constraint:OnDelete:CASCADE"`
-	Indication  string `gorm:"not null"`
-	Preparation string `gorm:"not null"`
-	Usage       string `gorm:"not null"`
-	Caution     string
-	CareStage   string
-	Photo       string
-	DataYear    int `gorm:"not null"`
-	UpdatedBy   *uint
-	UpdatedAt   time.Time
+	ID              uint   `gorm:"primaryKey"`
+	Code            string `gorm:"uniqueIndex;not null"`
+	Name            string `gorm:"not null"`
+	DoctorID        uint   `gorm:"not null;index"`
+	Doctor          Doctor `gorm:"constraint:OnDelete:CASCADE"`
+	Indication      string `gorm:"not null"`
+	Preparation     string `gorm:"not null"`
+	Usage           string `gorm:"not null"`
+	Caution         string
+	CareStage       string
+	Photo           string
+	DataYear        int `gorm:"not null"`
+	UpdatedBy       *uint
+	UpdatedAt       time.Time
+	ReviewState     string `gorm:"not null;default:approved;index"`
+	PendingJSON     *string
+	PendingDelete   bool `gorm:"not null;default:false"`
+	RejectionReason *string
 }
 
 // Ingredient is one row inside a Recipe. Exactly one of HerbID or
@@ -118,6 +140,23 @@ type Case struct {
 	DataYear        int `gorm:"not null"`
 	UpdatedBy       *uint
 	UpdatedAt       time.Time
+	ReviewState     string `gorm:"not null;default:approved;index"`
+	PendingJSON     *string
+	PendingDelete   bool `gorm:"not null;default:false"`
+	RejectionReason *string
+}
+
+// Revision is an append-only audit log entry for a create/update/delete/
+// reject action on an entity, recording who made the change and its
+// resulting state as JSON.
+type Revision struct {
+	ID         uint      `gorm:"primaryKey"`
+	EntityType string    `gorm:"not null;index:idx_rev_entity"`
+	EntityID   uint      `gorm:"not null;index:idx_rev_entity"`
+	ChangedBy  uint      `gorm:"not null"`
+	ChangedAt  time.Time `gorm:"not null"`
+	Action     string    `gorm:"not null"`
+	AfterJSON  string    `gorm:"not null"`
 }
 
 // AutoMigrate creates or updates the tables for every model.
@@ -125,5 +164,6 @@ func AutoMigrate(g *gorm.DB) error {
 	return g.AutoMigrate(
 		&District{}, &User{}, &Session{}, &Doctor{},
 		&Herb{}, &Recipe{}, &Ingredient{}, &Case{},
+		&Revision{},
 	)
 }

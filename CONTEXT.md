@@ -149,13 +149,26 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   JPEG/PNG/WebP (NFR-IMG-1), making the TIFF decode path unreachable (TDD: `TestSaveReaderRejectsTIFF`).
   115 Go tests green.
 
+- **P2 — approval before publish + edit history (in progress, branch `feat/p2-approval-history`)**:
+  district-editor writes no longer publish at once — every change enters a `pending` state and a
+  central admin approves it before the public sees it (Model B). Central-admin writes stay immediate
+  (auto-approved + logged). On-row pending model: Doctor/Recipe/Case gain `review_state`,
+  `pending_json` (edit overlay), `pending_delete`, `rejection_reason`; a new append-only `Revision`
+  table stores one snapshot per approved change (+ reject events). Public reads add
+  `review_state = 'approved'` next to the consent gate, in one place (`internal/publicapi`). New
+  packages: `revision` (history log), `review` (queue + approve/reject/bulk, endpoints under
+  `/api/review/...`). Design note: revision `Append` runs after the write tx commits (a second
+  pooled connection inside the tx deadlocks SQLite's WAL writer). See `docs/adr/0002`. 130 Go tests
+  green.
+
 ## Data model (summary)
 
-Six records: District, User, Doctor, Herb (shared catalog), Recipe, Case.
+Seven records: District, User, Doctor, Herb (shared catalog), Recipe, Case, Revision (P2 audit log).
 
 ```
 District ──< Doctor ──< Recipe ──< Case
                           └──< Ingredient >── Herb
+Revision (append-only): entity_type + entity_id → who/when/action/after_json
 ```
 
 - Case links to one Recipe. Patient is anonymous.
@@ -163,5 +176,8 @@ District ──< Doctor ──< Recipe ──< Case
   (or a pending-herb name when the herb is not in the catalog yet).
 - Doctor and Recipe carry a short `code` for reliable linking on the paper form.
 - Doctor is one row per healer (`first_year`); Recipe/Case carry `data_year`.
-- Doctor needs consent before it goes public. Year locking is a later paid feature.
+- Doctor needs consent before it goes public. **P2**: Doctor/Recipe/Case also carry an approval
+  workflow (`review_state` + `pending_json`/`pending_delete`/`rejection_reason`); public requires
+  `review_state = 'approved'` AND consent. Consent and review are independent gates.
+- Year locking is a later paid feature (P3).
 

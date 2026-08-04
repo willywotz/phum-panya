@@ -142,3 +142,32 @@ func TestYearLockMigrates(t *testing.T) {
 		t.Fatalf("year lock = %+v, want DataYear 2567 LockedBy 1", got)
 	}
 }
+
+func TestImportBatchMigratesAndTagsDoctor(t *testing.T) {
+	g, err := db.Open(filepath.Join(t.TempDir(), "ib.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := model.AutoMigrate(g); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	dist := model.District{Name: "d", Province: "p"}
+	if err := g.Create(&dist).Error; err != nil {
+		t.Fatalf("district: %v", err)
+	}
+	b := model.ImportBatch{ImportedBy: 1, SourceFile: "f.xlsx", RowCount: 3, Status: "committed"}
+	if err := g.Create(&b).Error; err != nil {
+		t.Fatalf("insert batch: %v", err)
+	}
+	d := model.Doctor{Code: "D1", Photo: "-", FullName: "x", Specialty: "y", Status: "active", FirstYear: 2568, DistrictID: dist.ID, BatchID: &b.ID}
+	if err := g.Create(&d).Error; err != nil {
+		t.Fatalf("insert tagged doctor: %v", err)
+	}
+	var got model.Doctor
+	if err := g.First(&got, d.ID).Error; err != nil {
+		t.Fatalf("read doctor: %v", err)
+	}
+	if got.BatchID == nil || *got.BatchID != b.ID {
+		t.Fatalf("doctor.BatchID = %v, want %d", got.BatchID, b.ID)
+	}
+}

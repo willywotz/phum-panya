@@ -76,6 +76,7 @@ type Doctor struct {
 	PendingJSON     *string
 	PendingDelete   bool `gorm:"not null;default:false"`
 	RejectionReason *string
+	BatchID         *uint `gorm:"index"`
 }
 
 // Herb is สมุนไพร, the shared catalog for the whole province.
@@ -109,6 +110,7 @@ type Recipe struct {
 	PendingJSON     *string
 	PendingDelete   bool `gorm:"not null;default:false"`
 	RejectionReason *string
+	BatchID         *uint `gorm:"index"`
 }
 
 // Ingredient is one row inside a Recipe. Exactly one of HerbID or
@@ -144,6 +146,7 @@ type Case struct {
 	PendingJSON     *string
 	PendingDelete   bool `gorm:"not null;default:false"`
 	RejectionReason *string
+	BatchID         *uint `gorm:"index"`
 }
 
 // Revision is an append-only audit log entry for a create/update/delete/
@@ -167,11 +170,21 @@ type YearLock struct {
 	LockedBy uint      `gorm:"not null"`
 }
 
+// ImportBatch records one bulk-import run, letting an admin undo it.
+type ImportBatch struct {
+	ID         uint      `gorm:"primaryKey"`
+	ImportedBy uint      `gorm:"not null"`
+	ImportedAt time.Time `gorm:"not null"`
+	SourceFile string    `gorm:"not null"`
+	RowCount   int
+	Status     string `gorm:"not null"` // committed | undone
+}
+
 // AutoMigrate creates or updates the tables for every model.
 func AutoMigrate(g *gorm.DB) error {
 	return g.AutoMigrate(
 		&District{}, &User{}, &Session{}, &Doctor{},
 		&Herb{}, &Recipe{}, &Ingredient{}, &Case{},
-		&Revision{}, &YearLock{},
+		&Revision{}, &YearLock{}, &ImportBatch{},
 	)
 }

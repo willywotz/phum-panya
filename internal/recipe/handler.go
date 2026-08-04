@@ -174,7 +174,8 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 		}
 		rec := req.toModel(0)
 		ings := req.toIngredients()
-		if err := repo.Create(&rec, ings, user.ID); err != nil {
+		immediate := user.Role == model.RoleCentralAdmin
+		if err := repo.Create(&rec, ings, user.ID, immediate); err != nil {
 			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not create recipe")
 			return
 		}
@@ -218,7 +219,8 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 		}
 		rec := req.toModel(id)
 		ings := req.toIngredients()
-		if err := repo.Update(&rec, ings, user.ID); err != nil {
+		immediate := user.Role == model.RoleCentralAdmin
+		if err := repo.Update(&rec, ings, user.ID, immediate); err != nil {
 			writeRepoError(c, err, "recipe not found", "could not update recipe")
 			return
 		}
@@ -246,7 +248,8 @@ func deleteHandler(repo *Repo) gin.HandlerFunc {
 			httpx.Err(c, http.StatusForbidden, "forbidden", "cannot write to this district")
 			return
 		}
-		if err := repo.Delete(id); err != nil {
+		immediate := user.Role == model.RoleCentralAdmin
+		if err := repo.Delete(id, user.ID, immediate); err != nil {
 			writeRepoError(c, err, "recipe not found", "could not delete recipe")
 			return
 		}

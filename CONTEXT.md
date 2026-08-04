@@ -161,14 +161,29 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   pooled connection inside the tx deadlocks SQLite's WAL writer). See `docs/adr/0002`. 130 Go tests
   green.
 
+- **P3 — year locking (in progress, branch `feat/p3-year-locking`)**: a central admin can freeze a
+  whole `data_year` so its Recipe/Case rows become read-only. New `YearLock` table
+  (`data_year` pk, `locked_at`, `locked_by`) + `yearlock` package (`Lock`/`Unlock`/`List`/`IsLocked`,
+  admin-only endpoints under `/api/year-locks`). A year locks only when its pending queue is empty
+  (so "locked" = final approved state). **Write guard** in recipe/caserec: create + update are
+  refused for ALL writers when the row's `data_year` is locked (returns HTTP 409); an editor's
+  queued delete is refused; an **admin delete is the PDPA-erasure exemption and is always allowed**.
+  Design note (refines the plan): admin edits/creates into a locked year are refused too — a locked
+  year is read-only, and only erasure/unpublish overrides the freeze; this also makes P4 imports into
+  a locked year refused for free. Not guarded (known follow-up): `SetPhoto` photo swaps. Lock-only —
+  no materialized snapshot; point-in-time state, if ever needed, reconstructs from the P2 `Revision`
+  trail + the nightly backup. 140 Go tests green.
+
 ## Data model (summary)
 
-Seven records: District, User, Doctor, Herb (shared catalog), Recipe, Case, Revision (P2 audit log).
+Eight records: District, User, Doctor, Herb (shared catalog), Recipe, Case, Revision (P2 audit log),
+YearLock (P3 read-only freeze per `data_year`).
 
 ```
 District ──< Doctor ──< Recipe ──< Case
                           └──< Ingredient >── Herb
 Revision (append-only): entity_type + entity_id → who/when/action/after_json
+YearLock: data_year (pk) → locked_at/locked_by  (freezes that year's Recipe/Case)
 ```
 
 - Case links to one Recipe. Patient is anonymous.
@@ -179,5 +194,6 @@ Revision (append-only): entity_type + entity_id → who/when/action/after_json
 - Doctor needs consent before it goes public. **P2**: Doctor/Recipe/Case also carry an approval
   workflow (`review_state` + `pending_json`/`pending_delete`/`rejection_reason`); public requires
   `review_state = 'approved'` AND consent. Consent and review are independent gates.
-- Year locking is a later paid feature (P3).
+- **P3**: a `data_year` can be locked (frozen read-only) via the `YearLock` table; recipe/case
+  writes into a locked year are refused (409), except the admin PDPA-erasure delete.
 

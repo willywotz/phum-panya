@@ -91,3 +91,34 @@ func TestDeletingDistrictDoesNotWipeDoctor(t *testing.T) {
 		t.Fatal("district delete succeeded and wiped its doctor via cascade")
 	}
 }
+
+func TestAutoMigrateCreatesRevisionAndPendingColumns(t *testing.T) {
+	g, err := db.Open(filepath.Join(t.TempDir(), "m.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := model.AutoMigrate(g); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	rev := model.Revision{EntityType: "doctor", EntityID: 1, ChangedBy: 2, Action: model.ActionCreate, AfterJSON: "{}"}
+	if err := g.Create(&rev).Error; err != nil {
+		t.Fatalf("insert revision: %v", err)
+	}
+
+	district := model.District{Name: "Mueang", Province: "Test"}
+	if err := g.Create(&district).Error; err != nil {
+		t.Fatalf("insert district: %v", err)
+	}
+	d := model.Doctor{Code: "D1", Photo: "-", FullName: "x", DistrictID: district.ID, Specialty: "y", Status: "active", FirstYear: 2568, ReviewState: model.ReviewPending}
+	if err := g.Create(&d).Error; err != nil {
+		t.Fatalf("insert doctor: %v", err)
+	}
+	var got model.Doctor
+	if err := g.First(&got, d.ID).Error; err != nil {
+		t.Fatalf("read doctor: %v", err)
+	}
+	if got.ReviewState != model.ReviewPending {
+		t.Fatalf("review_state = %q, want %q", got.ReviewState, model.ReviewPending)
+	}
+}

@@ -162,6 +162,14 @@ func TestUATFlow(t *testing.T) {
 		t.Fatalf("create doctor status = %d, want 201", doctorResp.StatusCode)
 	}
 
+	// 5b. Admin approves the pending doctor (editor writes are queued in P2).
+	approveReq := `{"code":"D001","photo":"x.jpg","full_name":"Somchai","district_id":` + strconv.Itoa(int(district.ID)) +
+		`,"specialty":["herbal"],"consent_obtained":true,"consent_date":"2024-01-01T00:00:00Z","status":"active","first_year":2000}`
+	approveResp := doJSON(t, admin, http.MethodPut, srv.URL+"/api/doctors/"+strconv.Itoa(int(doctor.ID)), approveReq, nil)
+	if approveResp.StatusCode != http.StatusOK {
+		t.Fatalf("admin approve doctor status = %d, want 200", approveResp.StatusCode)
+	}
+
 	// 6. Create a recipe with an ingredient using a pending_herb_name.
 	var recipe struct {
 		ID uint `json:"ID"`

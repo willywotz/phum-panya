@@ -100,8 +100,9 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 			httpx.Err(c, http.StatusForbidden, "forbidden", "cannot write to this district")
 			return
 		}
+		immediate := user.Role == model.RoleCentralAdmin
 		d := req.toModel(0)
-		if err := repo.Create(&d, user.ID); err != nil {
+		if err := repo.Create(&d, user.ID, immediate); err != nil {
 			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not create doctor")
 			return
 		}
@@ -130,8 +131,9 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 			httpx.Err(c, http.StatusForbidden, "forbidden", "cannot write to this district")
 			return
 		}
+		immediate := user.Role == model.RoleCentralAdmin
 		d := req.toModel(id)
-		if err := repo.Update(&d, user.ID); err != nil {
+		if err := repo.Update(&d, user.ID, immediate); err != nil {
 			writeRepoError(c, err, "could not update doctor")
 			return
 		}
@@ -155,7 +157,8 @@ func deleteHandler(repo *Repo) gin.HandlerFunc {
 			httpx.Err(c, http.StatusForbidden, "forbidden", "cannot write to this district")
 			return
 		}
-		if err := repo.Delete(id); err != nil {
+		immediate := user.Role == model.RoleCentralAdmin
+		if err := repo.Delete(id, user.ID, immediate); err != nil {
 			writeRepoError(c, err, "could not delete doctor")
 			return
 		}

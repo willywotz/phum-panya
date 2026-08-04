@@ -12,6 +12,7 @@ import (
 	"phum-panya/internal/auth"
 	"phum-panya/internal/httpx"
 	"phum-panya/internal/model"
+	"phum-panya/internal/yearlock"
 )
 
 // ingredientRequest is one ingredient in the JSON body for POST/PUT
@@ -176,6 +177,10 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 		ings := req.toIngredients()
 		immediate := user.Role == model.RoleCentralAdmin
 		if err := repo.Create(&rec, ings, user.ID, immediate); err != nil {
+			if errors.Is(err, yearlock.ErrYearLocked) {
+				httpx.Err(c, http.StatusConflict, "year_locked", "this data year is locked")
+				return
+			}
 			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not create recipe")
 			return
 		}
@@ -221,6 +226,10 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 		ings := req.toIngredients()
 		immediate := user.Role == model.RoleCentralAdmin
 		if err := repo.Update(&rec, ings, user.ID, immediate); err != nil {
+			if errors.Is(err, yearlock.ErrYearLocked) {
+				httpx.Err(c, http.StatusConflict, "year_locked", "this data year is locked")
+				return
+			}
 			writeRepoError(c, err, "recipe not found", "could not update recipe")
 			return
 		}
@@ -250,6 +259,10 @@ func deleteHandler(repo *Repo) gin.HandlerFunc {
 		}
 		immediate := user.Role == model.RoleCentralAdmin
 		if err := repo.Delete(id, user.ID, immediate); err != nil {
+			if errors.Is(err, yearlock.ErrYearLocked) {
+				httpx.Err(c, http.StatusConflict, "year_locked", "this data year is locked")
+				return
+			}
 			writeRepoError(c, err, "recipe not found", "could not delete recipe")
 			return
 		}

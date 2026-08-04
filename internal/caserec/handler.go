@@ -12,6 +12,7 @@ import (
 	"phum-panya/internal/httpx"
 	"phum-panya/internal/media"
 	"phum-panya/internal/model"
+	"phum-panya/internal/yearlock"
 )
 
 // validResults holds the result values the "result" DB check accepts.
@@ -100,6 +101,10 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 		immediate := user.Role == model.RoleCentralAdmin
 		cs := req.toModel(0)
 		if err := repo.Create(&cs, user.ID, immediate); err != nil {
+			if errors.Is(err, yearlock.ErrYearLocked) {
+				httpx.Err(c, http.StatusConflict, "year_locked", "this data year is locked")
+				return
+			}
 			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not create case")
 			return
 		}
@@ -145,6 +150,10 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 		immediate := user.Role == model.RoleCentralAdmin
 		cs := req.toModel(id)
 		if err := repo.Update(&cs, user.ID, immediate); err != nil {
+			if errors.Is(err, yearlock.ErrYearLocked) {
+				httpx.Err(c, http.StatusConflict, "year_locked", "this data year is locked")
+				return
+			}
 			writeRepoError(c, err, "case not found", "could not update case")
 			return
 		}
@@ -175,6 +184,10 @@ func deleteHandler(repo *Repo) gin.HandlerFunc {
 		}
 		immediate := user.Role == model.RoleCentralAdmin
 		if err := repo.Delete(id, user.ID, immediate); err != nil {
+			if errors.Is(err, yearlock.ErrYearLocked) {
+				httpx.Err(c, http.StatusConflict, "year_locked", "this data year is locked")
+				return
+			}
 			writeRepoError(c, err, "case not found", "could not delete case")
 			return
 		}

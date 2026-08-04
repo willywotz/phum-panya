@@ -10,19 +10,35 @@ import (
 	"phum-panya/internal/clock"
 	"phum-panya/internal/model"
 	"phum-panya/internal/revision"
+	"phum-panya/internal/yearlock"
 )
 
 // Repo provides CRUD access to cases backed by GORM.
 type Repo struct {
-	g   *gorm.DB
-	clk clock.Clock
-	rev *revision.Repo
+	g    *gorm.DB
+	clk  clock.Clock
+	rev  *revision.Repo
+	lock *yearlock.Repo
 }
 
-// NewRepo returns a Repo backed by g, using clk to stamp audit timestamps
-// and rev to log immediate (admin) writes.
-func NewRepo(g *gorm.DB, clk clock.Clock, rev *revision.Repo) *Repo {
-	return &Repo{g: g, clk: clk, rev: rev}
+// NewRepo returns a Repo backed by g, using clk to stamp audit timestamps,
+// rev to log immediate (admin) writes, and lock to refuse writes into a
+// locked data_year.
+func NewRepo(g *gorm.DB, clk clock.Clock, rev *revision.Repo, lock *yearlock.Repo) *Repo {
+	return &Repo{g: g, clk: clk, rev: rev, lock: lock}
+}
+
+// guardYearWrite refuses the write with yearlock.ErrYearLocked if dataYear
+// is locked.
+func (r *Repo) guardYearWrite(dataYear int) error {
+	locked, err := r.lock.IsLocked(dataYear)
+	if err != nil {
+		return err
+	}
+	if locked {
+		return yearlock.ErrYearLocked
+	}
+	return nil
 }
 
 // ListByRecipe returns every case belonging to recipeID.
@@ -42,6 +58,9 @@ func (r *Repo) Get(id uint) (model.Case, error) {
 // Create inserts a case. Editor creates enter the pending queue; admin
 // creates publish immediately and are logged.
 func (r *Repo) Create(c *model.Case, actorID uint, immediate bool) error {
+	if err := r.guardYearWrite(c.DataYear); err != nil {
+		return err
+	}
 	c.UpdatedBy = &actorID
 	c.UpdatedAt = r.clk.Now()
 	if immediate {
@@ -69,6 +88,14 @@ func (r *Repo) Update(c *model.Case, actorID uint, immediate bool) error {
 	var existing model.Case
 	if err := r.g.First(&existing, c.ID).Error; err != nil {
 		return err
+	}
+	if err := r.guardYearWrite(existing.DataYear); err != nil {
+		return err
+	}
+	if c.DataYear != existing.DataYear {
+		if err := r.guardYearWrite(c.DataYear); err != nil {
+			return err
+		}
 	}
 	c.Photo = existing.Photo
 
@@ -118,6 +145,14 @@ func (r *Repo) Delete(id, actorID uint, immediate bool) error {
 			return gorm.ErrRecordNotFound
 		}
 		return r.rev.Append("case", id, actorID, model.ActionDelete, existing)
+	}
+	// editor queued delete: refuse if the row's data_year is locked (admin erasure is exempt)
+	var existing model.Case
+	if err := r.g.First(&existing, id).Error; err != nil {
+		return err
+	}
+	if err := r.guardYearWrite(existing.DataYear); err != nil {
+		return err
 	}
 	res := r.g.Model(&model.Case{}).Where("id = ?", id).
 		Updates(map[string]any{"pending_delete": true, "rejection_reason": nil})

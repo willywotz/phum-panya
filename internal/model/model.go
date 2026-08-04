@@ -159,11 +159,19 @@ type Revision struct {
 	AfterJSON  string    `gorm:"not null"`
 }
 
+// YearLock marks a data year as locked, blocking further edits to that
+// year's records once a district editor's data has been finalized.
+type YearLock struct {
+	DataYear int       `gorm:"primaryKey"`
+	LockedAt time.Time `gorm:"not null"`
+	LockedBy uint      `gorm:"not null"`
+}
+
 // AutoMigrate creates or updates the tables for every model.
 func AutoMigrate(g *gorm.DB) error {
 	return g.AutoMigrate(
 		&District{}, &User{}, &Session{}, &Doctor{},
 		&Herb{}, &Recipe{}, &Ingredient{}, &Case{},
-		&Revision{},
+		&Revision{}, &YearLock{},
 	)
 }

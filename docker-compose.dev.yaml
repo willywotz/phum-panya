@@ -40,7 +40,6 @@ services:
   # everything else -> web. Caddy proxies the Next.js HMR websocket natively.
   caddy:
     image: caddy:2-alpine
-    container_name: phum-panya-dev-caddy
     depends_on:
       api:
         condition: service_started
@@ -70,8 +69,6 @@ services:
     build:
       context: .
       dockerfile: deploy/dev/web.Dockerfile
-    image: phum-panya-dev-web
-    container_name: phum-panya-dev-web
     environment:
       # Poll the synced filesystem so HMR fires reliably on WSL2/Docker.
       WATCHPACK_POLLING: "true"
@@ -97,8 +94,6 @@ services:
     build:
       context: .
       dockerfile: deploy/dev/api.Dockerfile
-    image: phum-panya-dev-api
-    container_name: phum-panya-dev-api
     depends_on:
       postgres:
         condition: service_healthy

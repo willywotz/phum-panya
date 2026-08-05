@@ -152,6 +152,14 @@ const th: Dictionary = {
   undoBatch: 'ยกเลิกชุดนำเข้า',
   confirmUndo: 'ยืนยันการยกเลิกชุดนำเข้านี้?',
   batchUndone: 'ยกเลิกแล้ว',
+  thaiNameAdd: 'ชื่อไทย (เพิ่ม)',
+  saveHerb: 'บันทึกสมุนไพร',
+  mayDuplicate: 'อาจซ้ำกับ',
+  mergeHerbs: 'รวมสมุนไพร',
+  sourceHerb: 'สมุนไพรต้นทาง',
+  canonicalHerb: 'สมุนไพรหลัก',
+  confirmMerge: 'ยืนยันการรวมสมุนไพร?',
+  merged: 'รวมสมุนไพรแล้ว',
 };
 
 const en: Dictionary = {
@@ -297,6 +305,14 @@ const en: Dictionary = {
   undoBatch: 'Undo batch',
   confirmUndo: 'Undo this import batch?',
   batchUndone: 'Batch undone',
+  thaiNameAdd: 'Thai name (add)',
+  saveHerb: 'Save herb',
+  mayDuplicate: 'May duplicate',
+  mergeHerbs: 'Merge herbs',
+  sourceHerb: 'Source herb',
+  canonicalHerb: 'Canonical herb',
+  confirmMerge: 'Merge these herbs?',
+  merged: 'Herbs merged',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { th, en };

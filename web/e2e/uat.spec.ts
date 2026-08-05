@@ -52,7 +52,7 @@ test('SRS §6.1 UAT: editor lifecycle, consent gate, public discovery, export sc
 
   await page.goto('/staff/herbs');
   await page.getByRole('button', { name: 'เพิ่ม' }).click();
-  await page.getByLabel('ชื่อไทย').fill(herbName);
+  await page.getByRole('dialog').getByLabel('ชื่อไทย').fill(herbName);
   await page.getByRole('button', { name: 'บันทึก' }).click();
   await expect(page.getByRole('row', { name: new RegExp(herbName) })).toBeVisible();
 

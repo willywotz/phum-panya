@@ -80,3 +80,24 @@ func TestLoadNewDefaults(t *testing.T) {
 		t.Errorf("BehindProxy default = true, want false")
 	}
 }
+
+func TestMediaDriverDefaultsToLocal(t *testing.T) {
+	t.Setenv("APP_MEDIA_DRIVER", "")
+	c := Load()
+	if c.MediaDriver != "local" || c.UsesS3Media() {
+		t.Fatalf("default MediaDriver = %q, UsesS3Media = %v; want local/false", c.MediaDriver, c.UsesS3Media())
+	}
+}
+
+func TestS3ConfigLoadedWhenDriverS3(t *testing.T) {
+	t.Setenv("APP_MEDIA_DRIVER", "s3")
+	t.Setenv("APP_S3_ENDPOINT", "http://garage:3900")
+	t.Setenv("APP_S3_BUCKET", "media")
+	c := Load()
+	if !c.UsesS3Media() {
+		t.Fatalf("UsesS3Media = false, want true")
+	}
+	if c.S3Endpoint != "http://garage:3900" || c.S3Bucket != "media" || c.S3Region != "garage" || !c.S3UsePathStyle {
+		t.Fatalf("s3 config not loaded: %+v", c)
+	}
+}

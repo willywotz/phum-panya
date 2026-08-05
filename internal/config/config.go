@@ -18,6 +18,14 @@ type Config struct {
 	PublicOrigin  string
 	AdminEmail    string
 	AdminPassword string
+
+	MediaDriver    string
+	S3Endpoint     string
+	S3Region       string
+	S3Bucket       string
+	S3AccessKey    string
+	S3SecretKey    string
+	S3UsePathStyle bool
 }
 
 func Load() Config {
@@ -34,6 +42,14 @@ func Load() Config {
 		PublicOrigin:  env("APP_PUBLIC_ORIGIN", ""),
 		AdminEmail:    env("APP_ADMIN_EMAIL", ""),
 		AdminPassword: env("APP_ADMIN_PASSWORD", ""),
+
+		MediaDriver:    env("APP_MEDIA_DRIVER", "local"),
+		S3Endpoint:     env("APP_S3_ENDPOINT", ""),
+		S3Region:       env("APP_S3_REGION", "garage"),
+		S3Bucket:       env("APP_S3_BUCKET", "media"),
+		S3AccessKey:    env("APP_S3_ACCESS_KEY", ""),
+		S3SecretKey:    env("APP_S3_SECRET_KEY", ""),
+		S3UsePathStyle: env("APP_S3_USE_PATH_STYLE", "true") != "false",
 	}
 }
 
@@ -70,6 +86,10 @@ func (c Config) AllowedOriginHost() string {
 func (c Config) BackupEnabled() bool {
 	return c.DBDriver != "postgres"
 }
+
+// UsesS3Media reports whether uploaded media is stored in the S3/Garage
+// backend rather than the local filesystem.
+func (c Config) UsesS3Media() bool { return c.MediaDriver == "s3" }
 
 func env(key, def string) string {
 	val := os.Getenv(key)

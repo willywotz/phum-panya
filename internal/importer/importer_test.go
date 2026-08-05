@@ -142,6 +142,117 @@ func TestCommitWritesApprovedThenUndo(t *testing.T) {
 	}
 }
 
+// buildSecondBatchFixture: D1 is a duplicate (already imported), R2 is a NEW recipe under D1,
+// plus one case under R2. Reuses the shared writeRow helper and the exported columns.
+func buildSecondBatchFixture(t *testing.T, districtID uint) []byte {
+	t.Helper()
+	f := excelize.NewFile()
+	defer f.Close()
+	did := strconv.Itoa(int(districtID))
+
+	f.SetSheetName("Sheet1", importer.SheetDoctors)
+	writeRow(t, f, importer.SheetDoctors, 1, importer.DoctorColumns)
+	writeRow(t, f, importer.SheetDoctors, 2, []string{"D1", "หมอ A", "", "", "0", did, "", "", "ยาต้ม", "0", "", "active", "2560"})
+
+	if _, err := f.NewSheet(importer.SheetRecipes); err != nil {
+		t.Fatalf("sheet: %v", err)
+	}
+	writeRow(t, f, importer.SheetRecipes, 1, importer.RecipeColumns)
+	writeRow(t, f, importer.SheetRecipes, 2, []string{"R2", "ยาที่สอง", "D1", "ไอ", "ต้ม", "ดื่ม", "", "", "2565"})
+
+	if _, err := f.NewSheet(importer.SheetIngredients); err != nil {
+		t.Fatalf("sheet: %v", err)
+	}
+	writeRow(t, f, importer.SheetIngredients, 1, importer.IngredientColumns)
+
+	if _, err := f.NewSheet(importer.SheetCases); err != nil {
+		t.Fatalf("sheet: %v", err)
+	}
+	writeRow(t, f, importer.SheetCases, 1, importer.CaseColumns)
+	writeRow(t, f, importer.SheetCases, 2, []string{"R2", "female", "30-40", "ไอ", "", "หาย", "", "2565"})
+
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestUndoDoesNotDeleteOtherBatchData(t *testing.T) {
+	im, g, distID := newImporterEnv(t)
+	if distID != 1 {
+		t.Fatalf("fixture assumes district id 1, got %d", distID)
+	}
+
+	// batch 1: D1 + R1 + case
+	rep1, err := im.Run(bytes.NewReader(buildFixtureWorkbook(t)), "b1.xlsx", 1)
+	if err != nil || rep1.BatchID == nil {
+		t.Fatalf("batch1: %v rep=%+v", err, rep1)
+	}
+	// batch 2: D1 duplicate (skipped) + R2 + case, added under the existing D1
+	rep2, err := im.Run(bytes.NewReader(buildSecondBatchFixture(t, distID)), "b2.xlsx", 1)
+	if err != nil || rep2.BatchID == nil {
+		t.Fatalf("batch2: %v rep=%+v", err, rep2)
+	}
+
+	// undo batch 1 must NOT touch batch 2's rows, and must keep D1 (batch 2 depends on it)
+	if err := im.Undo(*rep1.BatchID); err != nil {
+		t.Fatalf("undo batch1: %v", err)
+	}
+	var r1, r2, dCount int64
+	g.Model(&model.Recipe{}).Where("code = ?", "R1").Count(&r1)
+	g.Model(&model.Recipe{}).Where("code = ?", "R2").Count(&r2)
+	g.Model(&model.Doctor{}).Where("code = ?", "D1").Count(&dCount)
+	if r1 != 0 {
+		t.Fatalf("batch1 recipe R1 should be gone, got %d", r1)
+	}
+	if r2 != 1 {
+		t.Fatalf("batch2 recipe R2 must survive undo of batch1, got %d", r2)
+	}
+	if dCount != 1 {
+		t.Fatalf("D1 must survive (batch2 still depends on it), got %d", dCount)
+	}
+	var status string
+	g.Model(&model.ImportBatch{}).Where("id = ?", *rep2.BatchID).Pluck("status", &status)
+	if status != "committed" {
+		t.Fatalf("batch2 must stay committed, got %q", status)
+	}
+}
+
+func TestDryRunReportsInFileDuplicate(t *testing.T) {
+	im, _, distID := newImporterEnv(t)
+	f := excelize.NewFile()
+	defer f.Close()
+	did := strconv.Itoa(int(distID))
+	f.SetSheetName("Sheet1", importer.SheetDoctors)
+	writeRow(t, f, importer.SheetDoctors, 1, importer.DoctorColumns)
+	writeRow(t, f, importer.SheetDoctors, 2, []string{"D1", "a", "", "", "0", did, "", "", "spec", "0", "", "active", "2560"})
+	writeRow(t, f, importer.SheetDoctors, 3, []string{"D1", "b", "", "", "0", did, "", "", "spec", "0", "", "active", "2560"})
+	for _, s := range []string{importer.SheetRecipes, importer.SheetIngredients, importer.SheetCases} {
+		if _, err := f.NewSheet(s); err != nil {
+			t.Fatalf("sheet: %v", err)
+		}
+	}
+	writeRow(t, f, importer.SheetRecipes, 1, importer.RecipeColumns)
+	writeRow(t, f, importer.SheetIngredients, 1, importer.IngredientColumns)
+	writeRow(t, f, importer.SheetCases, 1, importer.CaseColumns)
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	rep, err := im.DryRun(bytes.NewReader(buf.Bytes()), "dup.xlsx")
+	if err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	if rep.DoctorsNew != 1 {
+		t.Fatalf("two D1 rows must count as 1 new doctor, got %d", rep.DoctorsNew)
+	}
+	if len(rep.Skipped) == 0 {
+		t.Fatalf("the in-file duplicate D1 must be reported as skipped")
+	}
+}
+
 func TestDryRunReportsDuplicatesAndLockedYears(t *testing.T) {
 	im, g, distID := newImporterEnv(t)
 	g.Create(&model.Doctor{Code: "D1", Photo: "-", FullName: "existing", Specialty: "y", Status: "active", FirstYear: 2560, DistrictID: distID, ReviewState: model.ReviewApproved})

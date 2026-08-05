@@ -188,8 +188,10 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   `code`s are skipped + reported (idempotent for coded entities). Unknown herbs take the pending-herb
   path. Design note: the commit is NOT one DB transaction (domain repos are pool-bound and would
   deadlock the WAL writer inside an outer tx) — atomicity comes from **per-batch undo** (a
-  compensating rollback that deletes every `BatchID`-tagged row; FK cascade cleans ingredients). 146
-  Go tests green.
+  compensating rollback that deletes the batch's own cases/recipes, then deletes a batch doctor only
+  when it has no remaining children, so the FK cascade can never reap another batch's or manually
+  added rows; a still-referenced batch doctor is left in place). Undo keeps the append-only `Revision`
+  audit entries (they record the import happened). 148 Go tests green.
 
 ## Data model (summary)
 

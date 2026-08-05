@@ -193,18 +193,34 @@ func (im *Importer) codeIDMap(table string) map[string]uint {
 	return m
 }
 
-// Undo removes every row created by a batch (children first; FK cascade handles
-// ingredients) and marks the batch undone.
+// Undo removes the rows created by a batch and marks it undone. It deletes the batch's own
+// cases and recipes first, then deletes a batch doctor ONLY when it has no remaining children,
+// so the doctor-delete cascade can never reap another batch's or a manual row's data.
 func (im *Importer) Undo(batchID uint) error {
 	return db.Tx(im.g, func(tx *gorm.DB) error {
+		// Delete this batch's own cases and recipes (FK cascade cleans this batch's ingredients).
 		if err := tx.Where("batch_id = ?", batchID).Delete(&model.Case{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("batch_id = ?", batchID).Delete(&model.Recipe{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("batch_id = ?", batchID).Delete(&model.Doctor{}).Error; err != nil {
+		// Delete this batch's doctors ONLY when they have no remaining children, so the
+		// doctor-delete cascade cannot reap another batch's recipes/cases.
+		var doctorIDs []uint
+		if err := tx.Model(&model.Doctor{}).Where("batch_id = ?", batchID).Pluck("id", &doctorIDs).Error; err != nil {
 			return err
+		}
+		for _, id := range doctorIDs {
+			var children int64
+			if err := tx.Model(&model.Recipe{}).Where("doctor_id = ?", id).Count(&children).Error; err != nil {
+				return err
+			}
+			if children == 0 {
+				if err := tx.Delete(&model.Doctor{}, id).Error; err != nil {
+					return err
+				}
+			}
 		}
 		return tx.Model(&model.ImportBatch{}).Where("id = ?", batchID).Update("status", "undone").Error
 	})
@@ -231,8 +247,8 @@ func (im *Importer) validate(p *Parsed) *Report {
 			rep.Errors = append(rep.Errors, RowError{SheetDoctors, d.Code, fmt.Sprintf("district_id %d does not exist", d.DistrictID)})
 			continue
 		}
-		if existingDoctor[d.Code] {
-			rep.Skipped = append(rep.Skipped, SkippedRow{SheetDoctors, d.Code, "code already exists"})
+		if existingDoctor[d.Code] || fileDoctor[d.Code] {
+			rep.Skipped = append(rep.Skipped, SkippedRow{SheetDoctors, d.Code, "duplicate code"})
 			continue
 		}
 		fileDoctor[d.Code] = true
@@ -252,8 +268,8 @@ func (im *Importer) validate(p *Parsed) *Report {
 			rep.Errors = append(rep.Errors, RowError{SheetRecipes, r.Code, fmt.Sprintf("data_year %d is locked", r.DataYear)})
 			continue
 		}
-		if existingRecipe[r.Code] {
-			rep.Skipped = append(rep.Skipped, SkippedRow{SheetRecipes, r.Code, "code already exists"})
+		if existingRecipe[r.Code] || fileRecipe[r.Code] {
+			rep.Skipped = append(rep.Skipped, SkippedRow{SheetRecipes, r.Code, "duplicate code"})
 			continue
 		}
 		fileRecipe[r.Code] = true

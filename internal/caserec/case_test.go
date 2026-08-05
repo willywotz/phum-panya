@@ -1,6 +1,11 @@
 package caserec_test
 
 import (
+	"bytes"
+	"errors"
+	stdimage "image"
+	"image/jpeg"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -16,6 +21,7 @@ import (
 	"phum-panya/internal/caserec"
 	"phum-panya/internal/clock"
 	"phum-panya/internal/db"
+	"phum-panya/internal/media"
 	"phum-panya/internal/model"
 	"phum-panya/internal/revision"
 	"phum-panya/internal/yearlock"
@@ -128,7 +134,7 @@ func newCaseAPI(t *testing.T) *caseAPI {
 	r := gin.New()
 	r.Use(auth.LoadUser(store, g))
 	repo := caserec.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{}), yearlock.NewRepo(g, clock.Real{}))
-	caserec.RegisterRoutes(r, repo, nil)
+	caserec.RegisterRoutes(r, repo, &media.Store{Dir: t.TempDir()})
 
 	return &caseAPI{
 		t: t, g: g, r: r, repo: repo,
@@ -277,7 +283,7 @@ func TestUpdatePreservesPhoto(t *testing.T) {
 	env := newCaseAPI(t)
 	cs := env.seedCase(env.recipe.ID)
 
-	if err := env.repo.SetPhoto(cs.ID, "uploads/case.jpg"); err != nil {
+	if err := env.repo.SetPhoto(cs.ID, 1, "uploads/case.jpg", true); err != nil {
 		t.Fatalf("SetPhoto: %v", err)
 	}
 
@@ -331,6 +337,89 @@ func TestCaseEditorUpdateRefusedInLockedYear(t *testing.T) {
 	rec := env.doAsEditor1("PUT", path, env.caseBody("better"))
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("editor update in locked year must be 409, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestEditorPhotoChangeGoesPending proves an editor photo upload does not
+// publish immediately: it stages the path in pending_photo, leaves the live
+// photo untouched, and still logs a revision for the proposal.
+func TestEditorPhotoChangeGoesPending(t *testing.T) {
+	env := newCaseAPI(t)
+	cs := env.seedCase(env.recipe.ID)
+	env.g.Model(&model.Case{}).Where("id = ?", cs.ID).Update("photo", "uploads/original.jpg")
+
+	if err := env.repo.SetPhoto(cs.ID, 2, "uploads/proposed.jpg", false); err != nil {
+		t.Fatalf("SetPhoto: %v", err)
+	}
+
+	var reloaded model.Case
+	env.g.First(&reloaded, cs.ID)
+	if reloaded.Photo != "uploads/original.jpg" {
+		t.Fatalf("Photo = %q, want unchanged %q", reloaded.Photo, "uploads/original.jpg")
+	}
+	if reloaded.PendingPhoto == nil || *reloaded.PendingPhoto != "uploads/proposed.jpg" {
+		t.Fatalf("PendingPhoto = %v, want uploads/proposed.jpg", reloaded.PendingPhoto)
+	}
+	var revCount int64
+	env.g.Model(&model.Revision{}).Where("entity_type = ? AND entity_id = ? AND action = ?", "case", cs.ID, model.ActionUpdate).Count(&revCount)
+	if revCount != 1 {
+		t.Fatalf("editor photo change update revisions = %d, want 1", revCount)
+	}
+}
+
+// TestAdminPhotoChangeIsImmediate proves an admin photo upload bypasses
+// approval: it writes the live photo column right away and logs a revision.
+func TestAdminPhotoChangeIsImmediate(t *testing.T) {
+	env := newCaseAPI(t)
+	cs := env.seedCase(env.recipe.ID)
+
+	if err := env.repo.SetPhoto(cs.ID, 1, "uploads/admin.jpg", true); err != nil {
+		t.Fatalf("SetPhoto: %v", err)
+	}
+
+	var reloaded model.Case
+	env.g.First(&reloaded, cs.ID)
+	if reloaded.Photo != "uploads/admin.jpg" {
+		t.Fatalf("Photo = %q, want uploads/admin.jpg", reloaded.Photo)
+	}
+	var revCount int64
+	env.g.Model(&model.Revision{}).Where("entity_type = ? AND entity_id = ? AND action = ?", "case", cs.ID, model.ActionUpdate).Count(&revCount)
+	if revCount != 1 {
+		t.Fatalf("admin photo change update revisions = %d, want 1", revCount)
+	}
+}
+
+// TestPhotoChangeRefusedInLockedYear proves SetPhoto obeys the year lock,
+// both directly and through the HTTP photo endpoint.
+func TestPhotoChangeRefusedInLockedYear(t *testing.T) {
+	env := newCaseAPI(t)
+	cs := env.seedCase(env.recipe.ID)
+	env.g.Create(&model.YearLock{DataYear: cs.DataYear, LockedBy: 1})
+
+	if err := env.repo.SetPhoto(cs.ID, 1, "uploads/locked.jpg", true); !errors.Is(err, yearlock.ErrYearLocked) {
+		t.Fatalf("SetPhoto in locked year = %v, want yearlock.ErrYearLocked", err)
+	}
+
+	path := "/api/cases/" + strconv.FormatUint(uint64(cs.ID), 10) + "/photo"
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("photo", "photo.jpg")
+	if err != nil {
+		t.Fatalf("CreateFormFile: %v", err)
+	}
+	if err := jpeg.Encode(part, stdimage.NewNRGBA(stdimage.Rect(0, 0, 4, 4)), nil); err != nil {
+		t.Fatalf("encode photo: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, path, &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.AddCookie(&http.Cookie{Name: "session", Value: env.editor1Token})
+	rec := httptest.NewRecorder()
+	env.r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("photo upload in locked year = %d, want 409, body=%s", rec.Code, rec.Body.String())
 	}
 }
 

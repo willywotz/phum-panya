@@ -130,17 +130,31 @@ func (r *Repo) Delete(id, actorID uint, immediate bool) error {
 	return nil
 }
 
-// SetPhoto updates the photo path of the doctor with id. It returns
-// gorm.ErrRecordNotFound if no doctor with id exists.
-func (r *Repo) SetPhoto(id uint, path string) error {
-	res := r.g.Model(&model.Doctor{}).Where("id = ?", id).Update("photo", path)
-	if res.Error != nil {
-		return res.Error
+// SetPhoto updates the doctor's photo. An admin write (immediate) applies
+// the path to the live photo column right away, bypassing approval; an
+// editor write stages the path in pending_photo, leaving the live photo
+// untouched until a central admin approves it. Either way the resulting row
+// is logged as a revision. It returns gorm.ErrRecordNotFound if no doctor
+// with id exists.
+func (r *Repo) SetPhoto(id, actorID uint, path string, immediate bool) error {
+	if _, err := r.Get(id); err != nil {
+		return err
 	}
-	if res.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+	updates := map[string]any{"updated_by": actorID, "updated_at": r.clk.Now()}
+	if immediate {
+		updates["photo"] = path
+	} else {
+		updates["pending_photo"] = path
+		updates["rejection_reason"] = nil
 	}
-	return nil
+	if err := r.g.Model(&model.Doctor{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return err
+	}
+	d, err := r.Get(id)
+	if err != nil {
+		return err
+	}
+	return r.rev.Append("doctor", id, actorID, model.ActionUpdate, d)
 }
 
 // Unpublish clears consent_obtained for the doctor with id, hiding it from

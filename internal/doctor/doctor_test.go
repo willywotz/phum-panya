@@ -206,7 +206,10 @@ func TestDeleteEnforcesOwnDistrict(t *testing.T) {
 	}
 }
 
-func TestPhotoUploadSetsPath(t *testing.T) {
+// TestEditorPhotoUploadStagesPendingPhoto proves an editor's photo upload
+// over HTTP stages the path in pending_photo rather than publishing it: the
+// live photo stays unset until a central admin approves it (P2).
+func TestEditorPhotoUploadStagesPendingPhoto(t *testing.T) {
 	env := newDoctorAPI(t)
 	create := `{"code":"MUE-06","full_name":"H6","district_id":1,"status":"active","first_year":2565,"specialty":["herbal"]}`
 	res := env.doAsEditor("POST", "/api/doctors", create)
@@ -241,8 +244,11 @@ func TestPhotoUploadSetsPath(t *testing.T) {
 
 	var reloaded model.Doctor
 	env.g.First(&reloaded, d.ID)
-	if reloaded.Photo == "" {
-		t.Fatal("photo path was not saved")
+	if reloaded.Photo != "" {
+		t.Fatalf("live photo must stay unset until approval, got %q", reloaded.Photo)
+	}
+	if reloaded.PendingPhoto == nil || *reloaded.PendingPhoto == "" {
+		t.Fatal("pending_photo was not staged")
 	}
 }
 
@@ -260,7 +266,7 @@ func TestUpdatePreservesPhoto(t *testing.T) {
 	env.g.Where("code = ?", "MUE-07").First(&d)
 
 	repo := doctor.NewRepo(env.g, clock.Real{}, revision.NewRepo(env.g, clock.Real{}))
-	if err := repo.SetPhoto(d.ID, "uploads/h7.jpg"); err != nil {
+	if err := repo.SetPhoto(d.ID, 1, "uploads/h7.jpg", true); err != nil {
 		t.Fatalf("SetPhoto: %v", err)
 	}
 
@@ -314,5 +320,77 @@ func TestEditorCreateGoesPendingAdminIsImmediate(t *testing.T) {
 	env.g.Model(&model.Revision{}).Where("entity_type = ? AND entity_id = ?", "doctor", adminDoc.ID).Count(&revCount)
 	if revCount != 1 {
 		t.Fatalf("admin create revisions = %d, want 1", revCount)
+	}
+}
+
+// TestEditorPhotoChangeGoesPending proves an editor photo upload does not
+// publish immediately: it stages the path in pending_photo, leaves the live
+// photo untouched, and still logs a revision for the proposal.
+func TestEditorPhotoChangeGoesPending(t *testing.T) {
+	env := newDoctorAPI(t)
+	// An editor create enters the pending queue and logs no revision (see
+	// TestEditorCreateGoesPendingAdminIsImmediate), so the only revision
+	// counted below comes from the photo change itself.
+	create := `{"code":"MUE-08","full_name":"H8","district_id":1,"status":"active","first_year":2565,"specialty":["herbal"]}`
+	res := env.doAsEditor("POST", "/api/doctors", create)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("setup create = %d", res.Code)
+	}
+	var d model.Doctor
+	env.g.Where("code = ?", "MUE-08").First(&d)
+	env.g.Model(&model.Doctor{}).Where("id = ?", d.ID).Update("photo", "uploads/original.jpg")
+
+	repo := doctor.NewRepo(env.g, clock.Real{}, revision.NewRepo(env.g, clock.Real{}))
+	if err := repo.SetPhoto(d.ID, 2, "uploads/proposed.jpg", false); err != nil {
+		t.Fatalf("SetPhoto: %v", err)
+	}
+
+	var reloaded model.Doctor
+	env.g.First(&reloaded, d.ID)
+	if reloaded.Photo != "uploads/original.jpg" {
+		t.Fatalf("Photo = %q, want unchanged %q", reloaded.Photo, "uploads/original.jpg")
+	}
+	if reloaded.PendingPhoto == nil || *reloaded.PendingPhoto != "uploads/proposed.jpg" {
+		t.Fatalf("PendingPhoto = %v, want uploads/proposed.jpg", reloaded.PendingPhoto)
+	}
+	var revCount int64
+	env.g.Model(&model.Revision{}).Where("entity_type = ? AND entity_id = ?", "doctor", d.ID).Count(&revCount)
+	if revCount != 1 {
+		t.Fatalf("editor photo change revisions = %d, want 1", revCount)
+	}
+}
+
+// TestAdminPhotoChangeIsImmediate proves an admin photo upload bypasses
+// approval: it writes the live photo column right away and logs a revision.
+func TestAdminPhotoChangeIsImmediate(t *testing.T) {
+	env := newDoctorAPI(t)
+	// Seeded via the editor so its create logs no revision (see
+	// TestEditorCreateGoesPendingAdminIsImmediate); the only revision
+	// counted below comes from the admin's photo change.
+	create := `{"code":"MUE-09","full_name":"H9","district_id":1,"status":"active","first_year":2565,"specialty":["herbal"]}`
+	res := env.doAsEditor("POST", "/api/doctors", create)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("setup create = %d", res.Code)
+	}
+	var d model.Doctor
+	env.g.Where("code = ?", "MUE-09").First(&d)
+
+	repo := doctor.NewRepo(env.g, clock.Real{}, revision.NewRepo(env.g, clock.Real{}))
+	if err := repo.SetPhoto(d.ID, 1, "uploads/admin.jpg", true); err != nil {
+		t.Fatalf("SetPhoto: %v", err)
+	}
+
+	var reloaded model.Doctor
+	env.g.First(&reloaded, d.ID)
+	if reloaded.Photo != "uploads/admin.jpg" {
+		t.Fatalf("Photo = %q, want uploads/admin.jpg", reloaded.Photo)
+	}
+	if reloaded.PendingPhoto != nil {
+		t.Fatalf("PendingPhoto = %v, want nil", reloaded.PendingPhoto)
+	}
+	var revCount int64
+	env.g.Model(&model.Revision{}).Where("entity_type = ? AND entity_id = ?", "doctor", d.ID).Count(&revCount)
+	if revCount != 1 {
+		t.Fatalf("admin photo change revisions = %d, want 1", revCount)
 	}
 }

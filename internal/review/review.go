@@ -70,6 +70,7 @@ type queueRow struct {
 	DistrictID    uint
 	ReviewState   string
 	PendingJSON   *string
+	PendingPhoto  *string
 	PendingDelete bool
 }
 
@@ -78,7 +79,7 @@ func itemFrom(entityType string, row queueRow) Item {
 	switch {
 	case row.PendingDelete:
 		action = model.ActionDelete
-	case row.PendingJSON != nil:
+	case row.PendingJSON != nil, row.PendingPhoto != nil:
 		action = model.ActionUpdate
 	}
 	return Item{
@@ -108,8 +109,8 @@ func (r *Repo) Queue(districtID *uint) ([]Item, error) {
 
 func (r *Repo) queueDoctors(districtID *uint, out *[]Item) error {
 	q := r.g.Table("doctors").
-		Select("id AS entity_id, district_id, review_state, pending_json, pending_delete").
-		Where("review_state = ? OR (pending_json IS NOT NULL AND rejection_reason IS NULL) OR (pending_delete = ? AND rejection_reason IS NULL)",
+		Select("id AS entity_id, district_id, review_state, pending_json, pending_photo, pending_delete").
+		Where("review_state = ? OR (pending_json IS NOT NULL AND rejection_reason IS NULL) OR (pending_delete = ? AND rejection_reason IS NULL) OR (pending_photo IS NOT NULL AND rejection_reason IS NULL)",
 			model.ReviewPending, true)
 	if districtID != nil {
 		q = q.Where("district_id = ?", *districtID)
@@ -127,16 +128,21 @@ func (r *Repo) queueDoctors(districtID *uint, out *[]Item) error {
 // queueChild handles recipes and cases, which resolve their district via joins to
 // the owning doctor.
 func (r *Repo) queueChild(entityType, table string, districtID *uint, out *[]Item) error {
-	q := r.g.Table(table).
-		Select(table + ".id AS entity_id, doctors.district_id AS district_id, " + table + ".review_state, " + table + ".pending_json, " + table + ".pending_delete")
+	sel := table + ".id AS entity_id, doctors.district_id AS district_id, " + table + ".review_state, " + table + ".pending_json, " + table + ".pending_delete"
+	cond := table + ".review_state = ? OR (" + table + ".pending_json IS NOT NULL AND " + table + ".rejection_reason IS NULL) OR (" + table + ".pending_delete = ? AND " + table + ".rejection_reason IS NULL)"
+	// recipes has no pending_photo column; only cases (like doctors) does.
+	if table == "cases" {
+		sel += ", " + table + ".pending_photo"
+		cond += " OR (" + table + ".pending_photo IS NOT NULL AND " + table + ".rejection_reason IS NULL)"
+	}
+	q := r.g.Table(table).Select(sel)
 	if table == "recipes" {
 		q = q.Joins("JOIN doctors ON doctors.id = recipes.doctor_id")
 	} else {
 		q = q.Joins("JOIN recipes ON recipes.id = cases.recipe_id").
 			Joins("JOIN doctors ON doctors.id = recipes.doctor_id")
 	}
-	q = q.Where(table+".review_state = ? OR ("+table+".pending_json IS NOT NULL AND "+table+".rejection_reason IS NULL) OR ("+table+".pending_delete = ? AND "+table+".rejection_reason IS NULL)",
-		model.ReviewPending, true)
+	q = q.Where(cond, model.ReviewPending, true)
 	if districtID != nil {
 		q = q.Where("doctors.district_id = ?", *districtID)
 	}
@@ -171,6 +177,16 @@ func (r *Repo) Approve(entityType string, entityID, actorID uint) error {
 	return r.flush(log)
 }
 
+// resolvePhoto returns the pending photo if one is staged, else the current
+// live photo. Approving folds a staged pending_photo into the live column
+// regardless of which other pending change (or none) is also being applied.
+func resolvePhoto(current string, pending *string) string {
+	if pending != nil {
+		return *pending
+	}
+	return current
+}
+
 func approveDoctor(tx *gorm.DB, id, actorID uint, log *[]revEntry) error {
 	var d model.Doctor
 	if err := tx.First(&d, id).Error; err != nil {
@@ -189,7 +205,8 @@ func approveDoctor(tx *gorm.DB, id, actorID uint, log *[]revEntry) error {
 			return err
 		}
 		overlay.ID = id
-		overlay.Photo = d.Photo
+		overlay.Photo = resolvePhoto(d.Photo, d.PendingPhoto)
+		overlay.PendingPhoto = nil
 		overlay.ReviewState = model.ReviewApproved
 		overlay.PendingJSON = nil
 		overlay.RejectionReason = nil
@@ -199,12 +216,27 @@ func approveDoctor(tx *gorm.DB, id, actorID uint, log *[]revEntry) error {
 		*log = append(*log, revEntry{"doctor", id, actorID, model.ActionUpdate, overlay})
 		return nil
 	case d.ReviewState == model.ReviewPending:
-		if err := tx.Model(&model.Doctor{}).Where("id = ?", id).
-			Updates(map[string]any{"review_state": model.ReviewApproved, "rejection_reason": nil}).Error; err != nil {
+		updates := map[string]any{"review_state": model.ReviewApproved, "rejection_reason": nil}
+		if d.PendingPhoto != nil {
+			updates["photo"] = *d.PendingPhoto
+			updates["pending_photo"] = nil
+		}
+		if err := tx.Model(&model.Doctor{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			return err
 		}
 		d.ReviewState = model.ReviewApproved
+		d.Photo = resolvePhoto(d.Photo, d.PendingPhoto)
+		d.PendingPhoto = nil
 		*log = append(*log, revEntry{"doctor", id, actorID, model.ActionCreate, d})
+		return nil
+	case d.PendingPhoto != nil:
+		if err := tx.Model(&model.Doctor{}).Where("id = ?", id).
+			Updates(map[string]any{"photo": *d.PendingPhoto, "pending_photo": nil, "rejection_reason": nil}).Error; err != nil {
+			return err
+		}
+		d.Photo = *d.PendingPhoto
+		d.PendingPhoto = nil
+		*log = append(*log, revEntry{"doctor", id, actorID, model.ActionUpdate, d})
 		return nil
 	default:
 		return errNotPending
@@ -234,7 +266,8 @@ func approveCase(tx *gorm.DB, id, actorID uint, log *[]revEntry) error {
 			return yearlock.ErrYearLocked
 		}
 		overlay.ID = id
-		overlay.Photo = c.Photo
+		overlay.Photo = resolvePhoto(c.Photo, c.PendingPhoto)
+		overlay.PendingPhoto = nil
 		overlay.ReviewState = model.ReviewApproved
 		overlay.PendingJSON = nil
 		overlay.RejectionReason = nil
@@ -249,12 +282,32 @@ func approveCase(tx *gorm.DB, id, actorID uint, log *[]revEntry) error {
 		} else if locked {
 			return yearlock.ErrYearLocked
 		}
-		if err := tx.Model(&model.Case{}).Where("id = ?", id).
-			Updates(map[string]any{"review_state": model.ReviewApproved, "rejection_reason": nil}).Error; err != nil {
+		updates := map[string]any{"review_state": model.ReviewApproved, "rejection_reason": nil}
+		if c.PendingPhoto != nil {
+			updates["photo"] = *c.PendingPhoto
+			updates["pending_photo"] = nil
+		}
+		if err := tx.Model(&model.Case{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			return err
 		}
 		c.ReviewState = model.ReviewApproved
+		c.Photo = resolvePhoto(c.Photo, c.PendingPhoto)
+		c.PendingPhoto = nil
 		*log = append(*log, revEntry{"case", id, actorID, model.ActionCreate, c})
+		return nil
+	case c.PendingPhoto != nil:
+		if locked, err := yearlock.IsLockedTx(tx, c.DataYear); err != nil {
+			return err
+		} else if locked {
+			return yearlock.ErrYearLocked
+		}
+		if err := tx.Model(&model.Case{}).Where("id = ?", id).
+			Updates(map[string]any{"photo": *c.PendingPhoto, "pending_photo": nil, "rejection_reason": nil}).Error; err != nil {
+			return err
+		}
+		c.Photo = *c.PendingPhoto
+		c.PendingPhoto = nil
+		*log = append(*log, revEntry{"case", id, actorID, model.ActionUpdate, c})
 		return nil
 	default:
 		return errNotPending
@@ -323,19 +376,28 @@ func approveRecipe(tx *gorm.DB, id, actorID uint, log *[]revEntry) error {
 	}
 }
 
-// Reject returns a change to the editor with a reason and logs the reject event.
+// Reject returns a change to the editor with a reason and logs the reject
+// event. A staged pending_photo is always discarded on reject, composing
+// with whichever of create/edit/delete is also being rejected, without
+// touching the live photo.
 func (r *Repo) Reject(entityType string, entityID, actorID uint, reason string) error {
-	table, ok := entityTable(entityType)
+	table, hasPendingPhoto, ok := entityTable(entityType)
 	if !ok {
 		return errUnknownEntity
 	}
 	var updates map[string]any
 	err := db.Tx(r.g, func(tx *gorm.DB) error {
 		var state string
-		var pendingJSON sql.NullString
+		var pendingJSON, pendingPhoto sql.NullString
 		var pendingDelete bool
-		row := tx.Table(table).Select("review_state, pending_json, pending_delete").Where("id = ?", entityID).Row()
-		if err := row.Scan(&state, &pendingJSON, &pendingDelete); err != nil {
+		cols := "review_state, pending_json, pending_delete"
+		dest := []any{&state, &pendingJSON, &pendingDelete}
+		if hasPendingPhoto {
+			cols += ", pending_photo"
+			dest = append(dest, &pendingPhoto)
+		}
+		row := tx.Table(table).Select(cols).Where("id = ?", entityID).Row()
+		if err := row.Scan(dest...); err != nil {
 			return err
 		}
 		updates = map[string]any{"rejection_reason": reason}
@@ -344,6 +406,9 @@ func (r *Repo) Reject(entityType string, entityID, actorID uint, reason string) 
 			updates["review_state"] = model.ReviewRejected // rejected create
 		case pendingDelete:
 			updates["pending_delete"] = false // rejected delete clears the flag
+		}
+		if pendingPhoto.Valid {
+			updates["pending_photo"] = nil // rejected photo is discarded, live photo stays
 		}
 		// A rejected edit keeps its pending_json untouched.
 		return tx.Table(table).Where("id = ?", entityID).Updates(updates).Error
@@ -419,12 +484,13 @@ type Detail struct {
 	Proposed   any    `json:"proposed"`
 }
 
-// actionOf classifies a pending row from its pending_* columns.
-func actionOf(pendingDelete bool, pendingJSON *string) string {
+// actionOf classifies a pending row from its pending_* columns. A staged
+// pending_photo alone (no content edit, no delete) also counts as an update.
+func actionOf(pendingDelete bool, pendingJSON, pendingPhoto *string) string {
 	switch {
 	case pendingDelete:
 		return model.ActionDelete
-	case pendingJSON != nil:
+	case pendingJSON != nil, pendingPhoto != nil:
 		return model.ActionUpdate
 	default:
 		return model.ActionCreate
@@ -455,7 +521,7 @@ func (r *Repo) Detail(entityType string, id uint) (Detail, error) {
 		if err := r.g.First(&d, id).Error; err != nil {
 			return Detail{}, err
 		}
-		action := actionOf(d.PendingDelete, d.PendingJSON)
+		action := actionOf(d.PendingDelete, d.PendingJSON, d.PendingPhoto)
 		cur, prop := splitContent(action, d, d.PendingJSON)
 		return Detail{"doctor", id, action, d.FullName, d.ID, cur, prop}, nil
 	case "recipe":
@@ -463,7 +529,7 @@ func (r *Repo) Detail(entityType string, id uint) (Detail, error) {
 		if err := r.g.First(&rec, id).Error; err != nil {
 			return Detail{}, err
 		}
-		action := actionOf(rec.PendingDelete, rec.PendingJSON)
+		action := actionOf(rec.PendingDelete, rec.PendingJSON, nil)
 		cur, prop := splitContent(action, rec, rec.PendingJSON)
 		return Detail{"recipe", id, action, rec.Name, rec.DoctorID, cur, prop}, nil
 	case "case":
@@ -475,7 +541,7 @@ func (r *Repo) Detail(entityType string, id uint) (Detail, error) {
 		if err := r.g.First(&rec, c.RecipeID).Error; err != nil {
 			return Detail{}, err
 		}
-		action := actionOf(c.PendingDelete, c.PendingJSON)
+		action := actionOf(c.PendingDelete, c.PendingJSON, c.PendingPhoto)
 		cur, prop := splitContent(action, c, c.PendingJSON)
 		return Detail{"case", id, action, c.Condition, rec.DoctorID, cur, prop}, nil
 	default:
@@ -483,15 +549,17 @@ func (r *Repo) Detail(entityType string, id uint) (Detail, error) {
 	}
 }
 
-func entityTable(entityType string) (string, bool) {
+// entityTable returns the table name for entityType and whether that table
+// has a pending_photo column (doctors and cases; recipes does not).
+func entityTable(entityType string) (table string, hasPendingPhoto, ok bool) {
 	switch entityType {
 	case "doctor":
-		return "doctors", true
+		return "doctors", true, true
 	case "recipe":
-		return "recipes", true
+		return "recipes", false, true
 	case "case":
-		return "cases", true
+		return "cases", true, true
 	default:
-		return "", false
+		return "", false, false
 	}
 }

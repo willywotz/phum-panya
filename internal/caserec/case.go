@@ -165,17 +165,36 @@ func (r *Repo) Delete(id, actorID uint, immediate bool) error {
 	return nil
 }
 
-// SetPhoto updates the photo path of the case with id. It returns
+// SetPhoto updates the case's photo, refusing the write with
+// yearlock.ErrYearLocked if its data_year is locked. An admin write
+// (immediate) applies the path to the live photo column right away,
+// bypassing approval; an editor write stages the path in pending_photo,
+// leaving the live photo untouched until a central admin approves it.
+// Either way the resulting row is logged as a revision. It returns
 // gorm.ErrRecordNotFound if no case with id exists.
-func (r *Repo) SetPhoto(id uint, path string) error {
-	res := r.g.Model(&model.Case{}).Where("id = ?", id).Update("photo", path)
-	if res.Error != nil {
-		return res.Error
+func (r *Repo) SetPhoto(id, actorID uint, path string, immediate bool) error {
+	existing, err := r.Get(id)
+	if err != nil {
+		return err
 	}
-	if res.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+	if err := r.guardYearWrite(existing.DataYear); err != nil {
+		return err
 	}
-	return nil
+	updates := map[string]any{"updated_by": actorID, "updated_at": r.clk.Now()}
+	if immediate {
+		updates["photo"] = path
+	} else {
+		updates["pending_photo"] = path
+		updates["rejection_reason"] = nil
+	}
+	if err := r.g.Model(&model.Case{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return err
+	}
+	c, err := r.Get(id)
+	if err != nil {
+		return err
+	}
+	return r.rev.Append("case", id, actorID, model.ActionUpdate, c)
 }
 
 // DistrictOf returns the district ID of the doctor who owns the recipe with

@@ -124,6 +124,9 @@ func runServer() {
 	if err := model.AutoMigrate(g); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
+	if err := model.BackfillRecipePhotos(g); err != nil {
+		log.Fatalf("backfill recipe photos: %v", err)
+	}
 	if _, err := bootstrap.EnsureAdmin(g, cfg.AdminEmail, cfg.AdminPassword); err != nil {
 		log.Fatalf("ensure admin: %v", err)
 	}

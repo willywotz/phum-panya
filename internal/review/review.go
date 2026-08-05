@@ -338,7 +338,6 @@ func approveRecipe(tx *gorm.DB, id, actorID uint, log *[]revEntry) error {
 		}
 		newRec := payload.Recipe
 		newRec.ID = id
-		newRec.Photo = rec.Photo
 		newRec.ReviewState = model.ReviewApproved
 		newRec.PendingJSON = nil
 		newRec.RejectionReason = nil

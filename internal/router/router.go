@@ -83,7 +83,7 @@ func NewEngine(deps Deps) *gin.Engine {
 
 	herb.RegisterRoutes(api, herbRepo, deps.Media)
 	doctor.RegisterRoutes(api, docRepo, deps.Media)
-	recipe.RegisterRoutes(api, recRepo)
+	recipe.RegisterRoutes(api, recRepo, deps.Media)
 	caserec.RegisterRoutes(api, casRepo, deps.Media)
 	review.RegisterRoutes(api, review.NewRepo(deps.DB, rev))
 	publicapi.RegisterRoutes(api, deps.DB)

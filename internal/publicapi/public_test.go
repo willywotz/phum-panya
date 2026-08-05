@@ -174,3 +174,28 @@ func TestPublicHidesPendingDoctorsAndRecipes(t *testing.T) {
 		t.Fatalf("recipe of an approved doctor must be visible")
 	}
 }
+
+// TestPublicRecipeReturnsAllPhotosAsArray proves the public recipe
+// projection returns every attached photo, as an array in upload order
+// (data model §4.5: a recipe may hold many images), not a single string.
+func TestPublicRecipeReturnsAllPhotosAsArray(t *testing.T) {
+	env := newPublicAPI(t)
+	env.seedDoctor("A", true, "recipe-A")
+	var rec model.Recipe
+	if err := env.g.Where("code = ?", "REC-A").First(&rec).Error; err != nil {
+		t.Fatalf("reload recipe: %v", err)
+	}
+	photos := []model.RecipePhoto{
+		{RecipeID: rec.ID, Path: "uploads/one.jpg", SortOrder: 0},
+		{RecipeID: rec.ID, Path: "uploads/two.jpg", SortOrder: 1},
+	}
+	if err := env.g.Create(&photos).Error; err != nil {
+		t.Fatalf("create photos: %v", err)
+	}
+
+	body := env.get("/api/public/recipes").Body.String()
+	wantOrder := `"photos":["uploads/one.jpg","uploads/two.jpg"]`
+	if !strings.Contains(body, wantOrder) {
+		t.Fatalf("body must contain %s, got %s", wantOrder, body)
+	}
+}

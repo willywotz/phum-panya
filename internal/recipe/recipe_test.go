@@ -1,7 +1,11 @@
 package recipe_test
 
 import (
+	"bytes"
 	"errors"
+	stdimage "image"
+	"image/jpeg"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -16,6 +20,7 @@ import (
 	"phum-panya/internal/auth"
 	"phum-panya/internal/clock"
 	"phum-panya/internal/db"
+	"phum-panya/internal/media"
 	"phum-panya/internal/model"
 	"phum-panya/internal/recipe"
 	"phum-panya/internal/revision"
@@ -117,7 +122,7 @@ func newRecipeAPI(t *testing.T) *recipeAPI {
 	r := gin.New()
 	r.Use(auth.LoadUser(store, g))
 	repo := recipe.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{}), yearlock.NewRepo(g, clock.Real{}))
-	recipe.RegisterRoutes(r, repo)
+	recipe.RegisterRoutes(r, repo, &media.Store{Dir: t.TempDir()})
 
 	return &recipeAPI{
 		t: t, g: g, r: r, repo: repo,
@@ -139,6 +144,31 @@ func (env *recipeAPI) do(method, path, token, body string) *httptest.ResponseRec
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "session", Value: token})
+	rec := httptest.NewRecorder()
+	env.r.ServeHTTP(rec, req)
+	return rec
+}
+
+// uploadPhoto POSTs a small in-memory JPEG as the "photo" multipart field
+// to path, as the district-1 editor.
+func (env *recipeAPI) uploadPhoto(path string) *httptest.ResponseRecorder {
+	env.t.Helper()
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile("photo", "photo.jpg")
+	if err != nil {
+		env.t.Fatalf("CreateFormFile: %v", err)
+	}
+	if err := jpeg.Encode(part, stdimage.NewNRGBA(stdimage.Rect(0, 0, 4, 4)), nil); err != nil {
+		env.t.Fatalf("encode photo: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		env.t.Fatalf("close writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, path, &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.AddCookie(&http.Cookie{Name: "session", Value: env.editorToken})
 	rec := httptest.NewRecorder()
 	env.r.ServeHTTP(rec, req)
 	return rec
@@ -347,5 +377,75 @@ func TestResolveDoctor(t *testing.T) {
 
 	if _, _, err = env.repo.ResolveDoctor("NOPE", "x"); !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("ResolveDoctor unknown code: err = %v, want ErrRecordNotFound", err)
+	}
+}
+
+// TestRecipePhotoUploadAppendsRows proves uploading multiple photos to a
+// recipe appends a RecipePhoto row per upload, in upload order, rather than
+// overwriting a single stored path.
+func TestRecipePhotoUploadAppendsRows(t *testing.T) {
+	env := newRecipeAPI(t)
+	path := "/api/recipes/" + strconv.FormatUint(uint64(env.recipe1.ID), 10) + "/photo"
+
+	first := env.uploadPhoto(path)
+	if first.Code != http.StatusOK {
+		t.Fatalf("first upload = %d, want 200, body = %s", first.Code, first.Body.String())
+	}
+	second := env.uploadPhoto(path)
+	if second.Code != http.StatusOK {
+		t.Fatalf("second upload = %d, want 200, body = %s", second.Code, second.Body.String())
+	}
+
+	photos, err := env.repo.GetPhotos(env.recipe1.ID)
+	if err != nil {
+		t.Fatalf("GetPhotos: %v", err)
+	}
+	if len(photos) != 2 {
+		t.Fatalf("photo count = %d, want 2", len(photos))
+	}
+	if photos[0].SortOrder != 0 || photos[1].SortOrder != 1 {
+		t.Fatalf("sort orders = %d,%d, want 0,1", photos[0].SortOrder, photos[1].SortOrder)
+	}
+	if photos[0].Path == "" || photos[1].Path == "" {
+		t.Fatal("photo path was not saved")
+	}
+}
+
+// TestDeleteRecipeWithPhotosCascades proves deleting a recipe that has
+// uploaded photos succeeds and removes its recipe_photos rows: the
+// recipe_photos foreign key must cascade on delete, same as ingredients.
+func TestDeleteRecipeWithPhotosCascades(t *testing.T) {
+	env := newRecipeAPI(t)
+	path := "/api/recipes/" + strconv.FormatUint(uint64(env.recipe1.ID), 10) + "/photo"
+	if res := env.uploadPhoto(path); res.Code != http.StatusOK {
+		t.Fatalf("upload = %d, body = %s", res.Code, res.Body.String())
+	}
+
+	if err := env.repo.Delete(env.recipe1.ID, 1, true); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	var n int64
+	env.g.Model(&model.RecipePhoto{}).Where("recipe_id = ?", env.recipe1.ID).Count(&n)
+	if n != 0 {
+		t.Fatalf("recipe_photos rows after delete = %d, want 0 (cascade)", n)
+	}
+}
+
+// TestRecipeListIncludesPhotos proves the staff recipe listing includes the
+// recipe's photos in upload order.
+func TestRecipeListIncludesPhotos(t *testing.T) {
+	env := newRecipeAPI(t)
+	path := "/api/recipes/" + strconv.FormatUint(uint64(env.recipe1.ID), 10) + "/photo"
+	if res := env.uploadPhoto(path); res.Code != http.StatusOK {
+		t.Fatalf("upload = %d, body = %s", res.Code, res.Body.String())
+	}
+
+	res := env.doAsEditor("GET", "/api/recipes?doctor_id="+strconv.FormatUint(uint64(env.doctor1.ID), 10), "")
+	if res.Code != http.StatusOK {
+		t.Fatalf("list = %d, body = %s", res.Code, res.Body.String())
+	}
+	if !strings.Contains(res.Body.String(), `"photos":[`) {
+		t.Fatalf("listing must include a photos array, body = %s", res.Body.String())
 	}
 }

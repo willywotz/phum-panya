@@ -117,7 +117,7 @@ func runServer() {
 	if err := ensureDataDirs(cfg); err != nil {
 		log.Fatalf("create data dirs: %v", err)
 	}
-	g, err := db.Open(cfg.DBPath)
+	g, err := db.OpenWith(cfg.DBDriver, cfg.DBPath, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("open db: %v", err)
 	}
@@ -139,7 +139,7 @@ func runServer() {
 		Throttle:   auth.NewThrottle(clk, loginThrottleMax, loginThrottleWindow),
 		Media:      &media.Store{Dir: cfg.MediaDir},
 		Clk:        clk,
-		Secure:     !cfg.DevMode && cfg.Domain != "",
+		Secure:     cfg.CookieSecure(),
 		BackupDir:  cfg.BackupDir,
 		BackupKeep: backupKeep,
 		DBPath:     cfg.DBPath,
@@ -147,7 +147,9 @@ func runServer() {
 	}
 	engine := router.NewEngine(deps)
 
-	go runBackupTicker(cfg, clk)
+	if cfg.BackupEnabled() {
+		go runBackupTicker(cfg, clk)
+	}
 
 	log.Printf("listening on %s", cfg.HTTPAddr)
 	if err := svc.Run(func(ctx context.Context) error {
@@ -188,7 +190,7 @@ func runBackupTicker(cfg config.Config, clk clock.Clock) {
 // APP_ADMIN_PASSWORD, then exits.
 func runCreateAdmin() {
 	cfg := config.Load()
-	g, err := db.Open(cfg.DBPath)
+	g, err := db.OpenWith(cfg.DBDriver, cfg.DBPath, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("open db: %v", err)
 	}

@@ -152,6 +152,17 @@ func runServer() {
 		os.Exit(1)
 	}
 
+	metricsHandler, shutdownTelemetry, err := telemetry.Setup(context.Background(), cfg)
+	if err != nil {
+		slog.Error("telemetry setup", "err", err)
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownTelemetry(context.Background()) }()
+	if err := telemetry.InstrumentDB(g); err != nil {
+		slog.Error("instrument db", "err", err)
+		os.Exit(1)
+	}
+
 	clk := clock.Real{}
 	deps := router.Deps{
 		Cfg:        cfg,
@@ -160,6 +171,8 @@ func runServer() {
 		Throttle:   newLimiter(g, cfg, clk),
 		Media:      mediaStore,
 		Clk:        clk,
+		Logger:     logger,
+		Metrics:    metricsHandler,
 		Secure:     cfg.CookieSecure(),
 		BackupDir:  cfg.BackupDir,
 		BackupKeep: backupKeep,

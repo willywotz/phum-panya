@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -42,6 +43,7 @@ func newDeps(t *testing.T, mediaDir string) router.Deps {
 		Throttle:   auth.NewThrottle(clk, 100, time.Minute),
 		Media:      &media.LocalStore{Dir: mediaDir},
 		Clk:        clk,
+		Logger:     slog.Default(),
 		BackupDir:  filepath.Join(dir, "backup"),
 		BackupKeep: 7,
 		DBPath:     filepath.Join(dir, "app.db"),

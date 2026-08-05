@@ -17,9 +17,10 @@ import (
 	"phum-panya/internal/router"
 )
 
-// newEngine builds a minimal, fully wired engine backed by a temp DB and
-// mediaDir.
-func newEngine(t *testing.T, mediaDir string) http.Handler {
+// newDeps builds a minimal router.Deps backed by a temp DB and mediaDir.
+// Tests that need a non-default Cfg can override deps.Cfg before calling
+// router.NewEngine.
+func newDeps(t *testing.T, mediaDir string) router.Deps {
 	t.Helper()
 	dir := t.TempDir()
 
@@ -32,7 +33,7 @@ func newEngine(t *testing.T, mediaDir string) http.Handler {
 	}
 
 	clk := clock.Real{}
-	deps := router.Deps{
+	return router.Deps{
 		Cfg:        config.Config{MediaDir: mediaDir},
 		DB:         g,
 		Store:      auth.NewSessionStore(g, clk, time.Hour),
@@ -44,7 +45,13 @@ func newEngine(t *testing.T, mediaDir string) http.Handler {
 		DBPath:     filepath.Join(dir, "app.db"),
 		MediaDir:   mediaDir,
 	}
-	return router.NewEngine(deps)
+}
+
+// newEngine builds a minimal, fully wired engine backed by a temp DB and
+// mediaDir.
+func newEngine(t *testing.T, mediaDir string) http.Handler {
+	t.Helper()
+	return router.NewEngine(newDeps(t, mediaDir))
 }
 
 // TestMediaRouteServesStoredFile confirms a photo saved under MediaDir is
@@ -113,5 +120,51 @@ func TestMediaRouteTraversalBlocked(t *testing.T) {
 
 	if rec.Code == http.StatusOK {
 		t.Fatalf("path traversal served content: %q", rec.Body.String())
+	}
+}
+
+// TestSameOriginUsesPublicOriginBehindProxy proves the CSRF origin check is
+// wired to AllowedOriginHost, not Domain, so it is active behind a proxy.
+func TestSameOriginUsesPublicOriginBehindProxy(t *testing.T) {
+	mediaDir := t.TempDir()
+	deps := newDeps(t, mediaDir)
+	deps.Cfg = config.Config{BehindProxy: true, PublicOrigin: "https://example.org"}
+	engine := router.NewEngine(deps)
+
+	// A cross-origin unsafe request is rejected before routing.
+	req := httptest.NewRequest(http.MethodPost, "/api/login", nil)
+	req.Header.Set("Origin", "https://evil.test")
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("cross-origin POST status = %d, want 403", rec.Code)
+	}
+
+	// A same-origin unsafe request is NOT rejected for origin (it proceeds to
+	// the handler, which may 400/401 — anything but 403 forbidden_origin).
+	req2 := httptest.NewRequest(http.MethodPost, "/api/login", nil)
+	req2.Header.Set("Origin", "https://example.org")
+	rec2 := httptest.NewRecorder()
+	engine.ServeHTTP(rec2, req2)
+	if rec2.Code == http.StatusForbidden {
+		t.Fatalf("same-origin POST was forbidden by origin check")
+	}
+}
+
+// TestBackupRouteAbsentOnPostgres proves the SQLite-only backup endpoint is not
+// mounted when the app runs on Postgres (the pg_dump sidecar owns backups).
+func TestBackupRouteAbsentOnPostgres(t *testing.T) {
+	mediaDir := t.TempDir()
+	deps := newDeps(t, mediaDir)
+	deps.Cfg = config.Config{DBDriver: "postgres"}
+	engine := router.NewEngine(deps)
+
+	// Same-origin (no-op check, allowedHost empty) POST so only the route
+	// registration is under test; expect the route to be absent.
+	req := httptest.NewRequest(http.MethodPost, "/api/backup/run", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("POST /api/backup/run on postgres = %d, want 404", rec.Code)
 	}
 }

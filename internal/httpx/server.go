@@ -23,13 +23,14 @@ func Serve(cfg config.Config, h http.Handler) error {
 	return ServeContext(ctx, cfg, h)
 }
 
-// ServeContext runs the HTTP server for cfg, handling h. In dev mode or when
-// no domain is configured it serves plain HTTP on cfg.HTTPAddr. Otherwise it
-// serves TLS on :443 via autocert, with a second server on :80 for the ACME
-// HTTP-01 challenge and HTTPS redirect. It blocks until a listen error occurs
-// or ctx is cancelled, then shuts both servers down gracefully.
+// ServeContext runs the HTTP server for cfg, handling h. In dev mode, when
+// no domain is configured, or behind a reverse proxy (which terminates TLS
+// itself) it serves plain HTTP on cfg.HTTPAddr. Otherwise it serves TLS on
+// :443 via autocert, with a second server on :80 for the ACME HTTP-01
+// challenge and HTTPS redirect. It blocks until a listen error occurs or ctx
+// is cancelled, then shuts both servers down gracefully.
 func ServeContext(ctx context.Context, cfg config.Config, h http.Handler) error {
-	if cfg.DevMode || cfg.Domain == "" {
+	if !cfg.UseTLS() {
 		return serveHTTP(ctx, &http.Server{Addr: cfg.HTTPAddr, Handler: h})
 	}
 	return serveTLS(ctx, cfg, h)

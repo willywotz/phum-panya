@@ -60,7 +60,7 @@ func NewEngine(deps Deps) *gin.Engine {
 	engine := gin.New()
 	engine.Use(gin.Recovery(), gin.Logger())
 	engine.MaxMultipartMemory = 8 << 20
-	engine.Use(auth.SameOrigin(deps.Cfg.Domain))
+	engine.Use(auth.SameOrigin(deps.Cfg.AllowedOriginHost()))
 
 	// api carries auth.LoadUser but no path prefix: every module already
 	// registers its full "/api/..." literal path, so a "/api" group prefix
@@ -88,7 +88,9 @@ func NewEngine(deps Deps) *gin.Engine {
 	review.RegisterRoutes(api, review.NewRepo(deps.DB, rev))
 	publicapi.RegisterRoutes(api, deps.DB)
 	export.RegisterRoutes(api, deps.DB)
-	backup.RegisterRoutes(api, deps.DBPath, deps.MediaDir, deps.BackupDir, deps.BackupKeep, deps.Clk)
+	if deps.Cfg.BackupEnabled() {
+		backup.RegisterRoutes(api, deps.DBPath, deps.MediaDir, deps.BackupDir, deps.BackupKeep, deps.Clk)
+	}
 	yearlock.RegisterRoutes(api, lockRepo)
 	importer.RegisterRoutes(api, importer.NewImporter(deps.DB, deps.Clk, docRepo, recRepo, casRepo, herbRepo, lockRepo))
 

@@ -264,6 +264,20 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
     PR #31) and **#28** (recipe frontend now reads the `photos` array and the public healer page
     renders every recipe photo; the staff recipe screen gains photo upload via the append endpoint;
     PR #32). **#19** (CD/VPS auto-deploy) stays open — parked pending the deploy model + VPS secrets.
+- Optional **Postgres/Caddy compose stack** (second deploy path, **ADR-0003** — complements, does
+  not replace, ADR-0001). Branch `feat/compose-stack-deploy`, subagent-driven TDD. The single
+  SQLite binary stays the **default**; this stack is opt-in for operators who want containers.
+  Four services + a `pg_dump` sidecar: **caddy** (one public origin, own ACME TLS; serves `/media`
+  reads via `file_server`, proxies `/api/*`→api, everything else→web), **web** (Next.js
+  `output: standalone`), **api** (Go, behind-proxy), **postgres**, and a daily backup sidecar
+  (keep newest 14). New config, all gated so the default path is unchanged:
+  `APP_DB_DRIVER=sqlite|postgres`, `APP_DATABASE_URL`, `APP_BEHIND_PROXY=1`, `APP_PUBLIC_ORIGIN`.
+  DB is a GORM driver swap (pure-Go `gorm.io/driver/postgres`, still cgo-free); the in-app SQLite
+  `VACUUM INTO` backup is skipped on Postgres. Next.js keeps two build modes (`export` for the
+  embedded binary; `standalone` for the web service). New CI jobs: `go-postgres` (integration
+  test against a live PG) and `stack-validate` (`compose config` + `caddy validate`). Runbook:
+  `docs/ops/deploy-compose.md`. Spec: `docs/superpowers/specs/2026-08-05-compose-stack-deploy-design.md`;
+  plan: `docs/superpowers/plans/2026-08-05-compose-stack-deploy.md`.
 
 ## Data model (summary)
 

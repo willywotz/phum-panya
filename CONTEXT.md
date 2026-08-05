@@ -205,7 +205,7 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   hijack). The P1 pending-herb path stays as a fallback. Changes the ownership rule in FR-HERB-1. 156
   Go tests green.
 
-- **P2–P5 frontend admin screens (done, branch `feat/p2-p5-frontend`)**: the P2–P5 backend flows had
+- **P2–P5 frontend admin screens (merged to `main`, PR #8 `8cf3caa`)**: the P2–P5 backend flows had
   no UI. Four central-admin screens are added to the Next.js staff app, plus role-gated navigation.
   The staff nav now shows the admin links (`review`, `year-locks`, `imports`) only to a
   `central_admin`; a new `RequireAdmin` guard bounces a district editor off an admin URL. Screens:
@@ -223,6 +223,15 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   SQLite dev DB makes parallel write-heavy specs flaky. Still frontend-only follow-ups (parked):
   no per-worker e2e DB isolation; the queue diff renders a recipe `{recipe,ingredients}` payload as
   one cell.
+  - **UAT (2026-08-05, browser-driven on a fresh DB)**: all four screens pass. `/staff/review` shows
+    the editor→pending doctor with approve/reject/approve-all; `/staff/year-locks` locks and unlocks;
+    `/staff/imports` runs a dry-run report (new doctor/recipe/case counts) with the template fixture;
+    `/staff/herbs` fires the near-duplicate warning and shows the admin merge panel. Role-gating
+    verified: the three admin nav links are hidden from a district editor and `RequireAdmin` bounces
+    a direct `/staff/review` visit back to `/staff`. No console errors. Confirmed by code that the
+    year-lock pending-empty precondition scopes to Recipe/Case only (a pending doctor does not block a
+    lock — by design). Note (pre-P5, out of scope here): the Districts + Users nav links are still
+    shown to a district editor.
 
 ## Data model (summary)
 

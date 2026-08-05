@@ -75,6 +75,11 @@ directory move).
   return structs"), so no central port package explosion is needed for feature
   repos.
 
+  Note: `publicapi` and `export` currently receive `*gorm.DB` directly (no
+  `Repo`). Inverting them means introducing a repository adapter for each and a
+  matching port interface — a slightly larger change than the packages that
+  already have a `Repo`.
+
 - **Shared infrastructure ports** (used by several features), defined where
   consumed and satisfied by the current concrete types as default adapters:
   - `MediaStore` — `SaveReader`, `SaveMultipart`, `UsageBytes`. Current

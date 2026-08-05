@@ -9,7 +9,7 @@
 # then browse http://localhost:${APP_HOST_PORT:-8080}
 # (override APP_HOST_PORT if 8080 is taken — common on Windows/WSL2, e.g. 18080).
 #
-# Production is unchanged: use docker-compose.yaml (one embedded binary).
+# Production: use docker-compose.yaml (the Caddy + web + api + Postgres stack).
 
 services:
   # Single public entry point. Routes /api and /media to the Go service and

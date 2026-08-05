@@ -117,7 +117,9 @@ internal/
 web/                        Next.js SPA (staff + public) — NOTE: no UI yet for the P2–P5 admin flows (see §8)
 deploy/windows/             WiX v5 MSI: installs server.exe + registers service
 .github/workflows/          ci.yml (push/PR gates) + release.yml (tag → build exe/msi + publish)
-Dockerfile docker-compose*.yaml .env.example   # prod: single embedded binary; dev: web+api behind nginx
+Dockerfile.api web/Dockerfile docker-compose.yaml   # prod stack: Caddy+web+api+Postgres+backup (ADR-0003)
+docker-compose.dev.yaml deploy/dev/                  # dev: web+api behind nginx, hot reload
+.env.example
 ```
 
 ## 5. New API surface (P2–P5, all admin-gated unless noted)
@@ -158,8 +160,10 @@ Unchanged from `v1.0.0` — see git history / README. Quick reference:
 - **Run (prod):** set `APP_DOMAIN` (ports 80/443), drop `APP_DEV` → Go-native Let's Encrypt TLS.
 - **Service:** `server service install --admin-email=… --admin-password=… --domain=…`; or the
   Windows **MSI** wizard.
-- **Docker:** `cp .env.example .env`, set `APP_ADMIN_PASSWORD`, `docker compose up --build`
-  (all state in `/data`; set `APP_HOST_PORT` if 8080 is reserved).
+- **Docker (container stack, ADR-0003):** `cp .env.example .env`, set `APP_DOMAIN`,
+  `APP_ADMIN_PASSWORD`, `POSTGRES_PASSWORD`, then `docker compose up -d --build` (needs ports
+  80/443). Full runbook: `docs/ops/deploy-compose.md`. The single-binary Docker image was removed;
+  the binary still ships via `make build` / `release.yml` (systemd / MSI).
 - **Dev stack (hot reload):** `make dev`.
 - **Test:** `go test ./...` and `cd web && npx playwright test` (needs `npx playwright install chromium`).
 - **Env vars:** `APP_HTTP_ADDR`, `APP_DOMAIN`, `APP_DB_PATH`, `APP_MEDIA_DIR`, `APP_BACKUP_DIR`,

@@ -26,7 +26,8 @@ docs
 messages.txt
 README.md
 
-# The compose/Docker files themselves
+# The compose/Docker files themselves — not needed inside the image
 docker-compose.yaml
-Dockerfile
+docker-compose.dev.yaml
+Dockerfile.api
 .dockerignore

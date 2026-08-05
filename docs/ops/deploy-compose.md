@@ -5,7 +5,7 @@
 > no Docker. Use this path only if you want Postgres and/or run several
 > services behind a shared reverse proxy. See ADR-0003 for the rationale.
 
-This path runs five containers via `docker-compose.stack.yaml`: **caddy**
+This path runs five containers via `docker-compose.yaml`: **caddy**
 (TLS + reverse proxy), **web** (Next.js standalone), **api** (the Go server,
 `APP_BEHIND_PROXY=1`, `APP_DB_DRIVER=postgres`), **postgres**, and **backup**
 (a `pg_dump` sidecar). Only `caddy` publishes ports; the other services talk
@@ -29,8 +29,8 @@ cd phum-panya
 cp .env.example .env
 ```
 
-Edit `.env` and set the three required vars (see the "Optional Postgres/Caddy
-compose stack" block at the bottom of `.env.example`):
+Edit `.env` and set the three required vars (see the "Prod stack" block in
+`.env.example`):
 
 ```
 APP_DOMAIN=your-domain.org
@@ -45,7 +45,7 @@ same file.
 ## 2. Bring the stack up
 
 ```bash
-docker compose -f docker-compose.stack.yaml up -d --build
+docker compose up -d --build
 ```
 
 What this does on first boot:
@@ -63,8 +63,8 @@ What this does on first boot:
 ## 3. Verify it is up
 
 ```bash
-docker compose -f docker-compose.stack.yaml ps
-docker compose -f docker-compose.stack.yaml logs -f caddy   # watch ACME issuance
+docker compose ps
+docker compose logs -f caddy   # watch ACME issuance
 curl -fsS https://your-domain.org/api/health                # expect {"status":"ok"}
 ```
 
@@ -89,7 +89,7 @@ The `backup` service writes a dated, gzip-compressed `pg_dump` into the
 `pg-backups` named volume every 24h and keeps the newest 14:
 
 ```bash
-docker compose -f docker-compose.stack.yaml exec backup ls -la /backups
+docker compose exec backup ls -la /backups
 ```
 
 **Off-site copies are the owner's job** — schedule a pull of the
@@ -98,9 +98,9 @@ desired dump out of the volume and pipe it into `psql` against a fresh
 `postgres` container:
 
 ```bash
-docker compose -f docker-compose.stack.yaml exec backup \
+docker compose exec backup \
   sh -c 'gunzip -c /backups/backup-<date>.sql.gz' | \
-  docker compose -f docker-compose.stack.yaml exec -T postgres \
+  docker compose exec -T postgres \
   psql -U phumpanya -d phumpanya
 ```
 
@@ -108,8 +108,8 @@ docker compose -f docker-compose.stack.yaml exec backup \
 
 ```bash
 git pull
-docker compose -f docker-compose.stack.yaml pull   # refresh third-party images
-docker compose -f docker-compose.stack.yaml up -d --build
+docker compose pull   # refresh third-party images
+docker compose up -d --build
 ```
 
 `AutoMigrate` applies any new columns/tables on boot. Take a Postgres backup
@@ -121,7 +121,7 @@ Check out the previous release tag and rebuild:
 
 ```bash
 git checkout <previous-tag>
-docker compose -f docker-compose.stack.yaml up -d --build
+docker compose up -d --build
 ```
 
 If a bad migration corrupted data, restore the latest good `pg_dump` per §5.

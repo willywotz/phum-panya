@@ -191,19 +191,30 @@ tables; `Herb` provenance/alias columns; `batch_id` tags). No manual migration s
 - Parked frontend follow-ups: no per-worker e2e DB isolation (the reason the suite runs serially);
   the queue diff renders a recipe `{recipe,ingredients}` pending payload as one unformatted cell.
 
-Smaller, parked follow-ups (non-blocking):
-- **P2:** `SetPhoto` bypasses the approval/lock gates — a photo swap on an approved (or locked)
-  row is immediate and unlogged. (Row content edits are correctly gated; only photos aren't.)
-- **P3:** `SetPhoto` is likewise not year-lock-guarded.
-- **P4:** cases have no `code`, so re-importing a file duplicates cases (coded entities are
-  idempotent); per-batch undo is the remedy. Undo leaves the append-only `Revision` rows.
-- **P5:** a merged alias herb still appears in the admin + public catalog (no `alias_of_id IS
-  NULL` filter) — recipes resolve to the canonical herb, so this is cosmetic; `Merge` has no
-  self/chained-merge guard (admin-only tool).
-- Carried over from P1: no `binding:"required"` tags; no enum DB CHECKs; `/api/current-user`
-  omits `full_name`; no ESLint config; `Recipe.Photo` single-string;
-  **no CD to the VPS** (releases build + publish, deploy is manual).
-  (Role-based nav hiding is now done — see the P2–P5 frontend note above.)
+**Parked follow-ups are now filed as GitHub issues (#12–#19, all non-blocking):**
+- [#12](https://github.com/willywotz/phum-panya/issues/12) — Districts + Users nav links shown to
+  district editors (both admin-only screens; backend already enforces admin, so UX-only).
+- [#13](https://github.com/willywotz/phum-panya/issues/13) — **P2/P3:** `SetPhoto` bypasses the
+  approval gate, the year-lock guard, and the audit trail (photo swap on an approved/locked row is
+  immediate and unlogged; row content edits are correctly gated).
+- [#14](https://github.com/willywotz/phum-panya/issues/14) — **P5:** herb `Merge` has no
+  self/chained/canonical guard, and merged aliases still appear in the admin + public catalog (no
+  `alias_of_id IS NULL` filter; cosmetic — recipes resolve to the canonical herb).
+- [#15](https://github.com/willywotz/phum-panya/issues/15) — **P1:** no `binding:"required"` tags
+  and no enum DB CHECK constraints.
+- [#16](https://github.com/willywotz/phum-panya/issues/16) — **P1:** `/api/current-user` omits
+  `full_name`.
+- [#17](https://github.com/willywotz/phum-panya/issues/17) — **P1:** web has no ESLint config.
+- [#18](https://github.com/willywotz/phum-panya/issues/18) — **P1:** `Recipe.Photo` is a single
+  string vs the data-model "image (many)".
+- [#19](https://github.com/willywotz/phum-panya/issues/19) — **P1:** no CD; the VPS deploy is manual
+  (runbook: `docs/ops/deploy.md`).
+
+Not filed (self-remedying, documented behaviour): **P4** cases have no `code`, so re-importing a
+file duplicates cases (coded entities are idempotent) — per-batch undo is the remedy; undo leaves
+the append-only `Revision` rows. Not filed either: no per-worker e2e DB isolation (suite runs
+serially) and the unformatted recipe-payload queue diff (frontend polish).
+Role-based nav hiding is done (see the P2–P5 frontend note above).
 
 ### Out of scope (per the 2026-08-04 scoping decision)
 - **SQLite → PostgreSQL migration** — explicitly out of scope; the app stays on SQLite. Re-scope
@@ -212,15 +223,20 @@ Smaller, parked follow-ups (non-blocking):
 
 ## 9. Git state & next steps
 
-- One trunk: **`main`** at `6cde31b`, `== origin/main`. No open feature branches.
-- PRs **#4 (P2), #5 (P3), #6 (P4), #7 (P5)**, **#8 (P2–P5 frontend)**, and **#9 (doc refresh + UAT
-  record)** merged. **`v1.1.0`** is the last tag (P2–P5 backend + frontend), cut on `6cde31b` after
-  the UAT pass; `release.yml` built + published the Windows exe/MSI + Linux binary.
+- One trunk: **`main`** at `3d995ec`, `== origin/main`. No open feature branches.
+- PRs **#4–#7** (P2–P5 backend), **#8** (P2–P5 frontend), **#9** (doc refresh + UAT record),
+  **#10** (v1.1.0 release record), **#11** (VPS deploy runbook) merged. **`v1.1.0`** is the last tag
+  (P2–P5 backend + frontend), cut on `6cde31b` after the UAT pass; `release.yml` built + published
+  the Windows exe/MSI + Linux binary.
 - `ci.yml` gates every push/PR; `release.yml` builds + publishes on `v*` tags.
+- Open follow-up issues: **#12–#19** (all non-blocking — see §8).
 
 **Immediate next steps:**
-1. **Deploy `v1.1.0`** to the client VPS (still manual — no CD). Run the SRS §6.1 UAT on the live
-   host, including the editor→pending→admin-approve→public flow.
-2. Optional hardening: gate `SetPhoto` through the P2/P3 rules; add self/chained-merge guards to
-   herb `Merge`; the P1 carry-over polish in §8. Consider whether a district editor should still see
-   the Districts/Users nav links (flagged during the 2026-08-05 UAT).
+1. **Deploy `v1.1.0`** to the client VPS — still manual, no CD ([#19](https://github.com/willywotz/phum-panya/issues/19));
+   runbook at `docs/ops/deploy.md`. Run the SRS §6.1 UAT on the live host, including the
+   editor→pending→admin-approve→public flow.
+2. Optional hardening, all filed and prioritised in §8: the governance hole
+   [#13](https://github.com/willywotz/phum-panya/issues/13) (`SetPhoto` gate/lock/audit) is the
+   highest-value; then [#12](https://github.com/willywotz/phum-panya/issues/12) (editor nav),
+   [#14](https://github.com/willywotz/phum-panya/issues/14) (herb merge), and the P1 polish
+   [#15](https://github.com/willywotz/phum-panya/issues/15)–[#19](https://github.com/willywotz/phum-panya/issues/19).

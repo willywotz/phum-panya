@@ -260,9 +260,10 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
     `RequireAdmin`. Editors keep district-name reads in forms.
   - **#17 web ESLint (PR #24)**: flat `eslint.config.mjs` (Next + TS preset); `lint` script switched
     off deprecated `next lint`; a lint step wired into CI.
-  - Follow-ups filed: **#27** (herb `mergeHandler` should map Merge errors to 400/404, not 500),
-    **#28** (recipe frontend must consume the new `photos` array). **#19** (CD/VPS auto-deploy) is
-    still open — parked pending the deploy model + VPS secrets.
+  - Follow-ups also fixed: **#27** (herb `mergeHandler` now maps Merge errors to 400/404, not 500;
+    PR #31) and **#28** (recipe frontend now reads the `photos` array and the public healer page
+    renders every recipe photo; the staff recipe screen gains photo upload via the append endpoint;
+    PR #32). **#19** (CD/VPS auto-deploy) stays open — parked pending the deploy model + VPS secrets.
 
 ## Data model (summary)
 

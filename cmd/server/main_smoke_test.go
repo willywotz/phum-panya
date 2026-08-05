@@ -244,3 +244,10 @@ func TestNewMediaStoreLocal(t *testing.T) {
 		t.Fatalf("got %T, want *media.LocalStore", s)
 	}
 }
+
+func TestNewLimiterMemory(t *testing.T) {
+	l := newLimiter(nil, config.Config{ThrottleStore: "memory"}, clock.Real{})
+	if _, ok := l.(*auth.Throttle); !ok {
+		t.Fatalf("got %T, want *auth.Throttle", l)
+	}
+}

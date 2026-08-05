@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"gorm.io/gorm"
+
 	"phum-panya/internal/auth"
 	"phum-panya/internal/backup"
 	"phum-panya/internal/bootstrap"
@@ -140,7 +142,7 @@ func runServer() {
 		Cfg:        cfg,
 		DB:         g,
 		Store:      auth.NewSessionStore(g, clk, sessionTTL),
-		Throttle:   auth.NewThrottle(clk, loginThrottleMax, loginThrottleWindow),
+		Throttle:   newLimiter(g, cfg, clk),
 		Media:      mediaStore,
 		Clk:        clk,
 		Secure:     cfg.CookieSecure(),
@@ -161,6 +163,16 @@ func runServer() {
 	}); err != nil {
 		log.Fatalf("serve: %v", err)
 	}
+}
+
+// newLimiter builds the login rate limiter selected by cfg.ThrottleStore:
+// a shared DB-backed limiter for the multi-replica stack, or the in-process
+// throttle otherwise.
+func newLimiter(g *gorm.DB, cfg config.Config, clk clock.Clock) auth.Limiter {
+	if cfg.UsesDBThrottle() {
+		return auth.NewDBLimiter(g, clk, loginThrottleMax, loginThrottleWindow)
+	}
+	return auth.NewThrottle(clk, loginThrottleMax, loginThrottleWindow)
 }
 
 // newMediaStore builds the media adapter selected by cfg.MediaDriver.

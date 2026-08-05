@@ -101,3 +101,18 @@ func TestS3ConfigLoadedWhenDriverS3(t *testing.T) {
 		t.Fatalf("s3 config not loaded: %+v", c)
 	}
 }
+
+func TestThrottleStoreDefaultsToMemory(t *testing.T) {
+	t.Setenv("APP_THROTTLE_STORE", "")
+	c := Load()
+	if c.ThrottleStore != "memory" || c.UsesDBThrottle() {
+		t.Fatalf("default ThrottleStore = %q, UsesDBThrottle = %v; want memory/false", c.ThrottleStore, c.UsesDBThrottle())
+	}
+}
+
+func TestThrottleStoreDBWhenSet(t *testing.T) {
+	t.Setenv("APP_THROTTLE_STORE", "db")
+	if !Load().UsesDBThrottle() {
+		t.Fatal("UsesDBThrottle = false, want true")
+	}
+}

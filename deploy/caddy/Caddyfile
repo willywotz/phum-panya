@@ -7,12 +7,10 @@
 		reverse_proxy api:8080
 	}
 
-	# Media reads are static files off the shared volume (read-only). All
-	# writes go through /api/*, so /media/* is safe to serve statically.
+	# Media reads are streamed by the Go service from object storage; Caddy
+	# proxies them like the rest of the API.
 	handle /media/* {
-		root * /srv/media
-		uri strip_prefix /media
-		file_server
+		reverse_proxy api:8080
 	}
 
 	# Everything else → the Next.js standalone service.

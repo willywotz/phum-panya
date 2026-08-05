@@ -88,6 +88,9 @@ type Herb struct {
 	Photo          string
 	PartUsed       string
 	Properties     string
+
+	CreatedByDistrictID *uint `gorm:"index"`
+	AliasOfID           *uint `gorm:"index"` // set => this herb is an alias of AliasOfID (canonical)
 }
 
 // Recipe is ตำรับยา, a formula belonging to one doctor.

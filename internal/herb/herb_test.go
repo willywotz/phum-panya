@@ -2,6 +2,7 @@ package herb_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -87,7 +88,7 @@ func TestPendingNamesAndReconcile(t *testing.T) {
 	}
 
 	h := &model.Herb{ThaiName: pendingName}
-	if err := repo.Create(h); err != nil {
+	if err := repo.Create(h, nil); err != nil {
 		t.Fatalf("Create herb: %v", err)
 	}
 
@@ -221,4 +222,82 @@ func TestHerbCreateListUpdateDelete(t *testing.T) {
 
 func itoa(id uint) string {
 	return strconv.FormatUint(uint64(id), 10)
+}
+
+func newRepo(t *testing.T) (*herb.Repo, *gorm.DB) {
+	t.Helper()
+	g := newDB(t)
+	return herb.NewRepo(g), g
+}
+
+func TestEditorCreatesAndEditsOwnHerbOnly(t *testing.T) {
+	repo, _ := newRepo(t)
+	d1, d2 := uint(1), uint(2)
+
+	h := model.Herb{ThaiName: "ฟ้าทะลายโจร"}
+	if err := repo.Create(&h, &d1); err != nil {
+		t.Fatalf("editor create: %v", err)
+	}
+	if h.CreatedByDistrictID == nil || *h.CreatedByDistrictID != d1 {
+		t.Fatalf("create must stamp provenance, got %v", h.CreatedByDistrictID)
+	}
+	// another district may not edit it
+	h.ThaiName = "แก้ไข"
+	if err := repo.Update(&h, &d2); !errors.Is(err, herb.ErrNotOwner) {
+		t.Fatalf("want ErrNotOwner, got %v", err)
+	}
+	// the owning district may
+	if err := repo.Update(&h, &d1); err != nil {
+		t.Fatalf("owner update: %v", err)
+	}
+	// admin (nil) may edit any herb
+	if err := repo.Update(&h, nil); err != nil {
+		t.Fatalf("admin update: %v", err)
+	}
+}
+
+func TestMergeRepointsIngredients(t *testing.T) {
+	repo, g := newRepo(t)
+	// FK parents for a recipe + ingredient
+	dist := model.District{Name: "d", Province: "p"}
+	g.Create(&dist)
+	doc := model.Doctor{Code: "D1", Photo: "-", FullName: "x", Specialty: "y", Status: "active", FirstYear: 2560, DistrictID: dist.ID, ReviewState: model.ReviewApproved}
+	g.Create(&doc)
+	rec := model.Recipe{Code: "R1", Name: "r", DoctorID: doc.ID, Indication: "-", Preparation: "-", Usage: "-", DataYear: 2565, ReviewState: model.ReviewApproved}
+	g.Create(&rec)
+	canonical := model.Herb{ThaiName: "ขิง"}
+	dup := model.Herb{ThaiName: "ขิง (ซ้ำ)"}
+	g.Create(&canonical)
+	g.Create(&dup)
+	g.Create(&model.Ingredient{RecipeID: rec.ID, HerbID: &dup.ID, Amount: "1", Unit: "g"})
+
+	n, err := repo.Merge(dup.ID, canonical.ID)
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("re-pointed = %d, want 1", n)
+	}
+	var ing model.Ingredient
+	g.First(&ing)
+	if ing.HerbID == nil || *ing.HerbID != canonical.ID {
+		t.Fatalf("ingredient not re-pointed to canonical")
+	}
+	var alias model.Herb
+	g.First(&alias, dup.ID)
+	if alias.AliasOfID == nil || *alias.AliasOfID != canonical.ID {
+		t.Fatalf("dup must be marked alias of canonical")
+	}
+}
+
+func TestNearDuplicatesWarns(t *testing.T) {
+	repo, g := newRepo(t)
+	g.Create(&model.Herb{ThaiName: "ขิง"})
+	got, err := repo.NearDuplicates("ขิ")
+	if err != nil {
+		t.Fatalf("near dup: %v", err)
+	}
+	if len(got) != 1 || got[0].ThaiName != "ขิง" {
+		t.Fatalf("near duplicates = %+v, want ขิง", got)
+	}
 }

@@ -31,17 +31,30 @@ type reconcileRequest struct {
 }
 
 // RegisterRoutes wires the herb catalog, pending-herb, and storage-usage
-// endpoints onto r. The caller must wrap r with auth.LoadUser first. Every
-// route requires the central_admin role.
+// endpoints onto r. The caller must wrap r with auth.LoadUser first. A
+// district editor may add herbs and edit ones its own district created;
+// merging/aliasing and every other route require the central_admin role.
 func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore *media.Store) {
 	admin := auth.RequireRole("central_admin")
+	authed := auth.RequireAuth()
 	r.GET("/api/herbs", admin, listHandler(repo))
-	r.POST("/api/herbs", admin, createHandler(repo))
-	r.PUT("/api/herbs/:id", admin, updateHandler(repo))
+	r.GET("/api/herbs/near-duplicates", authed, nearDuplicatesHandler(repo))
+	r.POST("/api/herbs", authed, createHandler(repo))
+	r.PUT("/api/herbs/:id", authed, updateHandler(repo))
+	r.POST("/api/herbs/:id/merge/:canonicalId", admin, mergeHandler(repo))
 	r.DELETE("/api/herbs/:id", admin, deleteHandler(repo))
 	r.GET("/api/herbs/pending", admin, pendingHandler(repo))
 	r.POST("/api/herbs/reconcile", admin, reconcileHandler(repo))
 	r.GET("/api/storage", admin, storageHandler(mediaStore))
+}
+
+// districtOf returns the editor's district for provenance/ownership, or nil for an admin.
+func districtOf(c *gin.Context) *uint {
+	user, ok := auth.UserFrom(c)
+	if !ok || user.Role != model.RoleDistrictEditor {
+		return nil
+	}
+	return user.DistrictID
 }
 
 func listHandler(repo *Repo) gin.HandlerFunc {
@@ -66,7 +79,7 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 			ThaiName: req.ThaiName, LocalName: req.LocalName, ScientificName: req.ScientificName,
 			Photo: req.Photo, PartUsed: req.PartUsed, Properties: req.Properties,
 		}
-		if err := repo.Create(&h); err != nil {
+		if err := repo.Create(&h, districtOf(c)); err != nil {
 			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not create herb")
 			return
 		}
@@ -89,11 +102,46 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 			ID: id, ThaiName: req.ThaiName, LocalName: req.LocalName, ScientificName: req.ScientificName,
 			Photo: req.Photo, PartUsed: req.PartUsed, Properties: req.Properties,
 		}
-		if err := repo.Update(&h); err != nil {
+		if err := repo.Update(&h, districtOf(c)); err != nil {
+			if errors.Is(err, ErrNotOwner) {
+				httpx.Err(c, http.StatusForbidden, "forbidden", "you may edit only herbs your district created")
+				return
+			}
 			writeRepoError(c, err, "could not update herb")
 			return
 		}
 		httpx.OK(c, http.StatusOK, h)
+	}
+}
+
+func mergeHandler(repo *Repo) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		aliasID, ok := parseID(c)
+		if !ok {
+			return
+		}
+		canonical, err := strconv.ParseUint(c.Param("canonicalId"), 10, 64)
+		if err != nil {
+			httpx.Err(c, http.StatusBadRequest, "invalid_request", "invalid canonical id")
+			return
+		}
+		n, err := repo.Merge(aliasID, uint(canonical))
+		if err != nil {
+			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not merge herbs")
+			return
+		}
+		httpx.OK(c, http.StatusOK, gin.H{"rePointed": n})
+	}
+}
+
+func nearDuplicatesHandler(repo *Repo) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		dups, err := repo.NearDuplicates(c.Query("thaiName"))
+		if err != nil {
+			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not check near duplicates")
+			return
+		}
+		httpx.OK(c, http.StatusOK, dups)
 	}
 }
 

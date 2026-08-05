@@ -193,10 +193,23 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   added rows; a still-referenced batch doctor is left in place). Undo keeps the append-only `Revision`
   audit entries (they record the import happened). 148 Go tests green.
 
+- **P5 — district-managed herb catalog (in progress, branch `feat/p5-district-herbs`)**: the herb
+  catalog stays ONE shared province-wide list (forced by cross-district herb filtering), but write
+  access widens. A district editor may **add** herbs (stamped with its district) and **edit the ones
+  its district created** (`ErrNotOwner` → 403 otherwise); only the central admin edits across
+  districts and runs the **merge/alias** tool (mark herb B an alias of A and re-point every
+  `Ingredient.HerbID` from B→A). `Herb` gains `CreatedByDistrictID` + `AliasOfID`. A save-time
+  **near-duplicate** lookup (`GET /api/herbs/near-duplicates?thaiName=`) nudges against dupes. Routes:
+  `POST/PUT /api/herbs` now `RequireAuth` (was admin-only); `POST /api/herbs/:id/merge/:canonicalId`
+  and reconcile/delete/list stay admin. Provenance + alias are immutable through Update (no ownership
+  hijack). The P1 pending-herb path stays as a fallback. Changes the ownership rule in FR-HERB-1. 156
+  Go tests green.
+
 ## Data model (summary)
 
-Nine records: District, User, Doctor, Herb (shared catalog), Recipe, Case, Revision (P2 audit log),
-YearLock (P3 read-only freeze per `data_year`), ImportBatch (P4 bulk-import group + undo).
+Nine records: District, User, Doctor, Herb (shared catalog; P5 adds provenance + alias), Recipe, Case,
+Revision (P2 audit log), YearLock (P3 read-only freeze per `data_year`), ImportBatch (P4 bulk-import
+group + undo).
 
 ```
 District ──< Doctor ──< Recipe ──< Case

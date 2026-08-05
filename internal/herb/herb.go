@@ -3,11 +3,17 @@
 package herb
 
 import (
+	"errors"
+
 	"gorm.io/gorm"
 
 	"phum-panya/internal/db"
 	"phum-panya/internal/model"
 )
+
+// ErrNotOwner reports that a district editor tried to edit a herb its
+// district did not create.
+var ErrNotOwner = errors.New("herb: district may edit only herbs it created")
 
 // Repo provides CRUD access to herbs backed by GORM.
 type Repo struct {
@@ -33,19 +39,28 @@ func (r *Repo) Get(id uint) (model.Herb, error) {
 	return h, err
 }
 
-// Create inserts h and sets its ID.
-func (r *Repo) Create(h *model.Herb) error {
+// Create adds a herb. An editor create is stamped with its district; an admin create
+// (createdByDistrictID == nil) has no district provenance.
+func (r *Repo) Create(h *model.Herb, createdByDistrictID *uint) error {
+	h.CreatedByDistrictID = createdByDistrictID
 	return r.g.Create(h).Error
 }
 
-// Update saves all fields of h. It returns gorm.ErrRecordNotFound if no herb
-// with h.ID exists. Existence is checked first because Save, given a
-// primary key with no matching row, inserts rather than reports zero rows
-// affected.
-func (r *Repo) Update(h *model.Herb) error {
-	if _, err := r.Get(h.ID); err != nil {
+// Update edits a herb. A nil editorDistrictID means a central admin (may edit any herb).
+// A non-nil value means a district editor, who may edit only a herb its own district
+// created. Provenance and alias link are immutable here.
+func (r *Repo) Update(h *model.Herb, editorDistrictID *uint) error {
+	var existing model.Herb
+	if err := r.g.First(&existing, h.ID).Error; err != nil {
 		return err
 	}
+	if editorDistrictID != nil {
+		if existing.CreatedByDistrictID == nil || *existing.CreatedByDistrictID != *editorDistrictID {
+			return ErrNotOwner
+		}
+	}
+	h.CreatedByDistrictID = existing.CreatedByDistrictID
+	h.AliasOfID = existing.AliasOfID
 	return r.g.Save(h).Error
 }
 
@@ -90,4 +105,28 @@ func (r *Repo) Reconcile(pendingName string, herbID uint) (int64, error) {
 		return nil
 	})
 	return affected, err
+}
+
+// Merge marks alias an alias of canonical and re-points every ingredient from the alias
+// to the canonical herb. Returns the number of ingredient rows re-pointed.
+func (r *Repo) Merge(aliasID, canonicalID uint) (int64, error) {
+	var n int64
+	err := db.Tx(r.g, func(tx *gorm.DB) error {
+		res := tx.Model(&model.Ingredient{}).Where("herb_id = ?", aliasID).Update("herb_id", canonicalID)
+		if res.Error != nil {
+			return res.Error
+		}
+		n = res.RowsAffected
+		return tx.Model(&model.Herb{}).Where("id = ?", aliasID).Update("alias_of_id", canonicalID).Error
+	})
+	return n, err
+}
+
+// NearDuplicates returns catalogued (non-alias) herbs whose Thai name contains the query,
+// for a save-time near-duplicate warning. Portable LIKE.
+func (r *Repo) NearDuplicates(thaiName string) ([]model.Herb, error) {
+	var out []model.Herb
+	err := r.g.Where("alias_of_id IS NULL AND thai_name LIKE ?", "%"+thaiName+"%").
+		Limit(5).Find(&out).Error
+	return out, err
 }

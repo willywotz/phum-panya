@@ -7,15 +7,15 @@ import { LangToggle, useT } from '@/lib/i18n';
 import { ThemeToggle } from '@/lib/theme';
 
 const editorLinks = [
-  { href: '/staff/districts', key: 'districts' },
   { href: '/staff/herbs', key: 'herbs' },
-  { href: '/staff/users', key: 'users' },
   { href: '/staff/doctors', key: 'doctors' },
   { href: '/staff/recipes', key: 'recipes' },
   { href: '/staff/cases', key: 'cases' },
 ] as const;
 
 const adminLinks = [
+  { href: '/staff/districts', key: 'districts' },
+  { href: '/staff/users', key: 'users' },
   { href: '/staff/review', key: 'review' },
   { href: '/staff/year-locks', key: 'yearLocks' },
   { href: '/staff/imports', key: 'imports' },

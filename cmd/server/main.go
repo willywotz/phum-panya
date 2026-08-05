@@ -130,13 +130,18 @@ func runServer() {
 		log.Fatalf("ensure admin: %v", err)
 	}
 
+	mediaStore, err := newMediaStore(context.Background(), cfg)
+	if err != nil {
+		log.Fatalf("media store: %v", err)
+	}
+
 	clk := clock.Real{}
 	deps := router.Deps{
 		Cfg:        cfg,
 		DB:         g,
 		Store:      auth.NewSessionStore(g, clk, sessionTTL),
 		Throttle:   auth.NewThrottle(clk, loginThrottleMax, loginThrottleWindow),
-		Media:      media.NewLocalStore(cfg.MediaDir),
+		Media:      mediaStore,
 		Clk:        clk,
 		Secure:     cfg.CookieSecure(),
 		BackupDir:  cfg.BackupDir,
@@ -156,6 +161,14 @@ func runServer() {
 	}); err != nil {
 		log.Fatalf("serve: %v", err)
 	}
+}
+
+// newMediaStore builds the media adapter selected by cfg.MediaDriver.
+func newMediaStore(ctx context.Context, cfg config.Config) (media.Store, error) {
+	if cfg.UsesS3Media() {
+		return media.NewS3Store(ctx, cfg.S3Endpoint, cfg.S3Region, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3UsePathStyle)
+	}
+	return media.NewLocalStore(cfg.MediaDir), nil
 }
 
 // ensureDataDirs creates the parent directory of the database file and the

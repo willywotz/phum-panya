@@ -54,7 +54,6 @@ services:
       - "${APP_HOST_PORT:-8080}:${APP_HOST_PORT:-8080}"
     volumes:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - media:/srv/media:ro
       - caddy-data:/data
       - caddy-config:/config
     restart: unless-stopped
@@ -101,21 +100,29 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      garage:
+        condition: service_healthy
+      garage-init:
+        condition: service_completed_successfully
     environment:
       APP_DB_DRIVER: postgres
       APP_DATABASE_URL: postgres://${POSTGRES_USER:-phumpanya}:${POSTGRES_PASSWORD:-devpassword}@postgres:5432/${POSTGRES_DB:-phumpanya}?sslmode=disable
       APP_BEHIND_PROXY: "1"
       APP_PUBLIC_ORIGIN: http://localhost:${APP_HOST_PORT:-8080}
       APP_HTTP_ADDR: ":8080"
-      APP_MEDIA_DIR: /data/media
+      APP_MEDIA_DRIVER: s3
+      APP_S3_ENDPOINT: http://garage:3900
+      APP_S3_REGION: garage
+      APP_S3_BUCKET: ${APP_S3_BUCKET:-media}
+      APP_S3_ACCESS_KEY: ${APP_S3_ACCESS_KEY:?set APP_S3_ACCESS_KEY}
+      APP_S3_SECRET_KEY: ${APP_S3_SECRET_KEY:?set APP_S3_SECRET_KEY}
       # First-admin bootstrap (seeded once, on first run).
       APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-admin@example.com}
       # Required — compose refuses to start if unset (no default password).
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?set APP_ADMIN_PASSWORD in your env or .env file}
     volumes:
-      # Persist the Go build cache; media is the shared volume caddy reads.
+      # Persist the Go build cache.
       - dev-go-cache:/root/.cache/go-build
-      - media:/data/media
     expose:
       - "8080"
     restart: unless-stopped
@@ -138,10 +145,46 @@ services:
         - action: rebuild
           path: ./go.mod
 
+  # Same internal Garage node + one-shot init as prod: the api stores
+  # uploads here over the S3 API (no shared media volume, no public port).
+  garage:
+    image: dxflrs/garage:v1.0.1
+    restart: unless-stopped
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?set GARAGE_RPC_SECRET}
+    volumes:
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+      - ./deploy/garage/garage.toml:/etc/garage.toml:ro
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  garage-init:
+    build:
+      context: .
+      dockerfile: deploy/garage/Dockerfile.init
+    depends_on:
+      garage:
+        condition: service_healthy
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?set GARAGE_RPC_SECRET}
+      APP_S3_BUCKET: ${APP_S3_BUCKET:-media}
+      APP_S3_ACCESS_KEY: ${APP_S3_ACCESS_KEY:?set APP_S3_ACCESS_KEY}
+      APP_S3_SECRET_KEY: ${APP_S3_SECRET_KEY:?set APP_S3_SECRET_KEY}
+    network_mode: "service:garage"
+    volumes:
+      - garage-meta:/var/lib/garage/meta:ro
+      - ./deploy/garage/garage.toml:/etc/garage.toml:ro
+    restart: on-failure
+
 volumes:
   dev-go-cache:
   dev-next-cache:
   dev-pg-data:
-  media:
   caddy-data:
   caddy-config:
+  garage-meta:
+  garage-data:

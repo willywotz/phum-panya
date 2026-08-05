@@ -96,12 +96,17 @@ func NewEngine(deps Deps) *gin.Engine {
 	yearlock.RegisterRoutes(api, lockRepo)
 	importer.RegisterRoutes(api, importer.NewImporter(deps.DB, deps.Clk, docRepo, recRepo, casRepo, herbRepo, lockRepo))
 
-	// MediaDir may not exist yet (nothing uploaded); Static on a missing dir
-	// would otherwise 500 instead of 404.
-	_ = os.MkdirAll(deps.Cfg.MediaDir, 0o755)
-	// Public, no-auth: registered before webui.Register so its SPA catch-all
-	// (NoRoute) never shadows an uploaded photo.
-	engine.Static("/media", deps.Cfg.MediaDir)
+	// A local-driver media dir may not exist yet; create it so the local
+	// adapter can serve/write. Harmless (and skipped) when MediaDir is empty
+	// (s3 driver). Serving no longer depends on the dir — Open maps a missing
+	// file to a 404.
+	if deps.Cfg.MediaDir != "" {
+		_ = os.MkdirAll(deps.Cfg.MediaDir, 0o755)
+	}
+	// Public, no-auth; registered before webui.Register so its SPA catch-all
+	// never shadows a photo. The handler streams from whichever media adapter
+	// is wired (LocalStore or S3Store/Garage).
+	engine.GET("/media/*key", mediaHandler(deps.Media))
 
 	webui.Register(engine)
 

@@ -1,10 +1,13 @@
 package router_test
 
 import (
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,6 +122,48 @@ func TestMediaRouteTraversalBlocked(t *testing.T) {
 
 	if rec.Code == http.StatusOK {
 		t.Fatalf("path traversal served content: %q", rec.Body.String())
+	}
+}
+
+type fakeStore struct {
+	obj media.Object
+	err error
+}
+
+func (f fakeStore) SaveReader(io.Reader) (string, error)                { return "", nil }
+func (f fakeStore) SaveMultipart(*multipart.FileHeader) (string, error) { return "", nil }
+func (f fakeStore) UsageBytes() (int64, error)                          { return 0, nil }
+func (f fakeStore) Open(string) (media.Object, error)                   { return f.obj, f.err }
+
+func TestMediaRouteSetsImmutableCacheHeader(t *testing.T) {
+	mediaDir := t.TempDir()
+	deps := newDeps(t, mediaDir)
+	deps.Media = fakeStore{obj: media.Object{
+		Body: io.NopCloser(strings.NewReader("jpegbytes")), ContentType: "image/jpeg", Size: 9,
+	}}
+	engine := router.NewEngine(deps)
+
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/media/ab/x.jpg", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+		t.Fatalf("Cache-Control = %q", got)
+	}
+	if rec.Header().Get("Content-Type") != "image/jpeg" {
+		t.Fatalf("Content-Type = %q", rec.Header().Get("Content-Type"))
+	}
+}
+
+func TestMediaRouteNotFoundMapsTo404(t *testing.T) {
+	deps := newDeps(t, t.TempDir())
+	deps.Media = fakeStore{err: media.ErrNotFound}
+	engine := router.NewEngine(deps)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/media/ab/x.jpg", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 }
 

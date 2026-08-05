@@ -7,12 +7,14 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/disintegration/imaging"
@@ -25,12 +27,48 @@ const maxDimension = 1600
 // jpegQuality is the quality used when re-encoding stored images.
 const jpegQuality = 80
 
-// Store saves and measures uploaded images. LocalStore is the filesystem
-// adapter; sub-project B adds an S3 (Garage) adapter behind the same port.
+// ErrNotFound reports that no stored object has the requested key.
+var ErrNotFound = errors.New("media: object not found")
+
+// Object is a readable stored image plus the metadata the serving handler needs.
+type Object struct {
+	Body        io.ReadCloser
+	ContentType string
+	Size        int64
+}
+
+// Store saves, serves, and measures uploaded images. LocalStore is the
+// filesystem adapter; S3Store is the Garage adapter.
 type Store interface {
 	SaveReader(r io.Reader) (string, error)
 	SaveMultipart(fh *multipart.FileHeader) (string, error)
 	UsageBytes() (int64, error)
+	Open(key string) (Object, error)
+}
+
+// processImage validates, downscales, and JPEG-encodes r, returning the
+// content-hash key (forward-slashed) and the encoded bytes.
+func processImage(r io.Reader) (key string, jpeg []byte, err error) {
+	br := bufio.NewReader(r)
+	head, _ := br.Peek(512)
+	switch ct := http.DetectContentType(head); ct {
+	case "image/jpeg", "image/png", "image/webp":
+	default:
+		return "", nil, fmt.Errorf("media: unsupported image type %q (want JPEG, PNG, or WebP)", ct)
+	}
+	img, err := imaging.Decode(br)
+	if err != nil {
+		return "", nil, fmt.Errorf("media: decode image: %w", err)
+	}
+	resized := imaging.Fit(img, maxDimension, maxDimension, imaging.Lanczos)
+	var buf bytes.Buffer
+	if err := imaging.Encode(&buf, resized, imaging.JPEG, imaging.JPEGQuality(jpegQuality)); err != nil {
+		return "", nil, fmt.Errorf("media: encode image: %w", err)
+	}
+	data := buf.Bytes()
+	sum := sha256.Sum256(data)
+	hexSum := hex.EncodeToString(sum[:])
+	return path.Join(hexSum[:2], hexSum+".jpg"), data, nil
 }
 
 // LocalStore stores images under Dir.
@@ -47,43 +85,35 @@ func NewLocalStore(dir string) *LocalStore { return &LocalStore{Dir: dir} }
 // path derived from the SHA-256 of the encoded bytes and returns that path
 // relative to Dir.
 func (s *LocalStore) SaveReader(r io.Reader) (string, error) {
-	// Sniff the type before decoding and accept only JPEG/PNG/WebP. This keeps
-	// the input to the formats the spec declares (NFR-IMG-1) and blocks other
-	// decoders (e.g. the TIFF path in the imaging dependency, which has no
-	// upstream fix for a crafted-file crash). bufio.Peek does not consume r.
-	br := bufio.NewReader(r)
-	head, _ := br.Peek(512)
-	switch ct := http.DetectContentType(head); ct {
-	case "image/jpeg", "image/png", "image/webp":
-	default:
-		return "", fmt.Errorf("media: unsupported image type %q (want JPEG, PNG, or WebP)", ct)
-	}
-
-	img, err := imaging.Decode(br)
+	key, data, err := processImage(r)
 	if err != nil {
-		return "", fmt.Errorf("media: decode image: %w", err)
+		return "", err
 	}
-
-	resized := imaging.Fit(img, maxDimension, maxDimension, imaging.Lanczos)
-
-	var buf bytes.Buffer
-	if err := imaging.Encode(&buf, resized, imaging.JPEG, imaging.JPEGQuality(jpegQuality)); err != nil {
-		return "", fmt.Errorf("media: encode image: %w", err)
-	}
-
-	sum := sha256.Sum256(buf.Bytes())
-	hexSum := hex.EncodeToString(sum[:])
-	relPath := filepath.Join(hexSum[:2], hexSum+".jpg")
-
-	fullPath := filepath.Join(s.Dir, relPath)
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+	full := filepath.Join(s.Dir, filepath.FromSlash(key))
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return "", fmt.Errorf("media: create dir: %w", err)
 	}
-	if err := os.WriteFile(fullPath, buf.Bytes(), 0o644); err != nil {
+	if err := os.WriteFile(full, data, 0o644); err != nil {
 		return "", fmt.Errorf("media: write file: %w", err)
 	}
+	return key, nil
+}
 
-	return relPath, nil
+// Open returns the stored object for key, or ErrNotFound.
+func (s *LocalStore) Open(key string) (Object, error) {
+	f, err := os.Open(filepath.Join(s.Dir, filepath.FromSlash(key)))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return Object{}, ErrNotFound
+		}
+		return Object{}, err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return Object{}, err
+	}
+	return Object{Body: f, ContentType: "image/jpeg", Size: info.Size()}, nil
 }
 
 // SaveMultipart opens the uploaded file in fh and stores it via SaveReader.

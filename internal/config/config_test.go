@@ -116,3 +116,16 @@ func TestThrottleStoreDBWhenSet(t *testing.T) {
 		t.Fatal("UsesDBThrottle = false, want true")
 	}
 }
+
+func TestTelemetryConfigDefaults(t *testing.T) {
+	t.Setenv("APP_LOG_LEVEL", "")
+	t.Setenv("APP_LOG_FORMAT", "")
+	t.Setenv("APP_SERVICE_NAME", "")
+	c := Load()
+	if c.LogLevel != "info" || c.LogFormat != "json" || c.ServiceName != "phum-panya-api" {
+		t.Fatalf("defaults wrong: %+v", c)
+	}
+	if c.OTLPEndpoint != "" {
+		t.Fatalf("OTLPEndpoint default = %q, want empty", c.OTLPEndpoint)
+	}
+}

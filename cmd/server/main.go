@@ -12,7 +12,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -29,6 +29,7 @@ import (
 	"phum-panya/internal/media"
 	"phum-panya/internal/router"
 	"phum-panya/internal/svc"
+	"phum-panya/internal/telemetry"
 )
 
 // sessionTTL is how long a login session stays valid.
@@ -62,7 +63,8 @@ func main() {
 // --domain, --http-addr) that the MSI passes from its wizard page.
 func runServiceControl(args []string) {
 	if len(args) < 1 {
-		log.Fatal("usage: server service install|uninstall|start|stop|restart")
+		slog.Error("usage: server service install|uninstall|start|stop|restart")
+		os.Exit(1)
 	}
 	action := args[0]
 	switch action {
@@ -71,17 +73,20 @@ func runServiceControl(args []string) {
 		control(action)
 	case "uninstall", "start", "stop", "restart":
 		if len(args) != 1 {
-			log.Fatalf("service %s takes no arguments", action)
+			slog.Error("service takes no arguments", "action", action)
+			os.Exit(1)
 		}
 		control(action)
 	default:
-		log.Fatalf("unknown service action %q (install|uninstall|start|stop|restart)", action)
+		slog.Error("unknown service action", "action", action)
+		os.Exit(1)
 	}
 }
 
 func control(action string) {
 	if err := svc.Control(action); err != nil {
-		log.Fatalf("service %s: %v", action, err)
+		slog.Error("service action failed", "action", action, "err", err)
+		os.Exit(1)
 	}
 	fmt.Printf("service %s: ok\n", action)
 }
@@ -96,7 +101,8 @@ func applyInstallFlags(args []string) {
 	domain := fs.String("domain", "", "public domain for built-in TLS (blank = plain HTTP)")
 	addr := fs.String("http-addr", "", "listen address (default :8080)")
 	if err := fs.Parse(args); err != nil {
-		log.Fatalf("service install: %v", err)
+		slog.Error("service install", "err", err)
+		os.Exit(1)
 	}
 	setEnvIf("APP_ADMIN_EMAIL", *email)
 	setEnvIf("APP_ADMIN_PASSWORD", *password)
@@ -115,26 +121,35 @@ func setEnvIf(key, val string) {
 // the service supervisor (foreground or OS service manager).
 func runServer() {
 	cfg := config.Load()
+	logger := telemetry.NewLogger(cfg)
+	slog.SetDefault(logger)
+
 	if err := ensureDataDirs(cfg); err != nil {
-		log.Fatalf("create data dirs: %v", err)
+		slog.Error("create data dirs", "err", err)
+		os.Exit(1)
 	}
 	g, err := db.OpenWith(cfg.DBDriver, cfg.DBPath, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("open db: %v", err)
+		slog.Error("open db", "err", err)
+		os.Exit(1)
 	}
 	if err := db.AutoMigrate(g); err != nil {
-		log.Fatalf("migrate: %v", err)
+		slog.Error("migrate", "err", err)
+		os.Exit(1)
 	}
 	if err := db.BackfillRecipePhotos(g); err != nil {
-		log.Fatalf("backfill recipe photos: %v", err)
+		slog.Error("backfill recipe photos", "err", err)
+		os.Exit(1)
 	}
 	if _, err := bootstrap.EnsureAdmin(g, cfg.AdminEmail, cfg.AdminPassword); err != nil {
-		log.Fatalf("ensure admin: %v", err)
+		slog.Error("ensure admin", "err", err)
+		os.Exit(1)
 	}
 
 	mediaStore, err := newMediaStore(context.Background(), cfg)
 	if err != nil {
-		log.Fatalf("media store: %v", err)
+		slog.Error("media store", "err", err)
+		os.Exit(1)
 	}
 
 	clk := clock.Real{}
@@ -157,11 +172,12 @@ func runServer() {
 		go runBackupTicker(cfg, clk)
 	}
 
-	log.Printf("listening on %s", cfg.HTTPAddr)
+	slog.Info("listening", "addr", cfg.HTTPAddr)
 	if err := svc.Run(func(ctx context.Context) error {
 		return httpx.ServeContext(ctx, cfg, engine)
 	}); err != nil {
-		log.Fatalf("serve: %v", err)
+		slog.Error("serve", "err", err)
+		os.Exit(1)
 	}
 }
 
@@ -205,7 +221,7 @@ func runBackupTicker(cfg config.Config, clk clock.Clock) {
 	defer ticker.Stop()
 	for range ticker.C {
 		if _, err := backup.Run(cfg.DBPath, cfg.MediaDir, cfg.BackupDir, backupKeep, clk); err != nil {
-			log.Printf("daily backup failed: %v", err)
+			slog.Error("daily backup failed", "err", err)
 		}
 	}
 }
@@ -216,14 +232,17 @@ func runCreateAdmin() {
 	cfg := config.Load()
 	g, err := db.OpenWith(cfg.DBDriver, cfg.DBPath, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("open db: %v", err)
+		slog.Error("open db", "err", err)
+		os.Exit(1)
 	}
 	if err := db.AutoMigrate(g); err != nil {
-		log.Fatalf("migrate: %v", err)
+		slog.Error("migrate", "err", err)
+		os.Exit(1)
 	}
 	created, err := bootstrap.EnsureAdmin(g, cfg.AdminEmail, cfg.AdminPassword)
 	if err != nil {
-		log.Fatalf("ensure admin: %v", err)
+		slog.Error("ensure admin", "err", err)
+		os.Exit(1)
 	}
 	if created {
 		fmt.Println("admin created")

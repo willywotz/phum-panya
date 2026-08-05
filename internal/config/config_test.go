@@ -117,6 +117,20 @@ func TestThrottleStoreDBWhenSet(t *testing.T) {
 	}
 }
 
+func TestAutoMigrateDefaultsTrue(t *testing.T) {
+	t.Setenv("APP_AUTO_MIGRATE", "")
+	if !Load().AutoMigrate {
+		t.Fatal("AutoMigrate default = false, want true")
+	}
+}
+
+func TestAutoMigrateFalseWhenSet(t *testing.T) {
+	t.Setenv("APP_AUTO_MIGRATE", "false")
+	if Load().AutoMigrate {
+		t.Fatal("AutoMigrate = true when APP_AUTO_MIGRATE=false")
+	}
+}
+
 func TestTelemetryConfigDefaults(t *testing.T) {
 	t.Setenv("APP_LOG_LEVEL", "")
 	t.Setenv("APP_LOG_FORMAT", "")

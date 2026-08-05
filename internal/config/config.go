@@ -18,6 +18,7 @@ type Config struct {
 	PublicOrigin  string
 	AdminEmail    string
 	AdminPassword string
+	AutoMigrate   bool
 
 	MediaDriver    string
 	S3Endpoint     string
@@ -49,6 +50,7 @@ func Load() Config {
 		PublicOrigin:  env("APP_PUBLIC_ORIGIN", ""),
 		AdminEmail:    env("APP_ADMIN_EMAIL", ""),
 		AdminPassword: env("APP_ADMIN_PASSWORD", ""),
+		AutoMigrate:   env("APP_AUTO_MIGRATE", "true") != "false",
 
 		MediaDriver:    env("APP_MEDIA_DRIVER", "local"),
 		S3Endpoint:     env("APP_S3_ENDPOINT", ""),

@@ -168,6 +168,37 @@ func TestLogoutClearsSession(t *testing.T) {
 	}
 }
 
+func TestCurrentUserReturnsFullName(t *testing.T) {
+	r, email := newLoginRouter(t, 5)
+
+	loginRec := login(r, email, "pw12345")
+	var sessionCookie *http.Cookie
+	for _, ck := range loginRec.Result().Cookies() {
+		if ck.Name == "session" {
+			sessionCookie = ck
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("no session cookie from login")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/current-user", nil)
+	req.AddCookie(sessionCookie)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if body["full_name"] != "Admin" {
+		t.Fatalf("full_name = %v, want Admin", body["full_name"])
+	}
+}
+
 func TestCurrentUserRequiresSession(t *testing.T) {
 	r, _ := newLoginRouter(t, 5)
 

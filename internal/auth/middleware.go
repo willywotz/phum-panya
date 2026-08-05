@@ -16,6 +16,7 @@ const userContextKey = "user"
 // CurrentUser is the authenticated user attached to a gin request.
 type CurrentUser struct {
 	ID         uint
+	FullName   string
 	Role       string
 	DistrictID *uint
 }
@@ -46,6 +47,7 @@ func LoadUser(store *SessionStore, g *gorm.DB) gin.HandlerFunc {
 		}
 		c.Set(userContextKey, &CurrentUser{
 			ID:         user.ID,
+			FullName:   user.FullName,
 			Role:       user.Role,
 			DistrictID: user.DistrictID,
 		})

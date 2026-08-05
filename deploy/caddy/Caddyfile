@@ -1,0 +1,22 @@
+# deploy/caddy/Caddyfile — one public origin; TLS via Caddy's ACME.
+{$APP_DOMAIN} {
+	encode gzip
+
+	# API → the Go service.
+	handle /api/* {
+		reverse_proxy api:8080
+	}
+
+	# Media reads are static files off the shared volume (read-only). All
+	# writes go through /api/*, so /media/* is safe to serve statically.
+	handle /media/* {
+		root * /srv/media
+		uri strip_prefix /media
+		file_server
+	}
+
+	# Everything else → the Next.js standalone service.
+	handle {
+		reverse_proxy web:3000
+	}
+}

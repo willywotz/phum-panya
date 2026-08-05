@@ -1,8 +1,8 @@
 # phum-panya — Handoff
 
-Date: 2026-08-04 · Branch: **`main`** · Released: **`v1.0.0`**.
-Everything below is merged to `main` (107 commits) and shipped as the tagged `v1.0.0`
-release. There is one trunk — all feature branches are merged and deleted.
+Date: 2026-08-05 · Branch: **`main`** · Last release tag: **`v1.0.0`** (P1).
+The four paid phases **P2–P5 are merged to `main`** (PRs #4–#7, all CI-green) but **not yet
+tagged as a new release**. `main` is one trunk — every feature branch is merged and deleted.
 
 ## 1. What this is
 
@@ -16,31 +16,46 @@ It ships as **one self-hosted Go binary** with the Next.js UI embedded and data 
 - Spec: `docs/superpowers/specs/2026-08-03-srs.md` (SRS, FR-*/NFR-*).
 - Data model: `docs/superpowers/specs/2026-08-03-data-model-and-form-design.md`.
 - Stack decision: `docs/adr/0001-single-go-binary-embedded-nextjs.md`.
-- Implementation plan (33 tasks): `docs/superpowers/plans/2026-08-03-p1-launch.md`.
+- **P2 design decision: `docs/adr/0002-approval-on-row-pending-model-b.md`.**
+- P1 plan (33 tasks): `docs/superpowers/plans/2026-08-03-p1-launch.md`.
+- **P2–P5 scope: `docs/superpowers/plans/2026-08-04-p2-p5-scope.md`; build plan (~30 tasks):
+  `docs/superpowers/plans/2026-08-04-p2-p5-implementation.md`.**
 - Ops: `README.md`, `docs/ops/restore.md`.
 
 ## 2. Status
 
-**P1 is functionally complete, green, merged to `main`, and released as `v1.0.0`.** Built
-task-by-task with TDD + fresh-context review per task. Five bodies of work have landed:
+**P1 shipped as `v1.0.0`. P2–P5 are now built, green, and merged to `main` — backend only.**
+Everything was built task-by-task with TDD + fresh-context review per task, plus an
+independent whole-branch review before each merge. Each phase went out on its own branch →
+PR → all CI green (Go + web type-check + Playwright e2e) → merged.
 
-- **P1 launch** — staff CRUD (Doctor/Recipe/Case), users/districts, herb catalog + pending-herb
-  reconcile, public read/search/filter, consent + PDPA, staff bulk export, nightly backup + restore.
-- **Styling pass** — Tailwind v4 + shadcn/ui (Radix), warm herbal theme + light/dark toggle, a real
-  landing page, and a vendored Thai font. All offline; the single embedded binary is unchanged.
-- **Dev compose stack** — frontend and API as separate containers behind nginx for hot-reload
-  development (`make dev`); prod stays the single binary.
-- **Go 1.26 + Sarabun** — toolchain bumped to Go 1.26; the vendored font is now **Sarabun**
-  (body weight 300, titles 500).
-- **Windows service + MSI + CI/CD** — the binary runs as an OS service (kardianos), a WiX MSI
-  installs it on Windows, and GitHub Actions gates every push and cuts releases on tags.
+Paid phases delivered:
 
-- **114 Go tests** (21 packages) + **9 Playwright e2e specs / 13 tests** (incl. the full SRS
-  §6.1 UAT, plus theme-toggle and landing specs).
-- cgo-free single binary via `make build`; the prod Docker image builds and runs (health,
-  embedded styled UI, vendored font, seeded-admin login verified in-container).
-- **`v1.0.0` released** with three assets: `server-v1.0.0-linux-amd64`,
-  `server-v1.0.0-windows-amd64.exe`, `phum-panya-v1.0.0-windows-amd64.msi`.
+- **P2 — approval before publish + edit history** (PR #4). A district-editor save no longer
+  publishes; it enters a **pending** state and the central admin approves it (Model B — every
+  change is gated). Full append-only **`Revision`** history. Public reads require
+  `review_state = 'approved'` **and** consent (independent gates). New packages `revision`,
+  `review`; admin endpoints under `/api/review/...` (queue / approve / reject / approve-all).
+  See ADR-0002.
+- **P3 — year locking** (PR #5). A central admin freezes a whole `data_year`; its Recipe/Case
+  rows become read-only (create/update refused for **all** writers → HTTP 409; editor delete
+  refused; **admin delete = PDPA-erasure exemption**). A year locks only when its pending queue
+  is empty. New `yearlock` package; `/api/year-locks`. Lock-only (no snapshot) — point-in-time
+  reconstructs from the P2 `Revision` trail + the nightly backup.
+- **P4 — bulk import** (PR #6). One canonical 4-sheet Excel template (Doctors / Recipes /
+  Ingredients / Cases, linked by `code`) → parse → **dry-run validation report** → commit
+  **through the domain services** (approved + logged, `BatchID`-tagged) → **per-batch undo**.
+  New `ImportBatch` table + `importer` package; admin endpoints `POST /api/imports?dryRun=…`
+  and `POST /api/imports/:batchId/undo`. Imported doctors default `consent=false` (hidden until
+  consent recorded). Insert-only (existing codes skipped + reported).
+- **P5 — district-managed herb catalog** (PR #7). The catalog stays **one shared list**, but
+  write access widens: an editor may add herbs and edit ones its district created; only the
+  admin merges/aliases across districts (re-points `Ingredient.HerbID`). `Herb` gains
+  `CreatedByDistrictID` + `AliasOfID`; a save-time near-duplicate lookup nudges against dupes.
+
+- **156 Go tests** (25 packages) + **9 Playwright e2e specs** (incl. the SRS §6.1 UAT, updated
+  so the editor→pending→admin-approve flow is exercised). `go build`/`go vet` clean; cgo-free.
+- **Two HIGH bugs were caught by the whole-branch reviews and fixed before merge** (see §7).
 
 ## 3. Stack (as built)
 
@@ -48,17 +63,17 @@ task-by-task with TDD + fresh-context review per task. Five bodies of work have 
 |---|---|
 | Runtime | One **Go** binary, `CGO_ENABLED=0` static, **`go 1.26`** |
 | HTTP | **Gin** |
-| DB | **SQLite** via **GORM** + pure-Go `github.com/glebarez/sqlite` (cgo-free). Portable → Postgres later (P5) |
+| DB | **SQLite** via **GORM** + pure-Go `github.com/glebarez/sqlite` (cgo-free). Portable → Postgres later (out of scope) |
 | Auth | **Server-side session** (bcrypt + `sessions` table + Gin middleware). **No JWT.** Instant revocation |
 | CSRF | **`SameSite=Strict`** session cookie + an Origin/Referer check middleware. **No CSRF token** |
 | TLS | Go-native **ACME/autocert** on :443 (prod); plain HTTP :8080 in dev (`APP_DEV=1`) |
-| Images | `disintegration/imaging` — downscale ≤1600px + EXIF strip; JPEG/PNG/WebP in, JPEG out |
-| Export | `xuri/excelize` + stdlib CSV |
+| Images | `disintegration/imaging` — downscale ≤1600px + EXIF strip; **JPEG/PNG/WebP only** (TIFF path blocked, NFR-IMG-1) |
+| Import/Export | `xuri/excelize` (export **and** the P4 template parser) + stdlib CSV |
 | Frontend | **Next.js 15 static export** embedded via `//go:embed` (Node build-time only) |
-| UI/styling | **Tailwind CSS v4 + shadcn/ui** (Radix), warm herbal theme + **light/dark toggle** (`next-themes`), vendored **`@fontsource/sarabun`** (body 300 / titles 500). All offline — no CDN |
-| Service | **kardianos/service** (`internal/svc`) — runs under Windows SCM / Linux systemd / macOS launchd; `service install/uninstall/start/stop/restart` |
-| Config | 12/15-Factor: env vars (`config.Load`), logs to stdout, graceful shutdown |
-| Dev tooling | `docker-compose.dev.yaml`: web (`next dev` HMR) + api (`air`, Go 1.26) behind **nginx** on one origin, via **`docker compose watch`** (dev images under `deploy/dev/`) |
+| UI/styling | **Tailwind CSS v4 + shadcn/ui** (Radix), warm herbal theme + **light/dark toggle**, vendored **Sarabun** font. All offline — no CDN |
+| Service | **kardianos/service** (`internal/svc`) — Windows SCM / Linux systemd / macOS launchd |
+| Config | 15-Factor (pragmatic): env vars (`config.Load`), logs to stdout, graceful shutdown |
+| Dev tooling | `docker-compose.dev.yaml`: web (`next dev` HMR) + api (`air`) behind **nginx**, via **`docker compose watch`** |
 | CI/CD | GitHub Actions: **`ci.yml`** (go/web/e2e on push + PR) and **`release.yml`** (windows exe/msi + smoke + publish on `v*` tags) |
 
 ## 4. Repo layout
@@ -66,127 +81,134 @@ task-by-task with TDD + fresh-context review per task. Five bodies of work have 
 ```
 cmd/server/main.go          run | run (service) | service install/... | create-admin
 internal/
-  config db model           config, GORM open+Tx, GORM models + AutoMigrate
+  config db model           config, GORM open+Tx, GORM models + AutoMigrate (9 entities)
   auth                      password, session store, throttle, origin check, middleware, login/logout/current-user
-  bootstrap clock httpx     first-admin seed, clock abstraction, JSON helpers + TLS server (ServeContext)
+  bootstrap clock httpx      first-admin seed, clock abstraction, JSON helpers + TLS server (ServeContext)
   svc                       run under host service manager (kardianos) + install/uninstall
   router webui              NewEngine (wires everything), embedded SPA + /media + JSON-404 fallback
-  district user herb        CRUD repos + Gin handlers (central-admin managed)
-  media                     image store (downscale/EXIF/streaming multipart) + usage bytes
-  doctor recipe caserec     staff CRUD: consent gate, own-district, audit, code linking, ingredients
-  publicapi export backup   public read (consent-filtered, PDPA-safe), staff export, nightly backup
-web/                        Next.js: lib/{api,i18n,auth,crud,theme,utils}, app/globals.css (Tailwind v4 + theme tokens),
-                            components/{CrudTable,CrudForm,IngredientEditor,PhotoUpload,ExportLinks} + components/ui/* (shadcn),
-                            app/(staff|public)/*, e2e/* (+ e2e/fixtures/select.ts Radix helper)
-deploy/windows/             WiX v5 MSI (phum-panya.wxs + .wixproj): installs server.exe + registers service
+  district user herb        CRUD repos + Gin handlers; herb now widened to district writers + merge/alias (P5)
+  media                     image store (downscale/EXIF/streaming multipart, JPEG/PNG/WebP allowlist) + usage bytes
+  doctor recipe caserec     staff CRUD: consent gate, own-district, audit, code linking, ingredients,
+                            role-branched write path (editor→pending / admin→immediate, P2), year-lock guard (P3)
+  revision                  append-only edit history log (P2)
+  review                    central-admin approval queue: queue/approve/reject/approve-all (P2)
+  yearlock                  lock/unlock/list a data_year + write guard (P3)
+  importer                  canonical template parse → dry-run report → commit via domain services → undo (P4)
+  publicapi export backup   public read (consent + review_state filtered, PDPA-safe), staff export, nightly backup
+web/                        Next.js SPA (staff + public) — NOTE: no UI yet for the P2–P5 admin flows (see §8)
+deploy/windows/             WiX v5 MSI: installs server.exe + registers service
 .github/workflows/          ci.yml (push/PR gates) + release.yml (tag → build exe/msi + publish)
-Dockerfile docker-compose.yaml .env.example          # prod: single embedded binary (golang:1.26-alpine)
-docker-compose.dev.yaml deploy/dev/* deploy/nginx/dev.conf .air.toml   # dev: web+api behind nginx (compose watch)
+Dockerfile docker-compose*.yaml .env.example   # prod: single embedded binary; dev: web+api behind nginx
 ```
 
-## 5. Build / run / deploy
+## 5. New API surface (P2–P5, all admin-gated unless noted)
 
-**Build:** `make build` (needs Go + Node) → `./server` (single cgo-free binary; embeds the UI).
-`make build-release` cross-compiles `bin/server-linux-amd64` + `bin/server.exe`.
-
-**Run (dev):** `APP_DEV=1 APP_ADMIN_EMAIL=admin@example.com APP_ADMIN_PASSWORD=<pw> ./server`
-→ plain HTTP on `:8080`. First run seeds the admin from those two env vars (idempotent).
-
-**Run (prod):** set `APP_DOMAIN` (DNS → host, ports 80/443 open), drop `APP_DEV` → the binary
-terminates TLS itself via Let's Encrypt.
-
-**Run as a service** (Windows SCM / Linux systemd / macOS launchd):
 ```
-server service install --admin-email=... --admin-password=... --domain=...
-server service start | stop | uninstall
+# P2 review queue (central_admin)
+GET  /api/review/queue
+POST /api/review/entry/:entityType/:entityId/approve      # entityType = doctor|recipe|case
+POST /api/review/entry/:entityType/:entityId/reject       # body: {"reason": "..."}
+POST /api/review/doctor/:doctorId/approve-all             # bulk-approve a doctor's tree
+
+# P3 year locks (central_admin)
+GET    /api/year-locks
+POST   /api/year-locks                                    # body: {"dataYear": 2567}
+DELETE /api/year-locks/:dataYear
+
+# P4 bulk import (central_admin, multipart .xlsx field "file")
+POST /api/imports?dryRun=true|false
+POST /api/imports/:batchId/undo
+
+# P5 herb catalog
+POST /api/herbs                                           # RequireAuth (editor or admin) — was admin-only
+PUT  /api/herbs/:id                                       # RequireAuth; editor may edit only own-district herbs (403 else)
+GET  /api/herbs/near-duplicates?thaiName=...              # RequireAuth — save-time warning
+POST /api/herbs/:id/merge/:canonicalId                    # central_admin — alias :id to :canonicalId, re-point ingredients
 ```
-Data resolves under the service working dir: `%ProgramData%\phum-panya` (Windows) or
-`/var/lib/phum-panya`. On Windows, the **MSI** does this for you: its wizard collects the admin
-email/password + domain, installs `server.exe`, and registers + starts the service; uninstall
-removes it. Silent: `msiexec /i phum-panya-<ver>-windows-amd64.msi /quiet ADMINEMAIL=... ADMINPASSWORD=... APPDOMAIN=...`.
 
-**Docker:** `cp .env.example .env`, set `APP_ADMIN_PASSWORD`, `docker compose up --build`.
-- Host port is `${APP_HOST_PORT:-8080}` (8080 can be reserved on Windows/WSL2 — set `APP_HOST_PORT=18080`).
-- All state (DB, media, backups, ACME certs) lives in the `/data` volume.
+Behavioural change to existing writes: a **district-editor** create/update/delete on
+Doctor/Recipe/Case now enters the P2 pending queue instead of publishing; a **central-admin**
+write is immediate + logged. The public API hides anything not `review_state = 'approved'`.
 
-**Dev stack (hot reload, split services):** `make dev`
-(=`docker compose -f docker-compose.dev.yaml up -w --build --force-recreate`, needs
-`APP_ADMIN_PASSWORD`). nginx routes `/api` + `/media` → the Go `api` service and everything else →
-the Next.js `web` dev server (incl. HMR). Only nginx is published. Prod is untouched.
+## 6. Build / run / deploy
 
-**Admin password** is seeded once into the volume. Change it later **in-app** (Staff → Users →
-set password). `./server create-admin` is idempotent (won't overwrite an existing admin).
+Unchanged from `v1.0.0` — see git history / README. Quick reference:
 
-**Env vars:** `APP_HTTP_ADDR`, `APP_DOMAIN`, `APP_DB_PATH`, `APP_MEDIA_DIR`, `APP_BACKUP_DIR`,
-`APP_DEV`, `APP_ADMIN_EMAIL`, `APP_ADMIN_PASSWORD` (+ compose `APP_HOST_PORT`). See `.env.example`.
+- **Build:** `make build` (Go + Node) → `./server` (single cgo-free binary; embeds the UI).
+- **Run (dev):** `APP_DEV=1 APP_ADMIN_EMAIL=… APP_ADMIN_PASSWORD=… ./server` → HTTP `:8080`.
+- **Run (prod):** set `APP_DOMAIN` (ports 80/443), drop `APP_DEV` → Go-native Let's Encrypt TLS.
+- **Service:** `server service install --admin-email=… --admin-password=… --domain=…`; or the
+  Windows **MSI** wizard.
+- **Docker:** `cp .env.example .env`, set `APP_ADMIN_PASSWORD`, `docker compose up --build`
+  (all state in `/data`; set `APP_HOST_PORT` if 8080 is reserved).
+- **Dev stack (hot reload):** `make dev`.
+- **Test:** `go test ./...` and `cd web && npx playwright test` (needs `npx playwright install chromium`).
+- **Env vars:** `APP_HTTP_ADDR`, `APP_DOMAIN`, `APP_DB_PATH`, `APP_MEDIA_DIR`, `APP_BACKUP_DIR`,
+  `APP_DEV`, `APP_ADMIN_EMAIL`, `APP_ADMIN_PASSWORD` (+ compose `APP_HOST_PORT`).
+- **Restore a backup:** `docs/ops/restore.md`.
 
-**Test:** `go test ./...` and `cd web && npx playwright test` (Playwright builds+launches the
-binary against a temp DB; needs chromium: `npx playwright install chromium`).
-
-**Cut a release:** tag a commit that already passed `ci` and push it —
-`git tag v1.1.0 && git push origin v1.1.0`. `release.yml` builds the linux binary, the Windows
-`.exe`, and the `.msi` (smoke-testing the MSI install/register/uninstall), then publishes a
-GitHub Release with all three. **Deploy to the VPS is still manual.**
-
-**Restore a backup:** see `docs/ops/restore.md` (stop → unzip → place `app.db` + `media/` → start).
-
-## 6. Key decisions (why it is the way it is)
-
-- **Bilingual UI**, Thai default + English toggle — **labels only**; record content is never translated.
-- **Session auth, admin-managed password resets, no email/SMTP** in P1.
-- **CSRF = SameSite=Strict + Origin check, no token** (SRS NFR-SEC-6 satisfied by the cookie).
-- **Embedded SQLite + local media + in-memory throttle + local backups** — deliberate 15-Factor
-  deviations for a non-IT owner on one small VPS (documented in ADR-0001's 15-Factor section).
-- **API routes are full-English** (project rule): `/api/current-user`, not `/api/me`.
-- Images re-encoded to JPEG (drops EXIF/GPS); **HEIC input is out of P1** (pure-Go HEIC needs cgo).
-- **Service = kardianos/service** (cross-platform, one dep); the MSI collects config in a wizard
-  and bakes it into the service environment at install.
+**Migration note:** the new columns/tables are applied by GORM `AutoMigrate` on startup
+(`review_state`/`pending_json`/`pending_delete`/`rejection_reason` on Doctor/Recipe/Case with
+`default:approved` so existing rows stay public; `revision`, `year_locks`, `import_batches`
+tables; `Herb` provenance/alias columns; `batch_id` tags). No manual migration step.
 
 ## 7. Security / PDPA posture (verified)
 
-- Public API/export/media **never** expose `phone`, `consent_*`, or audit fields (explicit column
-  projections, dedicated DTOs — no raw model serialization).
-- **Consent gate** applied uniformly: only `consent_obtained=true` doctors and their
-  recipes/cases appear publicly (JOIN-filtered, including nested cases).
-- Own-district enforced on every staff write (create/update/delete/photo), including PUT's
-  dual old+new district check.
-- `/media` static serving is path-traversal-safe (`http.Dir`, live-tested across encodings).
-- Reviews caught + fixed real defects: a **login timing side-channel** (account enumeration), a
-  **case PUT cross-district re-parent bypass**, a **backup fd leak** + swallowed zip-close errors,
-  and **photo-blanking-on-edit** data loss.
+- Public API/export/media **never** expose `phone`, `consent_*`, audit, `pending_json`,
+  `rejection_reason`, or `Revision.after_json` (explicit column projections / DTOs).
+- **Two independent public gates**: `consent_obtained = true` AND `review_state = 'approved'`,
+  applied in one place (`publicapi`) on every doctor/recipe/case read (JOIN-filtered, nested
+  cases included). The final P2 review confirmed no public path bypasses the review gate.
+- **Approval authority**: only `central_admin` reaches the review/lock/import/merge endpoints;
+  a district-editor's writes queue and can never self-publish or self-approve. Herb ownership
+  can't be hijacked (provenance is stamped server-side and is immutable through update).
+- Own-district enforced on every staff write (incl. PUT's dual old+new district check).
+- **Whole-branch reviews caught + fixed two HIGH defects before merge:**
+  - **P3** — a cross-year pending edit could be approved into a year that was locked *after* the
+    edit was queued (the lock precondition only scanned real `data_year` columns). Fixed by
+    re-checking the target year at approve time.
+  - **P4** — `Undo` deleting a batch's doctor cascade-deleted **other** batches'/manual
+    recipes/cases via the FK. Fixed so undo removes only childless batch doctors.
+  Both were reproduced by the reviewer and confirmed red→green.
 
-## 8. Known gaps / not done (all non-blocking for P1)
+## 8. Known gaps / not done
 
-- Handlers lack `binding:"required"` tags → empty strings accepted (staff-entered, trusted data).
-- Enum DB CHECKs absent for `Case.Result` / `Doctor.Status` / `User.Role` (Go-validated instead).
-- `/api/current-user` omits `full_name` (staff dashboard shows role, not name).
-- No role-based nav hiding: a district_editor sees 403 on admin-only Herbs/Users pages (backend
-  correctly enforces; only a UX wart).
-- No "export all districts" UI control for admin (backend supports it).
-- No ESLint config (`tsc` + build are green).
-- `Recipe.Photo` is a single string vs data-model §4.5 "image (many)"; recipes have no photo
-  upload endpoint.
-- FR-LINK-1 mismatch is surfaced at data-entry via `resolve-doctor` but not persisted as an
-  admin-visible flag.
-- **No CD to the VPS** — releases are built and published, but deployment to the server is manual.
-- The MSI collects config in a wizard (validated end-to-end in CI); only `linux-amd64` /
-  `windows-amd64` artifacts are built (no arm64 / macOS packages).
+**Biggest gap: P2–P5 are backend-only — there is no frontend for the new admin flows.**
+- No staff UI for: the **approval queue** (approve/reject/bulk), **year locks**, **bulk import**
+  (upload + dry-run report + undo), or **herb merge/alias + near-duplicate warning**. The APIs
+  exist and are tested; the Next.js `web/` app has no screens for them yet. The UAT e2e drives
+  approval via the API as an interim.
 
-### Out of scope (later paid phases, per SRS §2)
-- **P2** approval-before-publish + edit history · **P3** year snapshots/locking · **P4** bulk
-  import of old paper/Excel · **P5** district-managed herb catalog + move to PostgreSQL.
+Smaller, parked follow-ups (non-blocking):
+- **P2:** `SetPhoto` bypasses the approval/lock gates — a photo swap on an approved (or locked)
+  row is immediate and unlogged. (Row content edits are correctly gated; only photos aren't.)
+- **P3:** `SetPhoto` is likewise not year-lock-guarded.
+- **P4:** cases have no `code`, so re-importing a file duplicates cases (coded entities are
+  idempotent); per-batch undo is the remedy. Undo leaves the append-only `Revision` rows.
+- **P5:** a merged alias herb still appears in the admin + public catalog (no `alias_of_id IS
+  NULL` filter) — recipes resolve to the canonical herb, so this is cosmetic; `Merge` has no
+  self/chained-merge guard (admin-only tool).
+- Carried over from P1: no `binding:"required"` tags; no enum DB CHECKs; `/api/current-user`
+  omits `full_name`; no role-based nav hiding; no ESLint config; `Recipe.Photo` single-string;
+  **no CD to the VPS** (releases build + publish, deploy is manual).
+
+### Out of scope (per the 2026-08-04 scoping decision)
+- **SQLite → PostgreSQL migration** — explicitly out of scope; the app stays on SQLite. Re-scope
+  trigger: sustained list > 1 s / search > 2 s at real load, or `SQLITE_BUSY` write contention.
+  GORM portability discipline is kept so it stays a driver swap (see the scope doc + ADR-0001).
 
 ## 9. Git state & next steps
 
-- One trunk: **`main`** at `df39e76` (107 commits), `== origin/main`. No open feature branches.
-- **`v1.0.0`** is tagged and released (linux binary + Windows `.exe` + `.msi`).
-- **`ci.yml`** gates every push/PR (go/web/e2e); **`release.yml`** builds + publishes on `v*` tags.
+- One trunk: **`main`** at `00e2694` (144 commits), `== origin/main`. No open feature branches.
+- PRs **#4 (P2), #5 (P3), #6 (P4), #7 (P5)** merged. `v1.0.0` is the last tag; P2–P5 are on
+  `main` but **unreleased** (no new tag cut).
+- `ci.yml` gates every push/PR; `release.yml` builds + publishes on `v*` tags.
 
 **Immediate next steps:**
-1. **Deploy `v1.0.0`** to the client VPS (single binary or the Docker image); set `APP_DOMAIN`,
-   ports 80/443, seed the admin. Deployment is currently manual — decide whether to add a CD step.
-2. **Run the SRS §6.1 UAT** with the client; capture real district/scale numbers to firm up the
-   provisional performance targets.
-3. Optional follow-ups (all non-blocking, see §8): role-based staff-nav hiding, `full_name` on
-   `/api/current-user`, ESLint config, recipe multi-photo, and — when scale calls for it — the
-   ADR-0001 SQLite→Postgres migration.
+1. **Decide whether P2–P5 are accepted** — the scope doc marked them "not funded." If accepted,
+   build the **frontend admin screens** (§8) so the phases are actually usable, then cut a
+   release tag (e.g. `v1.1.0`) once the UI + a UAT pass land.
+2. **Deploy** to the client VPS (still manual) and run the updated SRS §6.1 UAT — now including
+   the editor→pending→admin-approve→public flow.
+3. Optional hardening: gate `SetPhoto` through the P2/P3 rules; add self/chained-merge guards to
+   herb `Merge`; the P1 carry-over polish in §8.

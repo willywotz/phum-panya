@@ -45,6 +45,10 @@ services:
       APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-admin@example.com}
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?set APP_ADMIN_PASSWORD}
       APP_THROTTLE_STORE: db
+      APP_OTLP_ENDPOINT: jaeger:4317
+      APP_LOG_LEVEL: info
+      APP_LOG_FORMAT: json
+      APP_SERVICE_NAME: phum-panya-api
 
   web:
     build:
@@ -60,6 +64,7 @@ services:
     depends_on:
       - api
       - web
+      - jaeger
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
     ports:
@@ -118,6 +123,13 @@ services:
       - garage-meta:/var/lib/garage/meta:ro
       - ./deploy/garage/garage.toml:/etc/garage.toml:ro
     restart: on-failure
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      QUERY_BASE_PATH: /traces
 
   media-backup:
     image: rclone/rclone:latest

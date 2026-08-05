@@ -47,6 +47,8 @@ services:
       web:
         condition: service_started
         restart: true
+      jaeger:
+        condition: service_started
     environment:
       # http:// -> Caddy serves plain HTTP on this port, no TLS/ACME in dev.
       APP_DOMAIN: http://localhost:${APP_HOST_PORT:-8080}
@@ -121,6 +123,10 @@ services:
       # Required — compose refuses to start if unset (no default password).
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?set APP_ADMIN_PASSWORD in your env or .env file}
       APP_THROTTLE_STORE: db
+      APP_OTLP_ENDPOINT: jaeger:4317
+      APP_LOG_LEVEL: info
+      APP_LOG_FORMAT: text
+      APP_SERVICE_NAME: phum-panya-api
     volumes:
       # Persist the Go build cache.
       - dev-go-cache:/root/.cache/go-build
@@ -180,6 +186,13 @@ services:
       - garage-meta:/var/lib/garage/meta:ro
       - ./deploy/garage/garage.toml:/etc/garage.toml:ro
     restart: on-failure
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      QUERY_BASE_PATH: /traces
 
 volumes:
   dev-go-cache:

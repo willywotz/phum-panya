@@ -1,43 +1,71 @@
-# phum-panya — DEVELOPMENT stack: Next.js (web) + Go API (api) split behind an
-# nginx reverse proxy on a single origin, with hot reload on both sides.
+# phum-panya — DEVELOPMENT stack, kept at parity with production
+# (docker-compose.yaml): the SAME Caddy reverse proxy + the SAME Postgres, with
+# the api in the SAME behind-proxy mode. The only difference from prod is that
+# web + api run in hot-reload mode (`next dev` / `air`) instead of compiled
+# builds — so what you develop against matches what ships.
 #
-# Uses `docker compose watch` (not bind mounts): each service is built from a
-# small dev image with source + deps baked in, and watch syncs later changes.
+# Caddy reuses the prod Caddyfile verbatim: pointing APP_DOMAIN at an http://
+# localhost address makes Caddy serve plain HTTP (no ACME/TLS) on that port.
+#
+# Uses `docker compose watch`: each app service builds from a small dev image
+# (source + deps baked in) and watch syncs later changes.
 #
 # Quick start:
 #   APP_ADMIN_PASSWORD=change-me docker compose -f docker-compose.dev.yaml up --watch
 # then browse http://localhost:${APP_HOST_PORT:-8080}
 # (override APP_HOST_PORT if 8080 is taken — common on Windows/WSL2, e.g. 18080).
 #
-# Production is unchanged: use docker-compose.yaml (one embedded binary).
+# Production: use docker-compose.yaml (same topology, TLS + compiled builds).
 
 services:
-  # Single public entry point. Routes /api and /media to the Go service and
-  # everything else (pages, /_next, HMR websocket) to the Next.js dev server.
-  nginx:
-    build:
-      context: .
-      dockerfile: deploy/dev/nginx.Dockerfile
-    image: phum-panya-dev-nginx
-    container_name: phum-panya-dev-nginx
+  # Same Postgres image and role as prod.
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-phumpanya}
+      POSTGRES_USER: ${POSTGRES_USER:-phumpanya}
+      # Defaulted for frictionless local dev; set it in .env to match prod.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+    volumes:
+      - dev-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-phumpanya}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Same public entry point as prod: Caddy on one origin, reusing deploy/caddy/
+  # Caddyfile. Routes /api/* -> api, /media/* -> file_server (shared volume),
+  # everything else -> web. Caddy proxies the Next.js HMR websocket natively.
+  caddy:
+    image: caddy:2-alpine
+    container_name: phum-panya-dev-caddy
     depends_on:
-      web:
-        condition: service_started
-        restart: true
       api:
         condition: service_started
         restart: true
+      web:
+        condition: service_started
+        restart: true
+    environment:
+      # http:// -> Caddy serves plain HTTP on this port, no TLS/ACME in dev.
+      APP_DOMAIN: http://localhost:${APP_HOST_PORT:-8080}
     ports:
-      - "${APP_HOST_PORT:-8080}:80"
+      - "${APP_HOST_PORT:-8080}:${APP_HOST_PORT:-8080}"
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - media:/srv/media:ro
+      - caddy-data:/data
+      - caddy-config:/config
     restart: unless-stopped
     develop:
       watch:
-        # Reload the proxy when its config changes.
         - action: sync+restart
-          path: ./deploy/nginx/dev.conf
-          target: /etc/nginx/conf.d/default.conf
+          path: ./deploy/caddy/Caddyfile
+          target: /etc/caddy/Caddyfile
 
-  # Next.js dev server with hot-module-reload. Not published; reached via nginx.
+  # Next.js dev server with hot-module-reload. Not published; reached via caddy.
   web:
     build:
       context: .
@@ -63,28 +91,32 @@ services:
         - action: rebuild
           path: ./web/package-lock.json
 
-  # Go API with air live-reload. Not published; reached via nginx.
+  # Go API with air live-reload, in the SAME behind-proxy + Postgres mode as
+  # prod. Not published; reached via caddy.
   api:
     build:
       context: .
       dockerfile: deploy/dev/api.Dockerfile
     image: phum-panya-dev-api
     container_name: phum-panya-dev-api
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      APP_DEV: "1"
+      APP_DB_DRIVER: postgres
+      APP_DATABASE_URL: postgres://${POSTGRES_USER:-phumpanya}:${POSTGRES_PASSWORD:-devpassword}@postgres:5432/${POSTGRES_DB:-phumpanya}?sslmode=disable
+      APP_BEHIND_PROXY: "1"
+      APP_PUBLIC_ORIGIN: http://localhost:${APP_HOST_PORT:-8080}
       APP_HTTP_ADDR: ":8080"
+      APP_MEDIA_DIR: /data/media
       # First-admin bootstrap (seeded once, on first run).
       APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-admin@example.com}
       # Required — compose refuses to start if unset (no default password).
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?set APP_ADMIN_PASSWORD in your env or .env file}
-      # Mutable state lives in the dev-data volume.
-      APP_DB_PATH: /data/app.db
-      APP_MEDIA_DIR: /data/media
-      APP_BACKUP_DIR: /data/backup
     volumes:
-      # Persist the Go build cache and app data across restarts (state, not source).
+      # Persist the Go build cache; media is the shared volume caddy reads.
       - dev-go-cache:/root/.cache/go-build
-      - dev-data:/data
+      - media:/data/media
     expose:
       - "8080"
     restart: unless-stopped
@@ -109,4 +141,7 @@ services:
 
 volumes:
   dev-go-cache:
-  dev-data:
+  dev-pg-data:
+  media:
+  caddy-data:
+  caddy-config:

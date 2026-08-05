@@ -12,7 +12,7 @@ import (
 
 func TestEnsureAdminIsIdempotent(t *testing.T) {
 	g, _ := db.Open(filepath.Join(t.TempDir(), "b.db"))
-	_ = model.AutoMigrate(g)
+	_ = db.AutoMigrate(g)
 
 	created, err := bootstrap.EnsureAdmin(g, "admin@x", "pw123456")
 	if err != nil || !created {

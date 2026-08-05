@@ -16,7 +16,7 @@ func TestLockRefusedWhenPendingExists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	// A pending recipe in year 2567 (DoctorID 1 need not exist: no doctor is created,
@@ -39,7 +39,7 @@ func TestLockThenIsLocked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	repo := yearlock.NewRepo(g, clock.Real{})
@@ -64,7 +64,7 @@ func TestUnlockThenList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	repo := yearlock.NewRepo(g, clock.Real{})

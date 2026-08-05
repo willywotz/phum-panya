@@ -27,7 +27,7 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatal(err)
 	}
 

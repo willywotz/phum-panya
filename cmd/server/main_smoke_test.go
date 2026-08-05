@@ -17,7 +17,6 @@ import (
 	"phum-panya/internal/config"
 	"phum-panya/internal/db"
 	"phum-panya/internal/media"
-	"phum-panya/internal/model"
 	"phum-panya/internal/router"
 )
 
@@ -31,7 +30,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 	if _, err := bootstrap.EnsureAdmin(g, "admin@test", "adminpass1"); err != nil {

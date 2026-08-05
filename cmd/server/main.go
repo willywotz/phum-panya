@@ -25,7 +25,6 @@ import (
 	"phum-panya/internal/db"
 	"phum-panya/internal/httpx"
 	"phum-panya/internal/media"
-	"phum-panya/internal/model"
 	"phum-panya/internal/router"
 	"phum-panya/internal/svc"
 )
@@ -121,10 +120,10 @@ func runServer() {
 	if err != nil {
 		log.Fatalf("open db: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
-	if err := model.BackfillRecipePhotos(g); err != nil {
+	if err := db.BackfillRecipePhotos(g); err != nil {
 		log.Fatalf("backfill recipe photos: %v", err)
 	}
 	if _, err := bootstrap.EnsureAdmin(g, cfg.AdminEmail, cfg.AdminPassword); err != nil {
@@ -194,7 +193,7 @@ func runCreateAdmin() {
 	if err != nil {
 		log.Fatalf("open db: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		log.Fatalf("migrate: %v", err)
 	}
 	created, err := bootstrap.EnsureAdmin(g, cfg.AdminEmail, cfg.AdminPassword)

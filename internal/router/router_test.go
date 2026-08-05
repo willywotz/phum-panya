@@ -13,7 +13,6 @@ import (
 	"phum-panya/internal/config"
 	"phum-panya/internal/db"
 	"phum-panya/internal/media"
-	"phum-panya/internal/model"
 	"phum-panya/internal/router"
 )
 
@@ -28,7 +27,7 @@ func newDeps(t *testing.T, mediaDir string) router.Deps {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 

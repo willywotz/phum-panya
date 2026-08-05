@@ -46,7 +46,7 @@ func newDoctorAPI(t *testing.T) *doctorAPI {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 

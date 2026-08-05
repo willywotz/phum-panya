@@ -307,6 +307,19 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   Turbopack runs clean. Added a **`dev-next-cache`** named volume on `/app/web/.next` so the
   compile cache survives `make dev` (`--force-recreate`). Measured on the live stack: warm HMR
   ~100ms, per-route compile ~600ms; homepage first compile 8.7s cold → 5.7s with the warm cache.
+- **Hexagonal core refactor — sub-project A done** (branch `refactor/hexagonal-core`). Pure
+  internal refactor, no behavior or API change; full suite **226 Go tests** green throughout.
+  See `docs/superpowers/specs/2026-08-05-hexagonal-core-refactor-design.md` and
+  `docs/superpowers/plans/2026-08-05-hexagonal-core-refactor.md`. Changes: (1) `internal/model`
+  is now a pure domain package — `AutoMigrate`/`BackfillRecipePhotos` moved to `internal/db`;
+  `model` imports only `time` (gorm tags are inert strings). (2) Every HTTP handler depends on a
+  **port interface**, never on `*gorm.DB` or a concrete `*Repo`: each feature package declares a
+  `repository` port its GORM `Repo` satisfies; `publicapi`/`export` gained ports built at the
+  composition root; `auth` gained `Sessions`/`Limiter`/`Users` ports. (3) `media.Store` is now an
+  interface (filesystem impl = `LocalStore`) — the seam for sub-project B's S3/Garage adapter;
+  `auth.Limiter`/`Users` is the seam for sub-project C's Postgres throttle. This is step A of the
+  A→E program (B media→Garage object store, C Postgres-only + shared throttle, D telemetry,
+  E migrations-as-release + multi-replica) to reach full 15-Factor + Hexagonal compliance.
 
 ## Data model (summary)
 

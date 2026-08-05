@@ -44,6 +44,9 @@ func parseLevel(s string) slog.Level {
 // trace_id/span_id (present once tracing is wired) so a log line ties to a
 // trace. It also echoes the trace id in the X-Trace-Id response header.
 func AccessLog(logger *slog.Logger) gin.HandlerFunc {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return func(c *gin.Context) {
 		start := time.Now()
 		sc := trace.SpanContextFromContext(c.Request.Context())

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -45,6 +46,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 		Throttle:   auth.NewThrottle(clock.Real{}, 100, time.Minute),
 		Media:      &media.LocalStore{Dir: filepath.Join(dir, "media")},
 		Clk:        clock.Real{},
+		Logger:     slog.Default(),
 		Secure:     false,
 		BackupDir:  filepath.Join(dir, "backup"),
 		BackupKeep: 7,

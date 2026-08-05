@@ -125,6 +125,18 @@ const th: Dictionary = {
   review: 'คิวอนุมัติ',
   yearLocks: 'ล็อกปีข้อมูล',
   imports: 'นำเข้าข้อมูล',
+  queueEmpty: 'ไม่มีรายการรออนุมัติ',
+  entityType: 'ประเภท',
+  action: 'การดำเนินการ',
+  proposedChange: 'การเปลี่ยนแปลงที่เสนอ',
+  approve: 'อนุมัติ',
+  reject: 'ไม่อนุมัติ',
+  approveAll: 'อนุมัติทั้งหมด',
+  rejectReason: 'เหตุผลที่ไม่อนุมัติ',
+  case: 'เคสรักษา',
+  action_create: 'สร้างใหม่',
+  action_update: 'แก้ไข',
+  action_delete: 'ลบ',
 };
 
 const en: Dictionary = {
@@ -243,6 +255,18 @@ const en: Dictionary = {
   review: 'Approval queue',
   yearLocks: 'Year locks',
   imports: 'Bulk import',
+  queueEmpty: 'Nothing awaits approval',
+  entityType: 'Type',
+  action: 'Action',
+  proposedChange: 'Proposed change',
+  approve: 'Approve',
+  reject: 'Reject',
+  approveAll: 'Approve all',
+  rejectReason: 'Rejection reason',
+  case: 'Case',
+  action_create: 'Create',
+  action_update: 'Edit',
+  action_delete: 'Delete',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { th, en };

@@ -120,6 +120,7 @@ services:
       APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL:-admin@example.com}
       # Required — compose refuses to start if unset (no default password).
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?set APP_ADMIN_PASSWORD in your env or .env file}
+      APP_THROTTLE_STORE: db
     volumes:
       # Persist the Go build cache.
       - dev-go-cache:/root/.cache/go-build

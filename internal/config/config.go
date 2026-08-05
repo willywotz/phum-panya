@@ -26,6 +26,8 @@ type Config struct {
 	S3AccessKey    string
 	S3SecretKey    string
 	S3UsePathStyle bool
+
+	ThrottleStore string
 }
 
 func Load() Config {
@@ -50,6 +52,8 @@ func Load() Config {
 		S3AccessKey:    env("APP_S3_ACCESS_KEY", ""),
 		S3SecretKey:    env("APP_S3_SECRET_KEY", ""),
 		S3UsePathStyle: env("APP_S3_USE_PATH_STYLE", "true") != "false",
+
+		ThrottleStore: env("APP_THROTTLE_STORE", "memory"),
 	}
 }
 
@@ -90,6 +94,10 @@ func (c Config) BackupEnabled() bool {
 // UsesS3Media reports whether uploaded media is stored in the S3/Garage
 // backend rather than the local filesystem.
 func (c Config) UsesS3Media() bool { return c.MediaDriver == "s3" }
+
+// UsesDBThrottle reports whether the login rate limiter stores its state in the
+// database (shared across replicas) rather than in process memory.
+func (c Config) UsesDBThrottle() bool { return c.ThrottleStore == "db" }
 
 func env(key, def string) string {
 	val := os.Getenv(key)

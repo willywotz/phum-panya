@@ -320,6 +320,22 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   `auth.Limiter`/`Users` is the seam for sub-project C's Postgres throttle. This is step A of the
   A→E program (B media→Garage object store, C Postgres-only + shared throttle, D telemetry,
   E migrations-as-release + multi-replica) to reach full 15-Factor + Hexagonal compliance.
+- **Media → Garage object store — sub-project B done** (branch `feat/media-garage-object-store`).
+  See `docs/superpowers/specs/2026-08-05-media-garage-object-store-design.md`,
+  `docs/superpowers/plans/2026-08-05-media-garage-object-store.md`, and ADR-0004. Uploaded
+  images can now live in **Garage** (S3-compatible) instead of local disk, behind the
+  `media.Store` port. Changes: (1) the port gained `Open(key)`/`ErrNotFound`/`Object` and a
+  shared `processImage` helper; the app streams `GET /media/*key` through the port (replaces
+  `engine.Static`) with an immutable cache header. (2) New `S3Store` adapter (`aws-sdk-go-v2`,
+  path-style) alongside `LocalStore`, selected by `APP_MEDIA_DRIVER` (`local` default, `s3` for
+  the stack). (3) Compose gains an internal-only **Garage** node (no published port), a one-shot
+  **garage-init** (builds from alpine + the garage binary — the garage image is `FROM scratch`;
+  shares Garage's netns to reach the node; imports a fixed key so the api's creds match), and an
+  **rclone media-backup** sidecar mirroring the bucket. Caddy proxies `/media/*` to the api; the
+  shared media volume is gone. Dev compose mirrors prod. **Verified live** against Garage v1.0.1:
+  init idempotent, real S3 PUT/GET, and `GET /media/<key>` streams through the real api (200 +
+  cache header; missing key → 404). 236 Go tests green. Garage key format required:
+  `APP_S3_ACCESS_KEY`=`GK`+24 hex, `APP_S3_SECRET_KEY`/`GARAGE_RPC_SECRET`=64 hex.
 
 ## Data model (summary)
 

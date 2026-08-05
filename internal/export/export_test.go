@@ -94,7 +94,7 @@ func newExportAPI(t *testing.T) *exportAPI {
 	}
 
 	r := gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	export.RegisterRoutes(r, export.NewSource(g))
 
 	return &exportAPI{t: t, g: g, r: r, adminToken: adminToken, editorToken: editorToken}

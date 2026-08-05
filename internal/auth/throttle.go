@@ -7,6 +7,13 @@ import (
 	"phum-panya/internal/clock"
 )
 
+// Limiter rate-limits repeated failed login attempts per key.
+type Limiter interface {
+	Allowed(key string) bool
+	Fail(key string)
+	Reset(key string)
+}
+
 // Throttle tracks recent failures per key within a sliding time window,
 // used to rate-limit repeated failed login attempts.
 type Throttle struct {

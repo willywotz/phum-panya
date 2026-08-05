@@ -103,7 +103,7 @@ func router(t *testing.T) (r *gin.Engine, adminToken, editorToken string, distri
 	}
 
 	r = gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	district.RegisterRoutes(r, district.NewRepo(g))
 
 	return r, adminToken, editorToken, seed.ID

@@ -80,7 +80,7 @@ func newUserAPI(t *testing.T) *userAPI {
 	}
 
 	engine := gin.New()
-	engine.Use(auth.LoadUser(store, g))
+	engine.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	user.RegisterRoutes(engine, user.NewRepo(g))
 
 	return &userAPI{g: g, engine: engine, store: store, adminToken: adminToken}

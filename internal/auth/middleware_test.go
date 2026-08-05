@@ -42,7 +42,7 @@ func TestRequireRole(t *testing.T) {
 	}
 
 	r := gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	r.GET("/admin-only", auth.RequireRole("central_admin"), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
@@ -94,7 +94,7 @@ func TestLoadUserRejectsInactiveUser(t *testing.T) {
 	}
 
 	r := gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	r.GET("/protected", auth.RequireAuth(), func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})

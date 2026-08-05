@@ -86,7 +86,7 @@ func newDoctorAPI(t *testing.T) *doctorAPI {
 	}
 
 	r := gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	mediaStore := &media.LocalStore{Dir: t.TempDir()}
 	doctor.RegisterRoutes(r, doctor.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{})), mediaStore)
 

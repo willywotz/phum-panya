@@ -23,6 +23,13 @@ const sessionCookieName = "session"
 // ErrNoSession is returned when a session token is missing or expired.
 var ErrNoSession = errors.New("no valid session")
 
+// Sessions manages server-side login sessions.
+type Sessions interface {
+	Create(userID uint) (rawToken string, err error)
+	Lookup(rawToken string) (userID uint, err error)
+	Delete(rawToken string) error
+}
+
 // SessionStore manages server-side login sessions backed by GORM.
 type SessionStore struct {
 	db  *gorm.DB

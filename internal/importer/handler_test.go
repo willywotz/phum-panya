@@ -95,7 +95,7 @@ func newImporterAPI(t *testing.T) *importerAPI {
 
 	r := gin.New()
 	r.MaxMultipartMemory = 8 << 20
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	importer.RegisterRoutes(r, im)
 
 	return &importerAPI{

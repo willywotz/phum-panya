@@ -77,7 +77,7 @@ func newReviewAPI(t *testing.T) *reviewAPI {
 	}
 
 	r := gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	review.RegisterRoutes(r, review.NewRepo(g, revision.NewRepo(g, clock.Real{})))
 
 	return &reviewAPI{

@@ -35,7 +35,7 @@ func newLoginRouter(t *testing.T, max int) (*gin.Engine, string) {
 	th := auth.NewThrottle(clock.Real{}, max, time.Minute)
 
 	r := gin.New()
-	auth.RegisterRoutes(r, g, store, th, false)
+	auth.RegisterRoutes(r, auth.NewGormUsers(g), store, th, false)
 
 	return r, "admin@x"
 }

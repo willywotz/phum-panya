@@ -74,7 +74,7 @@ func newYearLockAPI(t *testing.T) *yearLockAPI {
 	}
 
 	r := gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	yearlock.RegisterRoutes(r, yearlock.NewRepo(g, clock.Real{}))
 
 	return &yearLockAPI{

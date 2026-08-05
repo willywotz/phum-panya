@@ -144,7 +144,7 @@ func router(t *testing.T) (r *gin.Engine, adminToken string, mediaDir string) {
 
 	mediaDir = t.TempDir()
 	r = gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	herb.RegisterRoutes(r, herb.NewRepo(g), &media.LocalStore{Dir: mediaDir})
 
 	return r, adminToken, mediaDir

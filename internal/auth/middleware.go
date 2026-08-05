@@ -4,10 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
 	"phum-panya/internal/httpx"
-	"phum-panya/internal/model"
 )
 
 // userContextKey is the gin context key holding the *CurrentUser.
@@ -24,7 +22,7 @@ type CurrentUser struct {
 // LoadUser reads the session cookie and, if it names an active user,
 // attaches a *CurrentUser to the gin context. It never aborts: missing
 // or invalid sessions simply leave the context without a user.
-func LoadUser(store *SessionStore, g *gorm.DB) gin.HandlerFunc {
+func LoadUser(store Sessions, users Users) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		raw, err := c.Cookie(sessionCookieName)
 		if err != nil || raw == "" {
@@ -36,8 +34,8 @@ func LoadUser(store *SessionStore, g *gorm.DB) gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		var user model.User
-		if err := g.First(&user, userID).Error; err != nil {
+		user, err := users.ByID(userID)
+		if err != nil {
 			c.Next()
 			return
 		}

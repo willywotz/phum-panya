@@ -13,18 +13,28 @@ import (
 	"phum-panya/internal/model"
 )
 
-// userRequest is the JSON body for POST/PUT /api/users.
+// userRequest is the JSON body for PUT /api/users/:id. Role must match
+// model.RoleCentralAdmin / model.RoleDistrictEditor: a struct tag is a
+// literal string and cannot reference those constants directly, so keep the
+// oneof list in sync with them by hand.
 type userRequest struct {
-	FullName   string `json:"full_name"`
-	Email      string `json:"email"`
-	Password   string `json:"password"`
-	Role       string `json:"role"`
+	FullName   string `json:"full_name" binding:"required"`
+	Email      string `json:"email" binding:"required"`
+	Role       string `json:"role" binding:"required,oneof=central_admin district_editor"`
 	DistrictID *uint  `json:"district_id"`
+}
+
+// createUserRequest is the JSON body for POST /api/users: it adds the
+// password userRequest omits, since only account creation sets one (a
+// PUT edit never carries a password; see setPasswordHandler for resets).
+type createUserRequest struct {
+	userRequest
+	Password string `json:"password" binding:"required"`
 }
 
 // passwordRequest is the JSON body for POST /api/users/:id/password.
 type passwordRequest struct {
-	Password string `json:"password"`
+	Password string `json:"password" binding:"required"`
 }
 
 // activeRequest is the JSON body for POST /api/users/:id/active.
@@ -43,11 +53,6 @@ func RegisterRoutes(r gin.IRouter, repo *Repo) {
 	r.POST("/api/users/:id/active", admin, setActiveHandler(repo))
 }
 
-// isValidRole reports whether role is one of the two known roles.
-func isValidRole(role string) bool {
-	return role == "central_admin" || role == "district_editor"
-}
-
 func listHandler(repo *Repo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		users, err := repo.List()
@@ -61,8 +66,8 @@ func listHandler(repo *Repo) gin.HandlerFunc {
 
 func createHandler(repo *Repo) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var req userRequest
-		if err := c.ShouldBindJSON(&req); err != nil || !isValidRole(req.Role) {
+		var req createUserRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
 			httpx.Err(c, http.StatusBadRequest, "invalid_request", "full_name, email, password, and a valid role are required")
 			return
 		}
@@ -99,7 +104,7 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 			return
 		}
 		var req userRequest
-		if err := c.ShouldBindJSON(&req); err != nil || !isValidRole(req.Role) {
+		if err := c.ShouldBindJSON(&req); err != nil {
 			httpx.Err(c, http.StatusBadRequest, "invalid_request", "full_name, email, and a valid role are required")
 			return
 		}
@@ -129,7 +134,7 @@ func setPasswordHandler(repo *Repo) gin.HandlerFunc {
 			return
 		}
 		var req passwordRequest
-		if err := c.ShouldBindJSON(&req); err != nil || req.Password == "" {
+		if err := c.ShouldBindJSON(&req); err != nil {
 			httpx.Err(c, http.StatusBadRequest, "invalid_request", "password is required")
 			return
 		}

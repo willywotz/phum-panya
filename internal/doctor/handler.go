@@ -16,15 +16,18 @@ import (
 	"phum-panya/internal/model"
 )
 
-// doctorRequest is the JSON body for POST/PUT /api/doctors.
+// doctorRequest is the JSON body for POST/PUT /api/doctors. Gender and
+// Status must match model.Gender* / model.DoctorStatus*: a struct tag is a
+// literal string and cannot reference those constants directly, so keep the
+// oneof lists in sync with them by hand.
 type doctorRequest struct {
-	Code            string     `json:"code"`
+	Code            string     `json:"code" binding:"required"`
 	Photo           string     `json:"photo"`
-	FullName        string     `json:"full_name"`
+	FullName        string     `json:"full_name" binding:"required"`
 	KnownAs         string     `json:"known_as"`
-	Gender          string     `json:"gender"`
+	Gender          string     `json:"gender" binding:"omitempty,oneof=male female other"`
 	BirthYear       int        `json:"birth_year"`
-	DistrictID      uint       `json:"district_id"`
+	DistrictID      uint       `json:"district_id" binding:"required"`
 	Address         string     `json:"address"`
 	Phone           string     `json:"phone"`
 	Specialty       []string   `json:"specialty"`
@@ -32,7 +35,7 @@ type doctorRequest struct {
 	Lineage         string     `json:"lineage"`
 	ConsentObtained bool       `json:"consent_obtained"`
 	ConsentDate     *time.Time `json:"consent_date"`
-	Status          string     `json:"status"`
+	Status          string     `json:"status" binding:"required,oneof=active inactive deceased"`
 	FirstYear       int        `json:"first_year"`
 }
 

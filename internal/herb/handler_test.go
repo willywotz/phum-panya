@@ -95,6 +95,16 @@ func (env *herbAPI) do(method, path, token, body string) *httptest.ResponseRecor
 	return rec
 }
 
+// TestCreateHerbMissingThaiNameReturns400 proves herbRequest rejects a
+// create body missing the required thai_name field at bind time.
+func TestCreateHerbMissingThaiNameReturns400(t *testing.T) {
+	env := newHerbAPI(t)
+	rec := env.doAsEditor("POST", "/api/herbs", `{}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestEditorMayCreateHerbButNotMerge(t *testing.T) {
 	env := newHerbAPI(t)
 

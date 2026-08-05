@@ -156,6 +156,21 @@ func TestPostRequiresCentralAdmin(t *testing.T) {
 	}
 }
 
+// TestPostMissingProvinceReturns400 proves districtRequest rejects a create
+// body missing the required province field at bind time.
+func TestPostMissingProvinceReturns400(t *testing.T) {
+	r, adminToken, _, _ := router(t)
+	body := `{"name":"New"}`
+
+	req := withCookie(httptest.NewRequest(http.MethodPost, "/api/districts", strings.NewReader(body)), adminToken)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestPutUpdatesDistrict(t *testing.T) {
 	r, adminToken, _, districtID := router(t)
 	body := `{"name":"Renamed","province":"NewProv"}`

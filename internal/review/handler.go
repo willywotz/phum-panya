@@ -74,9 +74,9 @@ func rejectHandler(repo *Repo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, _ := auth.UserFrom(c)
 		var body struct {
-			Reason string `json:"reason"`
+			Reason string `json:"reason" binding:"required"`
 		}
-		if err := c.ShouldBindJSON(&body); err != nil || body.Reason == "" {
+		if err := c.ShouldBindJSON(&body); err != nil {
 			httpx.Err(c, http.StatusBadRequest, "reason_required", "a rejection reason is required")
 			return
 		}

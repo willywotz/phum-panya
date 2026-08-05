@@ -82,7 +82,7 @@ func (im *Importer) Run(r io.Reader, sourceName string, actorID uint) (*Report, 
 		ImportedBy: actorID,
 		ImportedAt: im.clk.Now(),
 		SourceFile: sourceName,
-		Status:     "committed",
+		Status:     model.ImportBatchStatusCommitted,
 	}
 	if err := im.g.Create(&batch).Error; err != nil {
 		return nil, err
@@ -222,7 +222,7 @@ func (im *Importer) Undo(batchID uint) error {
 				}
 			}
 		}
-		return tx.Model(&model.ImportBatch{}).Where("id = ?", batchID).Update("status", "undone").Error
+		return tx.Model(&model.ImportBatch{}).Where("id = ?", batchID).Update("status", model.ImportBatchStatusUndone).Error
 	})
 }
 

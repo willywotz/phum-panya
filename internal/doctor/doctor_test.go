@@ -154,6 +154,40 @@ func TestAdminCanWriteAnyDistrict(t *testing.T) {
 	}
 }
 
+// TestCreateMissingCodeReturns400 proves doctorRequest rejects a create body
+// missing the required code field at bind time, not a 500 from a later
+// unique-index or CHECK failure.
+func TestCreateMissingCodeReturns400(t *testing.T) {
+	env := newDoctorAPI(t)
+	body := `{"full_name":"H","district_id":1,"status":"active","first_year":2565}`
+	res := env.doAsEditor("POST", "/api/doctors", body)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400, body %s", res.Code, res.Body.String())
+	}
+}
+
+// TestCreateInvalidStatusReturns400 proves an out-of-range status is a clean
+// 400 from binding, not a 500 from the chk_doctor_status DB check.
+func TestCreateInvalidStatusReturns400(t *testing.T) {
+	env := newDoctorAPI(t)
+	body := `{"code":"MUE-10","full_name":"H","district_id":1,"status":"bogus","first_year":2565}`
+	res := env.doAsEditor("POST", "/api/doctors", body)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400, body %s", res.Code, res.Body.String())
+	}
+}
+
+// TestCreateInvalidGenderReturns400 proves an out-of-range gender is a clean
+// 400 from binding, not a 500 from the chk_doctor_gender DB check.
+func TestCreateInvalidGenderReturns400(t *testing.T) {
+	env := newDoctorAPI(t)
+	body := `{"code":"MUE-11","full_name":"H","district_id":1,"status":"active","gender":"bogus","first_year":2565}`
+	res := env.doAsEditor("POST", "/api/doctors", body)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400, body %s", res.Code, res.Body.String())
+	}
+}
+
 func TestListRequiresDistrictQuery(t *testing.T) {
 	env := newDoctorAPI(t)
 	res := env.doAsAdmin("GET", "/api/doctors", "")

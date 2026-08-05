@@ -129,6 +129,29 @@ func TestUserResponseHidesHash(t *testing.T) {
 	}
 }
 
+// TestCreateUserMissingPasswordReturns400 proves createUserRequest rejects
+// a create body missing the required password field at bind time, instead
+// of silently hashing an empty string into a usable login.
+func TestCreateUserMissingPasswordReturns400(t *testing.T) {
+	env := newUserAPI(t)
+	res := env.do("POST", "/api/users",
+		`{"full_name":"Ed","email":"ed@x","role":"district_editor","district_id":1}`)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body = %s", res.Code, res.Body.String())
+	}
+}
+
+// TestCreateUserInvalidRoleReturns400 proves an out-of-range role is
+// rejected at bind time via the oneof tag.
+func TestCreateUserInvalidRoleReturns400(t *testing.T) {
+	env := newUserAPI(t)
+	res := env.do("POST", "/api/users",
+		`{"full_name":"Ed","email":"ed@x","password":"pw123456","role":"bogus"}`)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body = %s", res.Code, res.Body.String())
+	}
+}
+
 func TestCreateDistrictEditorRequiresDistrictID(t *testing.T) {
 	env := newUserAPI(t)
 	res := env.do("POST", "/api/users",

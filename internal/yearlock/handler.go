@@ -34,9 +34,9 @@ func lockHandler(repo *Repo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, _ := auth.UserFrom(c)
 		var body struct {
-			DataYear int `json:"dataYear"`
+			DataYear int `json:"dataYear" binding:"required"`
 		}
-		if err := c.ShouldBindJSON(&body); err != nil || body.DataYear == 0 {
+		if err := c.ShouldBindJSON(&body); err != nil {
 			httpx.Err(c, http.StatusBadRequest, "bad_year", "dataYear is required")
 			return
 		}

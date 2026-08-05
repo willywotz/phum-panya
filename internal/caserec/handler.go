@@ -15,22 +15,17 @@ import (
 	"phum-panya/internal/yearlock"
 )
 
-// validResults holds the result values the "result" DB check accepts.
-// Validating here keeps an invalid value a clean 400, not a DB-CHECK 500.
-var validResults = map[string]bool{
-	"cured":     true,
-	"better":    true,
-	"no_change": true,
-}
-
-// caseRequest is the JSON body for POST/PUT /api/cases.
+// caseRequest is the JSON body for POST/PUT /api/cases. Result and
+// PatientGender must match model.CaseResult* / model.Gender*: a struct tag
+// is a literal string and cannot reference those constants directly, so
+// keep the oneof lists in sync with them by hand.
 type caseRequest struct {
-	RecipeID        uint   `json:"recipe_id"`
-	PatientGender   string `json:"patient_gender"`
+	RecipeID        uint   `json:"recipe_id" binding:"required"`
+	PatientGender   string `json:"patient_gender" binding:"omitempty,oneof=male female other"`
 	PatientAgeRange string `json:"patient_age_range"`
-	Condition       string `json:"condition"`
+	Condition       string `json:"condition" binding:"required"`
 	Treatment       string `json:"treatment"`
-	Result          string `json:"result"`
+	Result          string `json:"result" binding:"required,oneof=cured better no_change"`
 	Duration        string `json:"duration"`
 	DataYear        int    `json:"data_year"`
 }
@@ -84,10 +79,6 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 			httpx.Err(c, http.StatusBadRequest, "invalid_request", "invalid case body")
 			return
 		}
-		if !validResults[req.Result] {
-			httpx.Err(c, http.StatusBadRequest, "invalid_request", "result must be one of cured, better, no_change")
-			return
-		}
 		districtID, err := repo.DistrictOf(req.RecipeID)
 		if err != nil {
 			writeRepoError(c, err, "recipe not found", "could not resolve recipe district")
@@ -126,10 +117,6 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 		var req caseRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			httpx.Err(c, http.StatusBadRequest, "invalid_request", "invalid case body")
-			return
-		}
-		if !validResults[req.Result] {
-			httpx.Err(c, http.StatusBadRequest, "invalid_request", "result must be one of cured, better, no_change")
 			return
 		}
 		oldDistrict, err := repo.DistrictOf(existing.RecipeID)

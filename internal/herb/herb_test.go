@@ -290,6 +290,89 @@ func TestMergeRepointsIngredients(t *testing.T) {
 	}
 }
 
+func TestMergeRejectsSelfMerge(t *testing.T) {
+	repo, g := newRepo(t)
+	h := model.Herb{ThaiName: "ขิง"}
+	g.Create(&h)
+
+	if _, err := repo.Merge(h.ID, h.ID); !errors.Is(err, herb.ErrSelfMerge) {
+		t.Fatalf("Merge(self) err = %v, want ErrSelfMerge", err)
+	}
+}
+
+func TestMergeRejectsChainedMerge(t *testing.T) {
+	repo, g := newRepo(t)
+	root := model.Herb{ThaiName: "ขิง"}
+	g.Create(&root)
+	middleAlias := model.Herb{ThaiName: "ขิงแก่", AliasOfID: &root.ID}
+	g.Create(&middleAlias)
+	newAlias := model.Herb{ThaiName: "ขิงอ่อน"}
+	g.Create(&newAlias)
+
+	// middleAlias is itself an alias of root; merging newAlias into it must
+	// be rejected so no alias -> alias -> canonical chain forms.
+	if _, err := repo.Merge(newAlias.ID, middleAlias.ID); !errors.Is(err, herb.ErrChainedMerge) {
+		t.Fatalf("Merge(onto alias) err = %v, want ErrChainedMerge", err)
+	}
+}
+
+func TestMergeRejectsMissingCanonical(t *testing.T) {
+	repo, g := newRepo(t)
+	h := model.Herb{ThaiName: "ขิง"}
+	g.Create(&h)
+
+	if _, err := repo.Merge(h.ID, 9999); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("Merge(missing canonical) err = %v, want ErrRecordNotFound", err)
+	}
+}
+
+func TestMergeRepointsExistingAliasesOfAlias(t *testing.T) {
+	repo, g := newRepo(t)
+	canonical := model.Herb{ThaiName: "ขิง"}
+	g.Create(&canonical)
+	alias := model.Herb{ThaiName: "ขิงแก่"}
+	g.Create(&alias)
+	aliasOfAlias := model.Herb{ThaiName: "ขิงอ่อน", AliasOfID: &alias.ID}
+	g.Create(&aliasOfAlias)
+
+	if _, err := repo.Merge(alias.ID, canonical.ID); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+
+	var reloaded model.Herb
+	if err := g.First(&reloaded, aliasOfAlias.ID).Error; err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if reloaded.AliasOfID == nil || *reloaded.AliasOfID != canonical.ID {
+		t.Fatalf("aliasOfAlias.AliasOfID = %v, want %d (re-pointed, not chained)", reloaded.AliasOfID, canonical.ID)
+	}
+}
+
+func TestListExcludesMergedAliases(t *testing.T) {
+	repo, g := newRepo(t)
+	canonical := model.Herb{ThaiName: "ขิง"}
+	g.Create(&canonical)
+	alias := model.Herb{ThaiName: "ขิงแก่"}
+	g.Create(&alias)
+
+	if _, err := repo.Merge(alias.ID, canonical.ID); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+
+	herbs, err := repo.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	for _, h := range herbs {
+		if h.ID == alias.ID {
+			t.Fatalf("List() returned merged alias %d", alias.ID)
+		}
+	}
+	if len(herbs) != 1 || herbs[0].ID != canonical.ID {
+		t.Fatalf("List() = %+v, want only canonical", herbs)
+	}
+}
+
 func TestNearDuplicatesWarns(t *testing.T) {
 	repo, g := newRepo(t)
 	g.Create(&model.Herb{ThaiName: "ขิง"})

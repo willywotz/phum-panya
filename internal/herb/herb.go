@@ -15,6 +15,14 @@ import (
 // district did not create.
 var ErrNotOwner = errors.New("herb: district may edit only herbs it created")
 
+// ErrSelfMerge reports that Merge was called with the same alias and
+// canonical id.
+var ErrSelfMerge = errors.New("herb: cannot merge a herb into itself")
+
+// ErrChainedMerge reports that Merge's canonical id is itself an alias of
+// another herb, which would form an unresolved alias chain.
+var ErrChainedMerge = errors.New("herb: canonical herb is itself an alias of another herb")
+
 // Repo provides CRUD access to herbs backed by GORM.
 type Repo struct {
 	g *gorm.DB
@@ -25,10 +33,10 @@ func NewRepo(g *gorm.DB) *Repo {
 	return &Repo{g: g}
 }
 
-// List returns every herb.
+// List returns every non-alias herb in the catalog.
 func (r *Repo) List() ([]model.Herb, error) {
 	var herbs []model.Herb
-	err := r.g.Find(&herbs).Error
+	err := r.g.Where("alias_of_id IS NULL").Find(&herbs).Error
 	return herbs, err
 }
 
@@ -109,9 +117,30 @@ func (r *Repo) Reconcile(pendingName string, herbID uint) (int64, error) {
 
 // Merge marks alias an alias of canonical and re-points every ingredient from the alias
 // to the canonical herb. Returns the number of ingredient rows re-pointed.
+//
+// Merge rejects a self-merge (aliasID == canonicalID) and a chained merge
+// (canonical is itself already an alias), and requires canonical to exist.
+// Any herb already an alias of aliasID is re-pointed directly to canonical
+// too, so no alias -> alias -> canonical chain forms.
 func (r *Repo) Merge(aliasID, canonicalID uint) (int64, error) {
+	if aliasID == canonicalID {
+		return 0, ErrSelfMerge
+	}
 	var n int64
 	err := db.Tx(r.g, func(tx *gorm.DB) error {
+		var canonical model.Herb
+		if err := tx.First(&canonical, canonicalID).Error; err != nil {
+			return err
+		}
+		if canonical.AliasOfID != nil {
+			return ErrChainedMerge
+		}
+
+		if err := tx.Model(&model.Herb{}).Where("alias_of_id = ?", aliasID).
+			Update("alias_of_id", canonicalID).Error; err != nil {
+			return err
+		}
+
 		res := tx.Model(&model.Ingredient{}).Where("herb_id = ?", aliasID).Update("herb_id", canonicalID)
 		if res.Error != nil {
 			return res.Error

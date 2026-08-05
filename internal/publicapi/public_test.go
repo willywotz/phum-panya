@@ -133,6 +133,26 @@ func TestPublicHidesUnconsentedAndPrivateFields(t *testing.T) {
 	}
 }
 
+func TestPublicHerbsExcludesMergedAliases(t *testing.T) {
+	env := newPublicAPI(t)
+	canonical := model.Herb{ThaiName: "ขิง"}
+	if err := env.g.Create(&canonical).Error; err != nil {
+		t.Fatalf("create canonical herb: %v", err)
+	}
+	alias := model.Herb{ThaiName: "ขิงแก่", AliasOfID: &canonical.ID}
+	if err := env.g.Create(&alias).Error; err != nil {
+		t.Fatalf("create alias herb: %v", err)
+	}
+
+	body := env.get("/api/public/herbs").Body.String()
+	if strings.Contains(body, "ขิงแก่") {
+		t.Fatalf("public herbs list must not contain merged alias, body = %s", body)
+	}
+	if !strings.Contains(body, "ขิง") {
+		t.Fatalf("public herbs list must contain canonical herb, body = %s", body)
+	}
+}
+
 func TestPublicHidesPendingDoctorsAndRecipes(t *testing.T) {
 	env := newPublicAPI(t)
 	env.seedDoctorState(t, "A", true, model.ReviewApproved, "recipe-A")

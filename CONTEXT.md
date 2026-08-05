@@ -301,6 +301,12 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   dev proxied over plain HTTP still gets a usable session cookie; prod (https) unchanged. TDD:
   new `behind-proxy-http` predicate case (red→green); full suite **223 Go tests** green;
   `docker compose -f docker-compose.dev.yaml config` validates. `make dev` unchanged.
+- **Dev web compile sped up** (branch `perf/dev-web-turbopack`). The `web` `dev` script now uses
+  **Turbopack** (`next dev --turbopack`, Next 15.5) instead of webpack — dev-only, `next build`
+  (export/standalone) stays webpack, and `next.config.mjs` has no custom `webpack()` hook so
+  Turbopack runs clean. Added a **`dev-next-cache`** named volume on `/app/web/.next` so the
+  compile cache survives `make dev` (`--force-recreate`). Measured on the live stack: warm HMR
+  ~100ms, per-route compile ~600ms; homepage first compile 8.7s cold → 5.7s with the warm cache.
 
 ## Data model (summary)
 

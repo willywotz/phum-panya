@@ -28,6 +28,8 @@ type S3Store struct {
 	bucket string
 }
 
+var _ Store = (*S3Store)(nil)
+
 // NewS3Store builds an S3Store with static credentials and a fixed endpoint.
 func NewS3Store(ctx context.Context, endpoint, region, accessKey, secretKey, bucket string, usePathStyle bool) (*S3Store, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(ctx,

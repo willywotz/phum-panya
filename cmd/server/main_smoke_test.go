@@ -1,6 +1,7 @@
-package main_test
+package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/cookiejar"
@@ -231,5 +232,15 @@ func TestUATFlow(t *testing.T) {
 	spaResp := doJSON(t, anon, http.MethodGet, srv.URL+"/somefrontendroute", "", nil)
 	if spaResp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /somefrontendroute status = %d, want 200 (SPA fallback)", spaResp.StatusCode)
+	}
+}
+
+func TestNewMediaStoreLocal(t *testing.T) {
+	s, err := newMediaStore(context.Background(), config.Config{MediaDriver: "local", MediaDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("newMediaStore: %v", err)
+	}
+	if _, ok := s.(*media.LocalStore); !ok {
+		t.Fatalf("got %T, want *media.LocalStore", s)
 	}
 }

@@ -83,3 +83,46 @@ jobs:
           name: playwright-report
           path: web/playwright-report/
           retention-days: 7
+
+  go-postgres:
+    name: Go test (postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: phumpanya
+          POSTGRES_USER: phumpanya
+          POSTGRES_PASSWORD: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U phumpanya"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test against Postgres
+        env:
+          APP_DATABASE_URL: postgres://phumpanya:ci@localhost:5432/phumpanya?sslmode=disable
+        run: go test ./internal/db/ -run TestOpenWithPostgres -v
+
+  stack-validate:
+    name: Validate compose stack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: docker compose config
+        env:
+          APP_DOMAIN: example.org
+          APP_ADMIN_PASSWORD: ci
+          POSTGRES_PASSWORD: ci
+        run: docker compose -f docker-compose.stack.yaml config >/dev/null
+      - name: caddy validate
+        run: |
+          docker run --rm -e APP_DOMAIN=example.org \
+            -v "$PWD/deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile

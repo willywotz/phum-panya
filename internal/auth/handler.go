@@ -12,8 +12,8 @@ import (
 
 // loginRequest is the JSON body for POST /api/login.
 type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }
 
 // dummyHash is a precomputed bcrypt hash (cost 12) of an unused value. It is

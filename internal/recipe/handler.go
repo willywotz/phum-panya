@@ -54,9 +54,9 @@ func (req ingredientRequest) valid() bool {
 
 // recipeRequest is the JSON body for POST/PUT /api/recipes.
 type recipeRequest struct {
-	Code        string              `json:"code"`
-	Name        string              `json:"name"`
-	DoctorID    uint                `json:"doctor_id"`
+	Code        string              `json:"code" binding:"required"`
+	Name        string              `json:"name" binding:"required"`
+	DoctorID    uint                `json:"doctor_id" binding:"required"`
 	Indication  string              `json:"indication"`
 	Preparation string              `json:"preparation"`
 	Usage       string              `json:"usage"`

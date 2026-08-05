@@ -217,6 +217,30 @@ func TestCreateCaseInvalidResultRejected(t *testing.T) {
 	}
 }
 
+// TestCreateCaseMissingConditionReturns400 proves caseRequest rejects a
+// create body missing the required condition field at bind time.
+func TestCreateCaseMissingConditionReturns400(t *testing.T) {
+	env := newCaseAPI(t)
+	body := `{"recipe_id":` + strconv.FormatUint(uint64(env.recipe.ID), 10) + `,"result":"cured","data_year":2565}`
+	res := env.doAsEditor1("POST", "/api/cases", body)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400, body %s", res.Code, res.Body.String())
+	}
+}
+
+// TestCreateCaseInvalidPatientGenderReturns400 proves an out-of-range
+// patient_gender is a clean 400 from binding, not a 500 from the
+// chk_case_patient_gender DB check.
+func TestCreateCaseInvalidPatientGenderReturns400(t *testing.T) {
+	env := newCaseAPI(t)
+	body := `{"recipe_id":` + strconv.FormatUint(uint64(env.recipe.ID), 10) + `,
+		"patient_gender":"bogus","condition":"fever","result":"cured","data_year":2565}`
+	res := env.doAsEditor1("POST", "/api/cases", body)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400, body %s", res.Code, res.Body.String())
+	}
+}
+
 func TestCreateCaseCrossDistrictForbidden(t *testing.T) {
 	env := newCaseAPI(t)
 	res := env.doAsEditor2("POST", "/api/cases", env.caseBody("cured"))

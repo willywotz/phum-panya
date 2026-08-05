@@ -115,6 +115,20 @@ func TestLoginUnknownEmailRunsBcrypt(t *testing.T) {
 	}
 }
 
+// TestLoginMissingFieldReturns400 proves an empty email or password is
+// rejected at bind time (400), not treated as a wrong-credentials attempt
+// (401): loginRequest marks both fields binding:"required".
+func TestLoginMissingFieldReturns400(t *testing.T) {
+	r, email := newLoginRouter(t, 5)
+
+	if rec := login(r, "", "pw12345"); rec.Code != http.StatusBadRequest {
+		t.Fatalf("missing email: status = %d, want 400", rec.Code)
+	}
+	if rec := login(r, email, ""); rec.Code != http.StatusBadRequest {
+		t.Fatalf("missing password: status = %d, want 400", rec.Code)
+	}
+}
+
 func TestLoginThrottled(t *testing.T) {
 	r, email := newLoginRouter(t, 2)
 

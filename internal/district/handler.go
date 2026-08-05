@@ -15,8 +15,8 @@ import (
 
 // districtRequest is the JSON body for POST/PUT /api/districts.
 type districtRequest struct {
-	Name     string `json:"name"`
-	Province string `json:"province"`
+	Name     string `json:"name" binding:"required"`
+	Province string `json:"province" binding:"required"`
 }
 
 // RegisterRoutes wires the district CRUD endpoints onto r. The caller must

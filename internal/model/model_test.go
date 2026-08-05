@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -20,6 +21,72 @@ func TestAutoMigrateCreatesTables(t *testing.T) {
 		if !g.Migrator().HasTable(m) {
 			t.Fatalf("missing table for %T", m)
 		}
+	}
+}
+
+// TestEnumCheckConstraintsRejectOutOfRangeValues proves the DB-level CHECK
+// constraints on role/status/gender/review_state columns reject any value
+// outside the allowed set declared by the model.* constants, and accept
+// every value the constants declare valid, on a freshly migrated database
+// (issue #15 part 2: enum columns must not persist out-of-range values even
+// from a future code path that bypasses the Gin binding validation).
+func TestEnumCheckConstraintsRejectOutOfRangeValues(t *testing.T) {
+	g, err := db.Open(filepath.Join(t.TempDir(), "enum.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := model.AutoMigrate(g); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	dist := model.District{Name: "d", Province: "p"}
+	if err := g.Create(&dist).Error; err != nil {
+		t.Fatalf("create district: %v", err)
+	}
+	doc := model.Doctor{
+		Code: "D1", Photo: "-", FullName: "x", DistrictID: dist.ID,
+		Specialty: "herbal", Status: model.DoctorStatusActive, FirstYear: 2568,
+	}
+	if err := g.Create(&doc).Error; err != nil {
+		t.Fatalf("create doctor: %v", err)
+	}
+	rec := model.Recipe{
+		Code: "R1", Name: "n", DoctorID: doc.ID,
+		Indication: "i", Preparation: "p", Usage: "u", DataYear: 2568,
+	}
+	if err := g.Create(&rec).Error; err != nil {
+		t.Fatalf("create recipe: %v", err)
+	}
+
+	cases := []struct {
+		name    string
+		sql     string
+		wantErr bool
+	}{
+		{"user role invalid", `INSERT INTO users(full_name,email,password_hash,role,active) VALUES('x','a@x','h','bogus',1)`, true},
+		{"user role valid", `INSERT INTO users(full_name,email,password_hash,role,active) VALUES('x','b@x','h','central_admin',1)`, false},
+		{"doctor status invalid", fmt.Sprintf(`INSERT INTO doctors(code,photo,full_name,district_id,specialty,status,first_year) VALUES('D2','-','x',%d,'herbal','bogus',2568)`, dist.ID), true},
+		{"doctor status valid", fmt.Sprintf(`INSERT INTO doctors(code,photo,full_name,district_id,specialty,status,first_year) VALUES('D3','-','x',%d,'herbal','inactive',2568)`, dist.ID), false},
+		{"doctor gender invalid", fmt.Sprintf(`INSERT INTO doctors(code,photo,full_name,district_id,specialty,status,gender,first_year) VALUES('D4','-','x',%d,'herbal','active','bogus',2568)`, dist.ID), true},
+		{"doctor gender valid", fmt.Sprintf(`INSERT INTO doctors(code,photo,full_name,district_id,specialty,status,gender,first_year) VALUES('D5','-','x',%d,'herbal','active','male',2568)`, dist.ID), false},
+		{"doctor review_state invalid", fmt.Sprintf(`INSERT INTO doctors(code,photo,full_name,district_id,specialty,status,first_year,review_state) VALUES('D6','-','x',%d,'herbal','active',2568,'bogus')`, dist.ID), true},
+		{"recipe review_state invalid", fmt.Sprintf(`INSERT INTO recipes(code,name,doctor_id,indication,preparation,usage,data_year,review_state) VALUES('R2','n',%d,'i','p','u',2568,'bogus')`, doc.ID), true},
+		{"case patient_gender invalid", fmt.Sprintf(`INSERT INTO cases(recipe_id,patient_gender,condition,result,data_year) VALUES(%d,'bogus','fever','cured',2568)`, rec.ID), true},
+		{"case patient_gender valid", fmt.Sprintf(`INSERT INTO cases(recipe_id,patient_gender,condition,result,data_year) VALUES(%d,'female','fever','cured',2568)`, rec.ID), false},
+		{"case review_state invalid", fmt.Sprintf(`INSERT INTO cases(recipe_id,condition,result,data_year,review_state) VALUES(%d,'fever','cured',2568,'bogus')`, rec.ID), true},
+		{"import_batch status invalid", `INSERT INTO import_batches(imported_by,imported_at,source_file,status) VALUES(1,CURRENT_TIMESTAMP,'f.xlsx','bogus')`, true},
+		{"import_batch status valid", `INSERT INTO import_batches(imported_by,imported_at,source_file,status) VALUES(1,CURRENT_TIMESTAMP,'f.xlsx','committed')`, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := g.Exec(tc.sql).Error
+			if tc.wantErr && err == nil {
+				t.Fatalf("expected CHECK constraint to reject: %s", tc.sql)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("expected valid insert to succeed, got %v: %s", err, tc.sql)
+			}
+		})
 	}
 }
 

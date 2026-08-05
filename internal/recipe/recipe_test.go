@@ -212,6 +212,19 @@ func TestCreateRecipeWithMixedIngredientsPersists(t *testing.T) {
 	}
 }
 
+// TestCreateRecipeMissingCodeReturns400 proves recipeRequest rejects a
+// create body missing the required code field at bind time.
+func TestCreateRecipeMissingCodeReturns400(t *testing.T) {
+	env := newRecipeAPI(t)
+	body := `{"name":"Yaa Hom","doctor_id":` + strconv.FormatUint(uint64(env.doctor1.ID), 10) + `,
+		"indication":"fever","preparation":"boil","usage":"drink","care_stage":"acute","data_year":2565,
+		"ingredients":[{"pending_herb_name":"Root","amount":"1","unit":"g","note":""}]}`
+	res := env.doAsEditor("POST", "/api/recipes", body)
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400, body %s", res.Code, res.Body.String())
+	}
+}
+
 func TestCreateRecipeIngredientXORViolationRejected(t *testing.T) {
 	env := newRecipeAPI(t)
 	body := `{"code":"REC-02","name":"Yaa Hom","doctor_id":` + strconv.FormatUint(uint64(env.doctor1.ID), 10) + `,

@@ -20,7 +20,28 @@ const (
 	ActionUpdate = "update"
 	ActionDelete = "delete"
 	ActionReject = "reject"
+
+	GenderMale   = "male"
+	GenderFemale = "female"
+	GenderOther  = "other"
+
+	DoctorStatusActive   = "active"
+	DoctorStatusInactive = "inactive"
+	DoctorStatusDeceased = "deceased"
+
+	CaseResultCured    = "cured"
+	CaseResultBetter   = "better"
+	CaseResultNoChange = "no_change"
+
+	ImportBatchStatusCommitted = "committed"
+	ImportBatchStatusUndone    = "undone"
 )
+
+// Every review_state column (Doctor, Recipe, Case) carries the identical
+// `check:chk_review_state,review_state IN ('approved','pending','rejected')`
+// gorm tag below. A Go struct tag must be a literal string, so it cannot
+// reference the ReviewApproved/Pending/Rejected constants above directly;
+// keep the three literals in sync with those constants by hand.
 
 // District is อำเภอ, the unit that groups all data.
 type District struct {
@@ -35,7 +56,7 @@ type User struct {
 	FullName     string `gorm:"not null"`
 	Email        string `gorm:"uniqueIndex;not null"`
 	PasswordHash string `gorm:"not null" json:"-"`
-	Role         string `gorm:"not null"`
+	Role         string `gorm:"not null;check:chk_user_role,role IN ('central_admin','district_editor')"`
 	DistrictID   *uint
 	District     District `gorm:"constraint:OnDelete:SET NULL"`
 	Active       *bool    `gorm:"not null;default:true"`
@@ -55,7 +76,7 @@ type Doctor struct {
 	Photo      string `gorm:"not null"`
 	FullName   string `gorm:"not null"`
 	KnownAs    string
-	Gender     string
+	Gender     string `gorm:"check:chk_doctor_gender,gender IN ('','male','female','other')"`
 	BirthYear  int
 	DistrictID uint `gorm:"not null;index"`
 	// District has no OnDelete:CASCADE: District is a fixed list (spec §2) and
@@ -68,11 +89,11 @@ type Doctor struct {
 	Lineage         string
 	ConsentObtained bool `gorm:"not null;default:false"`
 	ConsentDate     *time.Time
-	Status          string `gorm:"not null"`
+	Status          string `gorm:"not null;check:chk_doctor_status,status IN ('active','inactive','deceased')"`
 	FirstYear       int    `gorm:"not null"`
 	UpdatedBy       *uint
 	UpdatedAt       time.Time
-	ReviewState     string `gorm:"not null;default:approved;index"`
+	ReviewState     string `gorm:"not null;default:approved;index;check:chk_review_state,review_state IN ('approved','pending','rejected')"`
 	PendingJSON     *string
 	PendingPhoto    *string
 	PendingDelete   bool `gorm:"not null;default:false"`
@@ -110,7 +131,7 @@ type Recipe struct {
 	DataYear        int           `gorm:"not null"`
 	UpdatedBy       *uint
 	UpdatedAt       time.Time
-	ReviewState     string `gorm:"not null;default:approved;index"`
+	ReviewState     string `gorm:"not null;default:approved;index;check:chk_review_state,review_state IN ('approved','pending','rejected')"`
 	PendingJSON     *string
 	PendingDelete   bool `gorm:"not null;default:false"`
 	RejectionReason *string
@@ -151,7 +172,7 @@ type Case struct {
 	ID              uint   `gorm:"primaryKey"`
 	RecipeID        uint   `gorm:"not null;index"`
 	Recipe          Recipe `gorm:"constraint:OnDelete:CASCADE"`
-	PatientGender   string
+	PatientGender   string `gorm:"check:chk_case_patient_gender,patient_gender IN ('','male','female','other')"`
 	PatientAgeRange string
 	Condition       string `gorm:"not null"`
 	Treatment       string
@@ -161,7 +182,7 @@ type Case struct {
 	DataYear        int `gorm:"not null"`
 	UpdatedBy       *uint
 	UpdatedAt       time.Time
-	ReviewState     string `gorm:"not null;default:approved;index"`
+	ReviewState     string `gorm:"not null;default:approved;index;check:chk_review_state,review_state IN ('approved','pending','rejected')"`
 	PendingJSON     *string
 	PendingPhoto    *string
 	PendingDelete   bool `gorm:"not null;default:false"`
@@ -197,7 +218,7 @@ type ImportBatch struct {
 	ImportedAt time.Time `gorm:"not null"`
 	SourceFile string    `gorm:"not null"`
 	RowCount   int
-	Status     string `gorm:"not null"` // committed | undone
+	Status     string `gorm:"not null;check:chk_import_batch_status,status IN ('committed','undone')"`
 }
 
 // AutoMigrate creates or updates the tables for every model.

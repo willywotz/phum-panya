@@ -16,7 +16,7 @@ import (
 
 // herbRequest is the JSON body for POST/PUT /api/herbs.
 type herbRequest struct {
-	ThaiName       string `json:"thai_name"`
+	ThaiName       string `json:"thai_name" binding:"required"`
 	LocalName      string `json:"local_name"`
 	ScientificName string `json:"scientific_name"`
 	Photo          string `json:"photo"`
@@ -26,8 +26,8 @@ type herbRequest struct {
 
 // reconcileRequest is the JSON body for POST /api/herbs/reconcile.
 type reconcileRequest struct {
-	PendingName string `json:"pending_name"`
-	HerbID      uint   `json:"herb_id"`
+	PendingName string `json:"pending_name" binding:"required"`
+	HerbID      uint   `json:"herb_id" binding:"required"`
 }
 
 // RegisterRoutes wires the herb catalog, pending-herb, and storage-usage

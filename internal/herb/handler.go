@@ -34,7 +34,7 @@ type reconcileRequest struct {
 // endpoints onto r. The caller must wrap r with auth.LoadUser first. A
 // district editor may add herbs and edit ones its own district created;
 // merging/aliasing and every other route require the central_admin role.
-func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore *media.Store) {
+func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore media.Store) {
 	admin := auth.RequireRole("central_admin")
 	authed := auth.RequireAuth()
 	r.GET("/api/herbs", admin, listHandler(repo))
@@ -190,7 +190,7 @@ func reconcileHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func storageHandler(mediaStore *media.Store) gin.HandlerFunc {
+func storageHandler(mediaStore media.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		used, err := mediaStore.UsageBytes()
 		if err != nil {

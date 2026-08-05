@@ -122,7 +122,7 @@ func newRecipeAPI(t *testing.T) *recipeAPI {
 	r := gin.New()
 	r.Use(auth.LoadUser(store, g))
 	repo := recipe.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{}), yearlock.NewRepo(g, clock.Real{}))
-	recipe.RegisterRoutes(r, repo, &media.Store{Dir: t.TempDir()})
+	recipe.RegisterRoutes(r, repo, &media.LocalStore{Dir: t.TempDir()})
 
 	return &recipeAPI{
 		t: t, g: g, r: r, repo: repo,

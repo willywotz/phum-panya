@@ -42,7 +42,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 		DB:         g,
 		Store:      auth.NewSessionStore(g, clock.Real{}, 24*time.Hour),
 		Throttle:   auth.NewThrottle(clock.Real{}, 100, time.Minute),
-		Media:      &media.Store{Dir: filepath.Join(dir, "media")},
+		Media:      &media.LocalStore{Dir: filepath.Join(dir, "media")},
 		Clk:        clock.Real{},
 		Secure:     false,
 		BackupDir:  filepath.Join(dir, "backup"),

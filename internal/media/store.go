@@ -25,17 +25,28 @@ const maxDimension = 1600
 // jpegQuality is the quality used when re-encoding stored images.
 const jpegQuality = 80
 
-// Store saves images under Dir.
-type Store struct {
+// Store saves and measures uploaded images. LocalStore is the filesystem
+// adapter; sub-project B adds an S3 (Garage) adapter behind the same port.
+type Store interface {
+	SaveReader(r io.Reader) (string, error)
+	SaveMultipart(fh *multipart.FileHeader) (string, error)
+	UsageBytes() (int64, error)
+}
+
+// LocalStore stores images under Dir.
+type LocalStore struct {
 	Dir string
 }
+
+// NewLocalStore returns a filesystem-backed Store rooted at dir.
+func NewLocalStore(dir string) *LocalStore { return &LocalStore{Dir: dir} }
 
 // SaveReader decodes an image from r (JPEG, PNG, or WebP), downscales its
 // longest side to maxDimension, and re-encodes it as JPEG. Re-encoding
 // drops EXIF metadata, including GPS. It stores the result under Dir at a
 // path derived from the SHA-256 of the encoded bytes and returns that path
 // relative to Dir.
-func (s *Store) SaveReader(r io.Reader) (string, error) {
+func (s *LocalStore) SaveReader(r io.Reader) (string, error) {
 	// Sniff the type before decoding and accept only JPEG/PNG/WebP. This keeps
 	// the input to the formats the spec declares (NFR-IMG-1) and blocks other
 	// decoders (e.g. the TIFF path in the imaging dependency, which has no
@@ -79,7 +90,7 @@ func (s *Store) SaveReader(r io.Reader) (string, error) {
 // Gin streams large multipart parts to a temp file rather than buffering
 // them in memory, so this does not load the whole upload into memory.
 // There is no size cap.
-func (s *Store) SaveMultipart(fh *multipart.FileHeader) (string, error) {
+func (s *LocalStore) SaveMultipart(fh *multipart.FileHeader) (string, error) {
 	f, err := fh.Open()
 	if err != nil {
 		return "", fmt.Errorf("media: open upload: %w", err)
@@ -91,7 +102,7 @@ func (s *Store) SaveMultipart(fh *multipart.FileHeader) (string, error) {
 
 // UsageBytes returns the total size, in bytes, of all regular files under
 // Dir. It returns 0, nil if Dir does not exist.
-func (s *Store) UsageBytes() (int64, error) {
+func (s *LocalStore) UsageBytes() (int64, error) {
 	var total int64
 	err := filepath.WalkDir(s.Dir, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {

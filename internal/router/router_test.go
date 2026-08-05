@@ -37,7 +37,7 @@ func newDeps(t *testing.T, mediaDir string) router.Deps {
 		DB:         g,
 		Store:      auth.NewSessionStore(g, clk, time.Hour),
 		Throttle:   auth.NewThrottle(clk, 100, time.Minute),
-		Media:      &media.Store{Dir: mediaDir},
+		Media:      &media.LocalStore{Dir: mediaDir},
 		Clk:        clk,
 		BackupDir:  filepath.Join(dir, "backup"),
 		BackupKeep: 7,

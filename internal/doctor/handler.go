@@ -66,7 +66,7 @@ func (req doctorRequest) toModel(id uint) model.Doctor {
 // RegisterRoutes wires the doctor CRUD and photo-upload endpoints onto r.
 // The caller must wrap r with auth.LoadUser first. Writes are restricted to
 // the doctor's own district via auth.CanWriteDistrict.
-func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore *media.Store) {
+func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore media.Store) {
 	requireAuth := auth.RequireAuth()
 	r.GET("/api/doctors", requireAuth, listHandler(repo))
 	r.POST("/api/doctors", requireAuth, createHandler(repo))
@@ -195,7 +195,7 @@ func unpublishHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func photoHandler(repo *Repo, mediaStore *media.Store) gin.HandlerFunc {
+func photoHandler(repo *Repo, mediaStore media.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {

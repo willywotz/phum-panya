@@ -40,7 +40,7 @@ type Deps struct {
 	Store *auth.SessionStore
 
 	Throttle *auth.Throttle
-	Media    *media.Store
+	Media    media.Store
 	Clk      clock.Clock
 	// Secure controls whether the session cookie is marked Secure.
 	Secure bool

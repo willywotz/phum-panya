@@ -134,7 +134,7 @@ func newCaseAPI(t *testing.T) *caseAPI {
 	r := gin.New()
 	r.Use(auth.LoadUser(store, g))
 	repo := caserec.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{}), yearlock.NewRepo(g, clock.Real{}))
-	caserec.RegisterRoutes(r, repo, &media.Store{Dir: t.TempDir()})
+	caserec.RegisterRoutes(r, repo, &media.LocalStore{Dir: t.TempDir()})
 
 	return &caseAPI{
 		t: t, g: g, r: r, repo: repo,

@@ -136,7 +136,7 @@ func runServer() {
 		DB:         g,
 		Store:      auth.NewSessionStore(g, clk, sessionTTL),
 		Throttle:   auth.NewThrottle(clk, loginThrottleMax, loginThrottleWindow),
-		Media:      &media.Store{Dir: cfg.MediaDir},
+		Media:      media.NewLocalStore(cfg.MediaDir),
 		Clk:        clk,
 		Secure:     cfg.CookieSecure(),
 		BackupDir:  cfg.BackupDir,

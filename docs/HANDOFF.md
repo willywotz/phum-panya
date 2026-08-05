@@ -1,8 +1,9 @@
 # phum-panya — Handoff
 
 Date: 2026-08-05 · Branch: **`main`** · Last release tag: **`v1.0.0`** (P1).
-The four paid phases **P2–P5 are merged to `main`** (PRs #4–#7, all CI-green) but **not yet
-tagged as a new release**. `main` is one trunk — every feature branch is merged and deleted.
+The four paid phases **P2–P5 are merged to `main`** (PRs #4–#7, all CI-green) **and their
+frontend admin screens are merged too** (PR #8, `8cf3caa`), but the lot is **not yet tagged as a
+new release**. `main` is one trunk — every feature branch is merged and deleted.
 
 ## 1. What this is
 
@@ -56,7 +57,7 @@ Paid phases delivered:
 - **163 Go tests** (25 packages) + **14 Playwright e2e specs** (incl. the SRS §6.1 UAT, updated
   so the editor→pending→admin-approve flow is exercised). `go build`/`go vet` clean; cgo-free.
 - **Two HIGH bugs were caught by the whole-branch reviews and fixed before merge** (see §7).
-- **P2–P5 now have frontend admin screens** (branch `feat/p2-p5-frontend`, unmerged): approval
+- **P2–P5 now have frontend admin screens** (merged to `main` via PR #8, `8cf3caa`): approval
   queue, year locks, bulk import, herb merge/near-duplicate, plus role-gated nav. See §8.
 
 ## 3. Stack (as built)
@@ -175,7 +176,7 @@ tables; `Herb` provenance/alias columns; `batch_id` tags). No manual migration s
 
 ## 8. Known gaps / not done
 
-**P2–P5 frontend admin screens are now built** (branch `feat/p2-p5-frontend`, unmerged, CI-green).
+**P2–P5 frontend admin screens are now built and merged** (PR #8, `8cf3caa`, CI-green).
 - Staff UI now exists for: the **approval queue** (`/staff/review` — approve/reject/approve-all,
   with a per-item current-vs-proposed diff via the new `GET /api/review/entry/:entityType/:entityId`
   detail endpoint), **year locks** (`/staff/year-locks`), **bulk import** (`/staff/imports` —
@@ -209,16 +210,17 @@ Smaller, parked follow-ups (non-blocking):
 
 ## 9. Git state & next steps
 
-- One trunk: **`main`** at `00e2694` (144 commits), `== origin/main`. No open feature branches.
-- PRs **#4 (P2), #5 (P3), #6 (P4), #7 (P5)** merged. `v1.0.0` is the last tag; P2–P5 are on
-  `main` but **unreleased** (no new tag cut).
+- One trunk: **`main`** at `fecca72`, `== origin/main`. No open feature branches.
+- PRs **#4 (P2), #5 (P3), #6 (P4), #7 (P5)** and **#8 (P2–P5 frontend)** merged. `v1.0.0` is the
+  last tag; P2–P5 (backend **and** frontend) are on `main` but **unreleased** (no new tag cut).
 - `ci.yml` gates every push/PR; `release.yml` builds + publishes on `v*` tags.
 
 **Immediate next steps:**
-1. **Decide whether P2–P5 are accepted** — the scope doc marked them "not funded." The
-   **frontend admin screens are now built** (branch `feat/p2-p5-frontend`, §8); once that branch is
-   reviewed and merged, cut a release tag (e.g. `v1.1.0`) after a UAT pass on the new screens.
-2. **Deploy** to the client VPS (still manual) and run the updated SRS §6.1 UAT — now including
-   the editor→pending→admin-approve→public flow.
-3. Optional hardening: gate `SetPhoto` through the P2/P3 rules; add self/chained-merge guards to
+1. **UAT pass** on the four new staff screens (`/staff/review`, `/staff/year-locks`,
+   `/staff/imports`, `/staff/herbs`) — never yet human-driven, only by Playwright. Run the updated
+   SRS §6.1 UAT including the editor→pending→admin-approve→public flow.
+2. **Cut a release tag** (e.g. `v1.1.0`) once UAT passes — `release.yml` builds + publishes on the
+   `v*` tag.
+3. **Deploy** to the client VPS (still manual).
+4. Optional hardening: gate `SetPhoto` through the P2/P3 rules; add self/chained-merge guards to
    herb `Merge`; the P1 carry-over polish in §8.

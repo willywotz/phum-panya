@@ -205,7 +205,7 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   hijack). The P1 pending-herb path stays as a fallback. Changes the ownership rule in FR-HERB-1. 156
   Go tests green.
 
-- **P2–P5 frontend admin screens (done, branch `feat/p2-p5-frontend`)**: the P2–P5 backend flows had
+- **P2–P5 frontend admin screens (merged to `main`, PR #8 `8cf3caa`)**: the P2–P5 backend flows had
   no UI. Four central-admin screens are added to the Next.js staff app, plus role-gated navigation.
   The staff nav now shows the admin links (`review`, `year-locks`, `imports`) only to a
   `central_admin`; a new `RequireAdmin` guard bounces a district editor off an admin URL. Screens:

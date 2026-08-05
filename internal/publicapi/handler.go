@@ -24,9 +24,21 @@ type doctorDetail struct {
 	Recipes []recipeWithCases `json:"recipes"`
 }
 
+// repository is the read-only data access the public API needs.
+type repository interface {
+	ListDoctors(f DoctorFilter) ([]Doctor, error)
+	GetDoctor(id uint) (Doctor, error)
+	ListRecipes(f RecipeFilter) ([]Recipe, error)
+	ListRecipesByDoctor(doctorID uint) ([]Recipe, error)
+	ListPhotosByRecipe(recipeID uint) ([]string, error)
+	ListIngredientsByRecipe(recipeID uint) ([]PublicIngredient, error)
+	ListCasesByRecipe(recipeID uint) ([]Case, error)
+	ListHerbs() ([]Herb, error)
+	ListDistricts() ([]District, error)
+}
+
 // RegisterRoutes wires the public, read-only, no-auth routes onto r.
-func RegisterRoutes(r gin.IRouter, g *gorm.DB) {
-	repo := NewRepo(g)
+func RegisterRoutes(r gin.IRouter, repo repository) {
 	r.GET("/api/public/doctors", listDoctorsHandler(repo))
 	r.GET("/api/public/doctors/:id", doctorDetailHandler(repo))
 	r.GET("/api/public/recipes", listRecipesHandler(repo))
@@ -34,7 +46,7 @@ func RegisterRoutes(r gin.IRouter, g *gorm.DB) {
 	r.GET("/api/public/districts", listDistrictsHandler(repo))
 }
 
-func listDoctorsHandler(repo *Repo) gin.HandlerFunc {
+func listDoctorsHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		districtID, ok := parseOptionalID(c, "district_id")
 		if !ok {
@@ -49,7 +61,7 @@ func listDoctorsHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func doctorDetailHandler(repo *Repo) gin.HandlerFunc {
+func doctorDetailHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -78,7 +90,7 @@ func doctorDetailHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func listRecipesHandler(repo *Repo) gin.HandlerFunc {
+func listRecipesHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		districtID, ok := parseOptionalID(c, "district_id")
 		if !ok {
@@ -97,7 +109,7 @@ func listRecipesHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func listHerbsHandler(repo *Repo) gin.HandlerFunc {
+func listHerbsHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		herbs, err := repo.ListHerbs()
 		if err != nil {
@@ -108,7 +120,7 @@ func listHerbsHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func listDistrictsHandler(repo *Repo) gin.HandlerFunc {
+func listDistrictsHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		districts, err := repo.ListDistricts()
 		if err != nil {

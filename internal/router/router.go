@@ -86,8 +86,8 @@ func NewEngine(deps Deps) *gin.Engine {
 	recipe.RegisterRoutes(api, recRepo, deps.Media)
 	caserec.RegisterRoutes(api, casRepo, deps.Media)
 	review.RegisterRoutes(api, review.NewRepo(deps.DB, rev))
-	publicapi.RegisterRoutes(api, deps.DB)
-	export.RegisterRoutes(api, deps.DB)
+	publicapi.RegisterRoutes(api, publicapi.NewRepo(deps.DB))
+	export.RegisterRoutes(api, export.NewSource(deps.DB))
 	if deps.Cfg.BackupEnabled() {
 		backup.RegisterRoutes(api, deps.DBPath, deps.MediaDir, deps.BackupDir, deps.BackupKeep, deps.Clk)
 	}

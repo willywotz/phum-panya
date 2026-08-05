@@ -35,7 +35,7 @@ func newPublicAPI(t *testing.T) *publicAPI {
 	}
 
 	r := gin.New()
-	publicapi.RegisterRoutes(r, g)
+	publicapi.RegisterRoutes(r, publicapi.NewRepo(g))
 
 	return &publicAPI{t: t, g: g, r: r}
 }

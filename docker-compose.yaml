@@ -79,9 +79,44 @@ services:
       - ./deploy/backup/backup.sh:/backup.sh:ro
       - pg-backups:/backups
 
+  garage:
+    image: dxflrs/garage:v1.0.1
+    restart: unless-stopped
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?set GARAGE_RPC_SECRET}
+    volumes:
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+      - ./deploy/garage/garage.toml:/etc/garage.toml:ro
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  garage-init:
+    build:
+      context: .
+      dockerfile: deploy/garage/Dockerfile.init
+    depends_on:
+      garage:
+        condition: service_healthy
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?set GARAGE_RPC_SECRET}
+      APP_S3_BUCKET: ${APP_S3_BUCKET:-media}
+      APP_S3_ACCESS_KEY: ${APP_S3_ACCESS_KEY:?set APP_S3_ACCESS_KEY}
+      APP_S3_SECRET_KEY: ${APP_S3_SECRET_KEY:?set APP_S3_SECRET_KEY}
+    network_mode: "service:garage"
+    volumes:
+      - garage-meta:/var/lib/garage/meta:ro
+      - ./deploy/garage/garage.toml:/etc/garage.toml:ro
+    restart: on-failure
+
 volumes:
   pg-data:
   pg-backups:
   media:
   caddy-data:
   caddy-config:
+  garage-meta:
+  garage-data:

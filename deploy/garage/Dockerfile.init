@@ -1,0 +1,4 @@
+FROM alpine:3.20
+COPY --from=dxflrs/garage:v1.0.1 /garage /usr/local/bin/garage
+COPY deploy/garage/init.sh /init.sh
+ENTRYPOINT ["/bin/sh", "/init.sh"]

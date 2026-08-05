@@ -122,6 +122,9 @@ const th: Dictionary = {
   theme: 'ธีม',
   lightMode: 'โหมดสว่าง',
   darkMode: 'โหมดมืด',
+  review: 'คิวอนุมัติ',
+  yearLocks: 'ล็อกปีข้อมูล',
+  imports: 'นำเข้าข้อมูล',
 };
 
 const en: Dictionary = {
@@ -237,6 +240,9 @@ const en: Dictionary = {
   theme: 'Theme',
   lightMode: 'Light mode',
   darkMode: 'Dark mode',
+  review: 'Approval queue',
+  yearLocks: 'Year locks',
+  imports: 'Bulk import',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { th, en };

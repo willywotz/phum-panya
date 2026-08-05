@@ -16,6 +16,8 @@ web/playwright-report
 
 # Go embed placeholder is replaced by the fresh web build in the image
 internal/webui/dist
+# Dockerfile.api has no Node stage; keep the committed export for its embed.
+!internal/webui/dist
 
 # Docs, plans, and orchestration scratch — not needed to build the binary
 .superpowers

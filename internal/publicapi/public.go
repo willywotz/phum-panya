@@ -265,10 +265,11 @@ func (r *Repo) ListCasesByRecipe(recipeID uint) ([]Case, error) {
 	return out, err
 }
 
-// ListHerbs returns the whole herb catalog.
+// ListHerbs returns the whole herb catalog, excluding herbs merged into
+// another herb as an alias.
 func (r *Repo) ListHerbs() ([]Herb, error) {
 	var out []Herb
-	err := r.g.Table("herbs").Select(herbColumns).Find(&out).Error
+	err := r.g.Table("herbs").Select(herbColumns).Where("alias_of_id IS NULL").Find(&out).Error
 	return out, err
 }
 

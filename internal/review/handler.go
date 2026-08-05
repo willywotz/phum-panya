@@ -17,6 +17,7 @@ import (
 func RegisterRoutes(r gin.IRouter, repo *Repo) {
 	admin := auth.RequireRole(model.RoleCentralAdmin)
 	r.GET("/api/review/queue", admin, queueHandler(repo))
+	r.GET("/api/review/entry/:entityType/:entityId", admin, detailHandler(repo))
 	r.POST("/api/review/entry/:entityType/:entityId/approve", admin, approveHandler(repo))
 	r.POST("/api/review/entry/:entityType/:entityId/reject", admin, rejectHandler(repo))
 	r.POST("/api/review/doctor/:doctorId/approve-all", admin, approveTreeHandler(repo))
@@ -30,6 +31,22 @@ func queueHandler(repo *Repo) gin.HandlerFunc {
 			return
 		}
 		httpx.OK(c, http.StatusOK, items)
+	}
+}
+
+func detailHandler(repo *Repo) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.ParseUint(c.Param("entityId"), 10, 64)
+		if err != nil {
+			httpx.Err(c, http.StatusBadRequest, "bad_id", "invalid entity id")
+			return
+		}
+		detail, err := repo.Detail(c.Param("entityType"), uint(id))
+		if err != nil {
+			httpx.Err(c, http.StatusBadRequest, "detail_failed", err.Error())
+			return
+		}
+		httpx.OK(c, http.StatusOK, detail)
 	}
 }
 

@@ -45,3 +45,19 @@ export function RequireStaff({ children }: { children: React.ReactNode }) {
   }
   return <>{children}</>;
 }
+
+export function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { me, loading } = useMe();
+
+  useEffect(() => {
+    if (!loading && me && me.role !== 'central_admin') {
+      router.replace('/staff');
+    }
+  }, [loading, me, router]);
+
+  if (loading || !me || me.role !== 'central_admin') {
+    return null;
+  }
+  return <>{children}</>;
+}

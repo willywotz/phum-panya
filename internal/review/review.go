@@ -407,6 +407,82 @@ func (r *Repo) ApproveDoctorTree(doctorID, actorID uint) (int, error) {
 	return n, nil
 }
 
+// Detail is one pending item expanded for the review screen: its identity, the
+// live (approved) content, and the proposed change.
+type Detail struct {
+	EntityType string `json:"entityType"`
+	EntityID   uint   `json:"entityId"`
+	Action     string `json:"action"`
+	Identity   string `json:"identity"`
+	DoctorID   uint   `json:"doctorId"`
+	Current    any    `json:"current"`
+	Proposed   any    `json:"proposed"`
+}
+
+// actionOf classifies a pending row from its pending_* columns.
+func actionOf(pendingDelete bool, pendingJSON *string) string {
+	switch {
+	case pendingDelete:
+		return model.ActionDelete
+	case pendingJSON != nil:
+		return model.ActionUpdate
+	default:
+		return model.ActionCreate
+	}
+}
+
+// splitContent maps an action to its (current, proposed) pair. row is the live
+// record; pendingJSON is the proposed overlay (already JSON).
+func splitContent(action string, row any, pendingJSON *string) (any, any) {
+	switch action {
+	case model.ActionCreate:
+		return nil, row
+	case model.ActionUpdate:
+		if pendingJSON != nil {
+			return row, json.RawMessage(*pendingJSON)
+		}
+		return row, nil
+	default: // delete
+		return row, nil
+	}
+}
+
+// Detail expands one pending entity for the review screen.
+func (r *Repo) Detail(entityType string, id uint) (Detail, error) {
+	switch entityType {
+	case "doctor":
+		var d model.Doctor
+		if err := r.g.First(&d, id).Error; err != nil {
+			return Detail{}, err
+		}
+		action := actionOf(d.PendingDelete, d.PendingJSON)
+		cur, prop := splitContent(action, d, d.PendingJSON)
+		return Detail{"doctor", id, action, d.FullName, d.ID, cur, prop}, nil
+	case "recipe":
+		var rec model.Recipe
+		if err := r.g.First(&rec, id).Error; err != nil {
+			return Detail{}, err
+		}
+		action := actionOf(rec.PendingDelete, rec.PendingJSON)
+		cur, prop := splitContent(action, rec, rec.PendingJSON)
+		return Detail{"recipe", id, action, rec.Name, rec.DoctorID, cur, prop}, nil
+	case "case":
+		var c model.Case
+		if err := r.g.First(&c, id).Error; err != nil {
+			return Detail{}, err
+		}
+		var rec model.Recipe
+		if err := r.g.First(&rec, c.RecipeID).Error; err != nil {
+			return Detail{}, err
+		}
+		action := actionOf(c.PendingDelete, c.PendingJSON)
+		cur, prop := splitContent(action, c, c.PendingJSON)
+		return Detail{"case", id, action, c.Condition, rec.DoctorID, cur, prop}, nil
+	default:
+		return Detail{}, errUnknownEntity
+	}
+}
+
 func entityTable(entityType string) (string, bool) {
 	switch entityType {
 	case "doctor":

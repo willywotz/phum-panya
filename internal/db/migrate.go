@@ -1,6 +1,8 @@
 package db
 
 import (
+	"fmt"
+
 	"gorm.io/gorm"
 
 	"phum-panya/internal/model"
@@ -8,11 +10,21 @@ import (
 
 // AutoMigrate creates or updates the tables for every model.
 func AutoMigrate(g *gorm.DB) error {
-	return g.AutoMigrate(
+	if err := g.AutoMigrate(
 		&model.District{}, &model.User{}, &model.Session{}, &model.Doctor{},
 		&model.Herb{}, &model.Recipe{}, &model.RecipePhoto{}, &model.Ingredient{}, &model.Case{},
-		&model.Revision{}, &model.YearLock{}, &model.ImportBatch{},
-	)
+		&model.Revision{}, &model.YearLock{}, &model.ImportBatch{}, &model.LoginAttempt{},
+	); err != nil {
+		return err
+	}
+	// login_attempts holds ephemeral rate-limit rows; skip the WAL on Postgres.
+	// Losing them on a crash is harmless (the throttle just resets).
+	if g.Dialector.Name() == "postgres" {
+		if err := g.Exec("ALTER TABLE login_attempts SET UNLOGGED").Error; err != nil {
+			return fmt.Errorf("set login_attempts unlogged: %w", err)
+		}
+	}
+	return nil
 }
 
 // BackfillRecipePhotos migrates each recipe's legacy single-column photo

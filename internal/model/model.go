@@ -217,3 +217,12 @@ type ImportBatch struct {
 	RowCount   int
 	Status     string `gorm:"not null;check:chk_import_batch_status,status IN ('committed','undone')"`
 }
+
+// LoginAttempt is one recorded failed login. The DB-backed rate limiter
+// (auth.DBLimiter) reads these rows so throttle state is shared across api
+// replicas. On Postgres the table is UNLOGGED (see internal/db.AutoMigrate).
+type LoginAttempt struct {
+	ID        uint      `gorm:"primaryKey"`
+	Key       string    `gorm:"index;not null"`
+	CreatedAt time.Time `gorm:"index;not null"`
+}

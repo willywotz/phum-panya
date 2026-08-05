@@ -176,16 +176,34 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   no materialized snapshot; point-in-time state, if ever needed, reconstructs from the P2 `Revision`
   trail + the nightly backup. 141 Go tests green.
 
+- **P4 — bulk import (in progress, branch `feat/p4-bulk-import`)**: load client data in bulk from one
+  canonical Excel template through the same domain services and rules as manual entry. New
+  `ImportBatch` table + `BatchID` tags on Doctor/Recipe/Case. New `importer` package: a 4-sheet
+  template (Doctors/Recipes/Ingredients/Cases, linked by `code`; Ingredients is a linked sheet keyed
+  by `recipe_code`) → parse → **dry-run validation report** (required fields, duplicate-code skips,
+  doctor/recipe link resolution, district existence, locked-year refusal) → **commit** through the
+  domain services (`immediate` = approved + logged), tagging `BatchID`. Admin-only endpoints:
+  `POST /api/imports?dryRun=true|false` (multipart .xlsx), `POST /api/imports/:batchId/undo`. Imported
+  doctors default to `consent_obtained = false` (hidden until consent recorded). Insert-only: existing
+  `code`s are skipped + reported (idempotent for coded entities). Unknown herbs take the pending-herb
+  path. Design note: the commit is NOT one DB transaction (domain repos are pool-bound and would
+  deadlock the WAL writer inside an outer tx) — atomicity comes from **per-batch undo** (a
+  compensating rollback that deletes the batch's own cases/recipes, then deletes a batch doctor only
+  when it has no remaining children, so the FK cascade can never reap another batch's or manually
+  added rows; a still-referenced batch doctor is left in place). Undo keeps the append-only `Revision`
+  audit entries (they record the import happened). 148 Go tests green.
+
 ## Data model (summary)
 
-Eight records: District, User, Doctor, Herb (shared catalog), Recipe, Case, Revision (P2 audit log),
-YearLock (P3 read-only freeze per `data_year`).
+Nine records: District, User, Doctor, Herb (shared catalog), Recipe, Case, Revision (P2 audit log),
+YearLock (P3 read-only freeze per `data_year`), ImportBatch (P4 bulk-import group + undo).
 
 ```
 District ──< Doctor ──< Recipe ──< Case
                           └──< Ingredient >── Herb
 Revision (append-only): entity_type + entity_id → who/when/action/after_json
 YearLock: data_year (pk) → locked_at/locked_by  (freezes that year's Recipe/Case)
+ImportBatch: id → imported_by/at, source_file, row_count, status; Doctor/Recipe/Case carry BatchID
 ```
 
 - Case links to one Recipe. Patient is anonymous.

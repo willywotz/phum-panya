@@ -13,6 +13,15 @@
 		reverse_proxy api:8080
 	}
 
+	# Jaeger trace UI, gated to central-admin sessions via the api.
+	handle /traces* {
+		forward_auth api:8080 {
+			uri /api/authorization/verify-admin
+			copy_headers Cookie
+		}
+		reverse_proxy jaeger:16686
+	}
+
 	# Everything else → the Next.js standalone service.
 	handle {
 		reverse_proxy web:3000

@@ -82,6 +82,11 @@ func NewEngine(deps Deps) *gin.Engine {
 	api := engine.Group("")
 	api.Use(auth.LoadUser(deps.Store, authUsers))
 	api.GET("/api/health", func(c *gin.Context) { httpx.OK(c, http.StatusOK, gin.H{"status": "ok"}) })
+	// verify-admin is the Caddy forward-auth target that gates /traces (the
+	// Jaeger UI) to central-admin sessions.
+	api.GET("/api/authorization/verify-admin", auth.RequireRole("central_admin"), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
 
 	rev := revision.NewRepo(deps.DB, deps.Clk)
 	// lockRepo is also used by the yearlock routes registered below.

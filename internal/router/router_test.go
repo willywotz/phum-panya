@@ -197,6 +197,17 @@ func TestSameOriginUsesPublicOriginBehindProxy(t *testing.T) {
 	}
 }
 
+// TestVerifyAdminRejectsAnonymous confirms the Caddy forward-auth target for
+// /traces rejects an unauthenticated caller (401), never 204.
+func TestVerifyAdminRejectsAnonymous(t *testing.T) {
+	engine := newEngine(t, t.TempDir())
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/authorization/verify-admin", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous verify-admin = %d, want 401", rec.Code)
+	}
+}
+
 // TestBackupRouteAbsentOnPostgres proves the SQLite-only backup endpoint is not
 // mounted when the app runs on Postgres (the pg_dump sidecar owns backups).
 func TestBackupRouteAbsentOnPostgres(t *testing.T) {

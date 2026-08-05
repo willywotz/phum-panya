@@ -336,6 +336,21 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   init idempotent, real S3 PUT/GET, and `GET /media/<key>` streams through the real api (200 +
   cache header; missing key → 404). 236 Go tests green. Garage key format required:
   `APP_S3_ACCESS_KEY`=`GK`+24 hex, `APP_S3_SECRET_KEY`/`GARAGE_RPC_SECRET`=64 hex.
+- **Shared login throttle — sub-project C done** (branch `feat/shared-throttle`). See
+  `docs/superpowers/specs/2026-08-05-shared-throttle-design.md`,
+  `docs/superpowers/plans/2026-08-05-shared-throttle.md`, and ADR-0005. The in-memory login
+  throttle was the last per-process state blocking multiple api replicas. New **`auth.DBLimiter`**
+  (behind the existing `auth.Limiter` port) keeps failure state in a `login_attempts` table
+  (`model.LoginAttempt`), reproducing the sliding-window rule from shared DB state — selected by
+  **`APP_THROTTLE_STORE`** (`memory` default | `db`), like `APP_MEDIA_DRIVER`. The compose stack
+  (prod + dev) sets `db`; single-binary/dev-simple keep the zero-DB-write in-memory `Throttle`.
+  On Postgres the table is `UNLOGGED` (ephemeral rate-limit data, no WAL). **Scope was grilled
+  down**: the A-spec's "drop SQLite" was rejected — it collides with ADR-0001 (single-binary +
+  one-file backup) and would force ~26 test files onto Postgres; C ships shared state only, SQLite
+  stays. Caddy load-balancing / `--scale` is deferred to sub-project E. **Verified live on
+  Postgres 17**: `login_attempts` is UNLOGGED, failed logins insert rows, a successful login
+  resets them. 243 Go tests green. With `APP_THROTTLE_STORE=db` no per-process state remains
+  (sessions=DB, media=Garage, throttle=DB) → the api is multi-replica-capable (demo is E).
 
 ## Data model (summary)
 

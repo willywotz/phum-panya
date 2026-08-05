@@ -93,6 +93,7 @@ func currentUserHandler(c *gin.Context) {
 	}
 	httpx.OK(c, http.StatusOK, gin.H{
 		"id":          user.ID,
+		"full_name":   user.FullName,
 		"role":        user.Role,
 		"district_id": user.DistrictID,
 	})

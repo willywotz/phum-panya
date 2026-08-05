@@ -124,6 +124,8 @@ services:
     depends_on:
       garage:
         condition: service_healthy
+      garage-init:
+        condition: service_completed_successfully
     entrypoint: ["/bin/sh", "/media-backup.sh"]
     environment:
       APP_S3_ENDPOINT: http://garage:3900

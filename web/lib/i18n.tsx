@@ -142,6 +142,16 @@ const th: Dictionary = {
   confirmUnlock: 'ยืนยันการปลดล็อกปีนี้?',
   confirm: 'ยืนยัน',
   lockFailed: 'ล็อกปีไม่สำเร็จ',
+  excelFile: 'ไฟล์ Excel',
+  dryRun: 'ตรวจสอบ',
+  commitImport: 'ยืนยันนำเข้า',
+  doctorsNew: 'หมอใหม่',
+  recipesNew: 'ตำรับใหม่',
+  casesNew: 'เคสใหม่',
+  skipped: 'ข้ามรายการ',
+  undoBatch: 'ยกเลิกชุดนำเข้า',
+  confirmUndo: 'ยืนยันการยกเลิกชุดนำเข้านี้?',
+  batchUndone: 'ยกเลิกแล้ว',
 };
 
 const en: Dictionary = {
@@ -277,6 +287,16 @@ const en: Dictionary = {
   confirmUnlock: 'Unlock this year?',
   confirm: 'Confirm',
   lockFailed: 'Could not lock the year',
+  excelFile: 'Excel file',
+  dryRun: 'Validate',
+  commitImport: 'Commit import',
+  doctorsNew: 'New doctors',
+  recipesNew: 'New recipes',
+  casesNew: 'New cases',
+  skipped: 'Skipped',
+  undoBatch: 'Undo batch',
+  confirmUndo: 'Undo this import batch?',
+  batchUndone: 'Batch undone',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { th, en };

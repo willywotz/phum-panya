@@ -205,6 +205,25 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   hijack). The P1 pending-herb path stays as a fallback. Changes the ownership rule in FR-HERB-1. 156
   Go tests green.
 
+- **P2–P5 frontend admin screens (done, branch `feat/p2-p5-frontend`)**: the P2–P5 backend flows had
+  no UI. Four central-admin screens are added to the Next.js staff app, plus role-gated navigation.
+  The staff nav now shows the admin links (`review`, `year-locks`, `imports`) only to a
+  `central_admin`; a new `RequireAdmin` guard bounces a district editor off an admin URL. Screens:
+  **`/staff/review`** (approval queue) lists the pending queue and, for each item, fetches a new
+  `GET /api/review/entry/:entityType/:entityId` detail (identity + owning `doctorId` + current vs
+  proposed change) so the admin sees what to approve; it approves, rejects with a per-row required
+  reason, or approves a whole doctor tree. **`/staff/year-locks`** locks and unlocks a `data_year`
+  and shows the "pending queue not empty" refusal inline. **`/staff/imports`** uploads an `.xlsx`,
+  runs a dry-run report (counts, skipped, errors), commits through the domain services, and undoes a
+  batch behind a confirm. The herb page (**`/staff/herbs`**) gains a dedicated add-form with a
+  debounced near-duplicate warning and an admin-only merge panel; the earlier reconcile flow stays.
+  New backend: the review detail endpoint (`review` package, central-admin, 163 Go tests green). New
+  frontend helper `api.upload` for multipart. Tests: one Playwright spec per screen; the whole e2e
+  suite (19 specs) is green. The suite now runs serially (`workers: 1`) because the single shared
+  SQLite dev DB makes parallel write-heavy specs flaky. Still frontend-only follow-ups (parked):
+  no per-worker e2e DB isolation; the queue diff renders a recipe `{recipe,ingredients}` payload as
+  one cell.
+
 ## Data model (summary)
 
 Nine records: District, User, Doctor, Herb (shared catalog; P5 adds provenance + alias), Recipe, Case,

@@ -53,9 +53,11 @@ Paid phases delivered:
   admin merges/aliases across districts (re-points `Ingredient.HerbID`). `Herb` gains
   `CreatedByDistrictID` + `AliasOfID`; a save-time near-duplicate lookup nudges against dupes.
 
-- **156 Go tests** (25 packages) + **9 Playwright e2e specs** (incl. the SRS §6.1 UAT, updated
+- **163 Go tests** (25 packages) + **14 Playwright e2e specs** (incl. the SRS §6.1 UAT, updated
   so the editor→pending→admin-approve flow is exercised). `go build`/`go vet` clean; cgo-free.
 - **Two HIGH bugs were caught by the whole-branch reviews and fixed before merge** (see §7).
+- **P2–P5 now have frontend admin screens** (branch `feat/p2-p5-frontend`, unmerged): approval
+  queue, year locks, bulk import, herb merge/near-duplicate, plus role-gated nav. See §8.
 
 ## 3. Stack (as built)
 
@@ -173,11 +175,18 @@ tables; `Herb` provenance/alias columns; `batch_id` tags). No manual migration s
 
 ## 8. Known gaps / not done
 
-**Biggest gap: P2–P5 are backend-only — there is no frontend for the new admin flows.**
-- No staff UI for: the **approval queue** (approve/reject/bulk), **year locks**, **bulk import**
-  (upload + dry-run report + undo), or **herb merge/alias + near-duplicate warning**. The APIs
-  exist and are tested; the Next.js `web/` app has no screens for them yet. The UAT e2e drives
-  approval via the API as an interim.
+**P2–P5 frontend admin screens are now built** (branch `feat/p2-p5-frontend`, unmerged, CI-green).
+- Staff UI now exists for: the **approval queue** (`/staff/review` — approve/reject/approve-all,
+  with a per-item current-vs-proposed diff via the new `GET /api/review/entry/:entityType/:entityId`
+  detail endpoint), **year locks** (`/staff/year-locks`), **bulk import** (`/staff/imports` —
+  upload + dry-run report + commit + undo), and **herb merge/near-duplicate** (on `/staff/herbs`).
+  Nav is role-gated (admin links hidden from editors; `RequireAdmin` guards the pages), which also
+  closes the P1 carry-over "no role-based nav hiding" gap. One Playwright spec per screen; the
+  full 19-case e2e suite is green (now run serially — `workers: 1` — because the single shared
+  SQLite dev DB makes parallel write-heavy specs flaky). The UAT e2e still drives approval via the
+  API as before.
+- Parked frontend follow-ups: no per-worker e2e DB isolation (the reason the suite runs serially);
+  the queue diff renders a recipe `{recipe,ingredients}` pending payload as one unformatted cell.
 
 Smaller, parked follow-ups (non-blocking):
 - **P2:** `SetPhoto` bypasses the approval/lock gates — a photo swap on an approved (or locked)
@@ -189,8 +198,9 @@ Smaller, parked follow-ups (non-blocking):
   NULL` filter) — recipes resolve to the canonical herb, so this is cosmetic; `Merge` has no
   self/chained-merge guard (admin-only tool).
 - Carried over from P1: no `binding:"required"` tags; no enum DB CHECKs; `/api/current-user`
-  omits `full_name`; no role-based nav hiding; no ESLint config; `Recipe.Photo` single-string;
+  omits `full_name`; no ESLint config; `Recipe.Photo` single-string;
   **no CD to the VPS** (releases build + publish, deploy is manual).
+  (Role-based nav hiding is now done — see the P2–P5 frontend note above.)
 
 ### Out of scope (per the 2026-08-04 scoping decision)
 - **SQLite → PostgreSQL migration** — explicitly out of scope; the app stays on SQLite. Re-scope
@@ -205,9 +215,9 @@ Smaller, parked follow-ups (non-blocking):
 - `ci.yml` gates every push/PR; `release.yml` builds + publishes on `v*` tags.
 
 **Immediate next steps:**
-1. **Decide whether P2–P5 are accepted** — the scope doc marked them "not funded." If accepted,
-   build the **frontend admin screens** (§8) so the phases are actually usable, then cut a
-   release tag (e.g. `v1.1.0`) once the UI + a UAT pass land.
+1. **Decide whether P2–P5 are accepted** — the scope doc marked them "not funded." The
+   **frontend admin screens are now built** (branch `feat/p2-p5-frontend`, §8); once that branch is
+   reviewed and merged, cut a release tag (e.g. `v1.1.0`) after a UAT pass on the new screens.
 2. **Deploy** to the client VPS (still manual) and run the updated SRS §6.1 UAT — now including
    the editor→pending→admin-approve→public flow.
 3. Optional hardening: gate `SetPhoto` through the P2/P3 rules; add self/chained-merge guards to

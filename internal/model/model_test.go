@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"gorm.io/gorm"
+
 	"phum-panya/internal/db"
 	"phum-panya/internal/model"
 )
@@ -14,7 +16,7 @@ func TestAutoMigrateCreatesTables(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, m := range []any{&model.District{}, &model.User{}, &model.Session{}, &model.Doctor{},
-		&model.Herb{}, &model.Recipe{}, &model.Ingredient{}, &model.Case{}} {
+		&model.Herb{}, &model.Recipe{}, &model.RecipePhoto{}, &model.Ingredient{}, &model.Case{}} {
 		if !g.Migrator().HasTable(m) {
 			t.Fatalf("missing table for %T", m)
 		}
@@ -198,5 +200,67 @@ func TestHerbProvenanceAndAliasColumns(t *testing.T) {
 	}
 	if got.AliasOfID == nil || *got.AliasOfID != canonical.ID {
 		t.Fatalf("AliasOfID = %v, want %d", got.AliasOfID, canonical.ID)
+	}
+}
+
+// seedRecipeWithLegacyPhoto migrates g, then simulates a database created
+// before issue #18: it adds back the recipes.photo column AutoMigrate no
+// longer creates and writes value into it directly, bypassing the
+// model.Recipe struct (which no longer has a Photo field).
+func seedRecipeWithLegacyPhoto(t *testing.T, g *gorm.DB, value string) uint {
+	t.Helper()
+	if err := g.Exec(`ALTER TABLE recipes ADD COLUMN photo TEXT`).Error; err != nil {
+		t.Fatalf("add legacy photo column: %v", err)
+	}
+	dist := model.District{Name: "d", Province: "p"}
+	if err := g.Create(&dist).Error; err != nil {
+		t.Fatalf("create district: %v", err)
+	}
+	doc := model.Doctor{Code: "D1", Photo: "-", FullName: "x", DistrictID: dist.ID, Specialty: "y", Status: "active", FirstYear: 2568}
+	if err := g.Create(&doc).Error; err != nil {
+		t.Fatalf("create doctor: %v", err)
+	}
+	rec := model.Recipe{Code: "R1", Name: "n", DoctorID: doc.ID, Indication: "i", Preparation: "p", Usage: "u", DataYear: 2568}
+	if err := g.Create(&rec).Error; err != nil {
+		t.Fatalf("create recipe: %v", err)
+	}
+	if err := g.Exec(`UPDATE recipes SET photo = ? WHERE id = ?`, value, rec.ID).Error; err != nil {
+		t.Fatalf("set legacy photo: %v", err)
+	}
+	return rec.ID
+}
+
+// TestBackfillRecipePhotosMigratesLegacyValueIdempotently proves the
+// one-time backfill turns an existing single-column photo value into
+// exactly one recipe_photos row, and that running it again never
+// duplicates that row.
+func TestBackfillRecipePhotosMigratesLegacyValueIdempotently(t *testing.T) {
+	g, err := db.Open(filepath.Join(t.TempDir(), "bf.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := model.AutoMigrate(g); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	recipeID := seedRecipeWithLegacyPhoto(t, g, "uploads/legacy.jpg")
+
+	if err := model.BackfillRecipePhotos(g); err != nil {
+		t.Fatalf("first backfill: %v", err)
+	}
+	var photos []model.RecipePhoto
+	if err := g.Where("recipe_id = ?", recipeID).Find(&photos).Error; err != nil {
+		t.Fatalf("read photos: %v", err)
+	}
+	if len(photos) != 1 || photos[0].Path != "uploads/legacy.jpg" {
+		t.Fatalf("photos = %+v, want one row with path uploads/legacy.jpg", photos)
+	}
+
+	if err := model.BackfillRecipePhotos(g); err != nil {
+		t.Fatalf("second backfill: %v", err)
+	}
+	var n int64
+	g.Model(&model.RecipePhoto{}).Where("recipe_id = ?", recipeID).Count(&n)
+	if n != 1 {
+		t.Fatalf("recipe_photos count after re-run = %d, want 1 (idempotent)", n)
 	}
 }

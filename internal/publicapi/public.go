@@ -51,7 +51,7 @@ type Recipe struct {
 	Usage        string             `json:"usage"`
 	Caution      string             `json:"caution"`
 	CareStage    string             `json:"care_stage"`
-	Photo        string             `json:"photo"`
+	Photos       []string           `json:"photos" gorm:"-"`
 	DataYear     int                `json:"data_year"`
 	DoctorName   string             `json:"doctor_name"`
 	DistrictName string             `json:"district_name"`
@@ -76,7 +76,7 @@ var ingredientColumns = []string{
 var recipeColumns = []string{
 	"recipes.id", "recipes.code", "recipes.name", "recipes.doctor_id",
 	"recipes.indication", "recipes.preparation", "recipes.usage",
-	"recipes.caution", "recipes.care_stage", "recipes.photo", "recipes.data_year",
+	"recipes.caution", "recipes.care_stage", "recipes.data_year",
 	"doctors.full_name AS doctor_name", "districts.name AS district_name",
 }
 
@@ -202,7 +202,7 @@ func (r *Repo) ListRecipes(f RecipeFilter) ([]Recipe, error) {
 	if err := q.Find(&out).Error; err != nil {
 		return nil, err
 	}
-	return out, r.attachIngredients(out)
+	return out, r.attachRecipeExtras(out)
 }
 
 // ListRecipesByDoctor returns every recipe belonging to doctorID, with
@@ -213,20 +213,37 @@ func (r *Repo) ListRecipesByDoctor(doctorID uint) ([]Recipe, error) {
 	if err := r.recipeQuery().Where("recipes.doctor_id = ?", doctorID).Find(&out).Error; err != nil {
 		return nil, err
 	}
-	return out, r.attachIngredients(out)
+	return out, r.attachRecipeExtras(out)
 }
 
-// attachIngredients populates the Ingredients field of every recipe in
-// recipes in place, one query per recipe (fine at this scale).
-func (r *Repo) attachIngredients(recipes []Recipe) error {
+// attachRecipeExtras populates the Ingredients and Photos fields of every
+// recipe in recipes in place, one query per recipe per field (fine at this
+// scale).
+func (r *Repo) attachRecipeExtras(recipes []Recipe) error {
 	for i := range recipes {
 		ings, err := r.ListIngredientsByRecipe(recipes[i].ID)
 		if err != nil {
 			return err
 		}
 		recipes[i].Ingredients = ings
+		photos, err := r.ListPhotosByRecipe(recipes[i].ID)
+		if err != nil {
+			return err
+		}
+		recipes[i].Photos = photos
 	}
 	return nil
+}
+
+// ListPhotosByRecipe returns the stored photo paths of recipeID, in display
+// order (data model §4.5: a recipe may have many images).
+func (r *Repo) ListPhotosByRecipe(recipeID uint) ([]string, error) {
+	out := []string{}
+	err := r.g.Table("recipe_photos").
+		Where("recipe_id = ?", recipeID).
+		Order("sort_order").
+		Pluck("path", &out).Error
+	return out, err
 }
 
 // ListIngredientsByRecipe returns the public ingredients of recipeID: each

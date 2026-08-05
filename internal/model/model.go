@@ -106,8 +106,8 @@ type Recipe struct {
 	Usage           string `gorm:"not null"`
 	Caution         string
 	CareStage       string
-	Photo           string
-	DataYear        int `gorm:"not null"`
+	Photos          []RecipePhoto `json:"photos" gorm:"foreignKey:RecipeID;constraint:OnDelete:CASCADE"`
+	DataYear        int           `gorm:"not null"`
 	UpdatedBy       *uint
 	UpdatedAt       time.Time
 	ReviewState     string `gorm:"not null;default:approved;index"`
@@ -115,6 +115,21 @@ type Recipe struct {
 	PendingDelete   bool `gorm:"not null;default:false"`
 	RejectionReason *string
 	BatchID         *uint `gorm:"index"`
+}
+
+// RecipePhoto is one image attached to a Recipe. A recipe may hold many
+// (data model §4.5); this replaces the single Recipe.Photo string column
+// (issue #18). Display order is SortOrder, lowest first. The ON DELETE
+// CASCADE constraint lives on Recipe.Photos (the has-many side): GORM
+// builds the recipe_photos foreign key from whichever side declares it, so
+// this belongs-to field carries none, keeping one source of truth.
+type RecipePhoto struct {
+	ID        uint `gorm:"primaryKey"`
+	RecipeID  uint `gorm:"not null;index"`
+	Recipe    Recipe
+	Path      string `gorm:"not null"`
+	SortOrder int    `gorm:"not null;default:0"`
+	CreatedAt time.Time
 }
 
 // Ingredient is one row inside a Recipe. Exactly one of HerbID or
@@ -189,7 +204,39 @@ type ImportBatch struct {
 func AutoMigrate(g *gorm.DB) error {
 	return g.AutoMigrate(
 		&District{}, &User{}, &Session{}, &Doctor{},
-		&Herb{}, &Recipe{}, &Ingredient{}, &Case{},
+		&Herb{}, &Recipe{}, &RecipePhoto{}, &Ingredient{}, &Case{},
 		&Revision{}, &YearLock{}, &ImportBatch{},
 	)
+}
+
+// BackfillRecipePhotos migrates each recipe's legacy single-column photo
+// into one RecipePhoto row (issue #18: a recipe may hold many photos).
+// AutoMigrate never drops columns, so a database created before this change
+// still carries the old recipes.photo column; this reads it with a raw
+// query before it is abandoned. It is idempotent: a recipe that already has
+// any recipe_photos rows is skipped, so calling this on every boot never
+// duplicates a photo.
+func BackfillRecipePhotos(g *gorm.DB) error {
+	if !g.Migrator().HasColumn("recipes", "photo") {
+		return nil // fresh database: the legacy column never existed
+	}
+
+	var legacy []struct {
+		ID    uint
+		Photo string
+	}
+	err := g.Table("recipes").Select("id, photo").
+		Where("photo IS NOT NULL AND photo <> ''").
+		Where("id NOT IN (?)", g.Table("recipe_photos").Select("DISTINCT recipe_id")).
+		Find(&legacy).Error
+	if err != nil {
+		return err
+	}
+
+	for _, rec := range legacy {
+		if err := g.Create(&RecipePhoto{RecipeID: rec.ID, Path: rec.Photo}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

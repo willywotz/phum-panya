@@ -11,6 +11,7 @@ import (
 
 	"phum-panya/internal/auth"
 	"phum-panya/internal/httpx"
+	"phum-panya/internal/media"
 	"phum-panya/internal/model"
 	"phum-panya/internal/yearlock"
 )
@@ -110,21 +111,24 @@ func (req recipeRequest) invalidIngredient() int {
 	return -1
 }
 
-// recipeResponse composes a recipe with its ingredients.
+// recipeResponse composes a recipe (whose Photos field this package fills
+// in directly) with its ingredients.
 type recipeResponse struct {
 	model.Recipe
 	Ingredients []model.Ingredient `json:"ingredients"`
 }
 
-// RegisterRoutes wires the recipe CRUD and doctor-resolution endpoints onto
-// r. The caller must wrap r with auth.LoadUser first. Writes are restricted
-// to the recipe's doctor's own district via auth.CanWriteDistrict.
-func RegisterRoutes(r gin.IRouter, repo *Repo) {
+// RegisterRoutes wires the recipe CRUD, photo-upload, and doctor-resolution
+// endpoints onto r. The caller must wrap r with auth.LoadUser first. Writes
+// are restricted to the recipe's doctor's own district via
+// auth.CanWriteDistrict.
+func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore *media.Store) {
 	requireAuth := auth.RequireAuth()
 	r.GET("/api/recipes", requireAuth, listHandler(repo))
 	r.POST("/api/recipes", requireAuth, createHandler(repo))
 	r.PUT("/api/recipes/:id", requireAuth, updateHandler(repo))
 	r.DELETE("/api/recipes/:id", requireAuth, deleteHandler(repo))
+	r.POST("/api/recipes/:id/photo", requireAuth, photoHandler(repo, mediaStore))
 	r.GET("/api/recipes/resolve-doctor", requireAuth, resolveDoctorHandler(repo))
 }
 
@@ -146,6 +150,12 @@ func listHandler(repo *Repo) gin.HandlerFunc {
 				httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not list ingredients")
 				return
 			}
+			photos, err := repo.GetPhotos(rec.ID)
+			if err != nil {
+				httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not list photos")
+				return
+			}
+			rec.Photos = photos
 			out[i] = recipeResponse{Recipe: rec, Ingredients: ings}
 		}
 		httpx.OK(c, http.StatusOK, out)
@@ -267,6 +277,44 @@ func deleteHandler(repo *Repo) gin.HandlerFunc {
 			return
 		}
 		c.Status(http.StatusNoContent)
+	}
+}
+
+func photoHandler(repo *Repo, mediaStore *media.Store) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, ok := parseID(c)
+		if !ok {
+			return
+		}
+		existing, err := repo.Get(id)
+		if err != nil {
+			writeRepoError(c, err, "recipe not found", "could not update recipe photo")
+			return
+		}
+		doctor, err := doctorOf(c, repo, existing.DoctorID)
+		if err != nil {
+			return
+		}
+		user, _ := auth.UserFrom(c)
+		if !auth.CanWriteDistrict(user, doctor.DistrictID) {
+			httpx.Err(c, http.StatusForbidden, "forbidden", "cannot write to this district")
+			return
+		}
+		fh, err := c.FormFile("photo")
+		if err != nil {
+			httpx.Err(c, http.StatusBadRequest, "invalid_request", "photo file is required")
+			return
+		}
+		path, err := mediaStore.SaveMultipart(fh)
+		if err != nil {
+			httpx.Err(c, http.StatusBadRequest, "invalid_request", "could not process photo")
+			return
+		}
+		if err := repo.AddPhoto(id, path); err != nil {
+			writeRepoError(c, err, "recipe not found", "could not update recipe photo")
+			return
+		}
+		httpx.OK(c, http.StatusOK, gin.H{"photo": path})
 	}
 }
 

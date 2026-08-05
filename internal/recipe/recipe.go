@@ -105,8 +105,8 @@ func (r *Repo) Create(rec *model.Recipe, ings []model.Ingredient, actorID uint, 
 // columns visible. It returns gorm.ErrRecordNotFound if no recipe with
 // rec.ID exists. Existence is checked first because Save, given a primary
 // key with no matching row, inserts rather than reports zero rows affected.
-// The existing Photo is preserved so an edit here never blanks the stored
-// path.
+// Photos live in the separate recipe_photos table (AddPhoto), so an edit
+// here never touches them.
 func (r *Repo) Update(rec *model.Recipe, ings []model.Ingredient, actorID uint, immediate bool) error {
 	var existing model.Recipe
 	if err := r.g.First(&existing, rec.ID).Error; err != nil {
@@ -120,7 +120,6 @@ func (r *Repo) Update(rec *model.Recipe, ings []model.Ingredient, actorID uint, 
 			return err
 		}
 	}
-	rec.Photo = existing.Photo
 
 	if immediate {
 		rec.ReviewState = model.ReviewApproved
@@ -158,6 +157,28 @@ func (r *Repo) Update(rec *model.Recipe, ings []model.Ingredient, actorID uint, 
 			"updated_by":       actorID,
 			"updated_at":       r.clk.Now(),
 		}).Error
+}
+
+// AddPhoto appends a photo to the recipe with id, placing it after any
+// already stored (append semantics: a recipe may hold many photos, data
+// model §4.5). It returns gorm.ErrRecordNotFound if no recipe with id
+// exists.
+func (r *Repo) AddPhoto(id uint, path string) error {
+	if _, err := r.Get(id); err != nil {
+		return err
+	}
+	var count int64
+	if err := r.g.Model(&model.RecipePhoto{}).Where("recipe_id = ?", id).Count(&count).Error; err != nil {
+		return err
+	}
+	return r.g.Create(&model.RecipePhoto{RecipeID: id, Path: path, SortOrder: int(count)}).Error
+}
+
+// GetPhotos returns every photo of recipeID, ordered by SortOrder.
+func (r *Repo) GetPhotos(recipeID uint) ([]model.RecipePhoto, error) {
+	var photos []model.RecipePhoto
+	err := r.g.Where("recipe_id = ?", recipeID).Order("sort_order").Find(&photos).Error
+	return photos, err
 }
 
 // createIngredients inserts ings for recipeID on tx, resetting any ID so

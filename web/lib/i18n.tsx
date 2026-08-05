@@ -137,6 +137,11 @@ const th: Dictionary = {
   action_create: 'สร้างใหม่',
   action_update: 'แก้ไข',
   action_delete: 'ลบ',
+  lockYear: 'ล็อกปี',
+  unlock: 'ปลดล็อก',
+  confirmUnlock: 'ยืนยันการปลดล็อกปีนี้?',
+  confirm: 'ยืนยัน',
+  lockFailed: 'ล็อกปีไม่สำเร็จ',
 };
 
 const en: Dictionary = {
@@ -267,6 +272,11 @@ const en: Dictionary = {
   action_create: 'Create',
   action_update: 'Edit',
   action_delete: 'Delete',
+  lockYear: 'Lock year',
+  unlock: 'Unlock',
+  confirmUnlock: 'Unlock this year?',
+  confirm: 'Confirm',
+  lockFailed: 'Could not lock the year',
 };
 
 const dictionaries: Record<Locale, Dictionary> = { th, en };

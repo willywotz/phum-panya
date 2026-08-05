@@ -10,6 +10,7 @@ import {
   toIngredientPayload,
   toIngredientRow,
 } from '@/components/IngredientEditor';
+import { PhotoUpload } from '@/components/PhotoUpload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -177,6 +178,7 @@ function RecipeForm({
         onChange={(event) => setField('data_year', event.target.value)}
       />
       <IngredientEditor rows={ingredients} herbs={herbs} onChange={setIngredients} />
+      {editing && <PhotoUpload uploadPath={`/api/recipes/${rowId(editing)}/photo`} />}
       <Button type="submit" disabled={submitting}>
         {t('save')}
       </Button>

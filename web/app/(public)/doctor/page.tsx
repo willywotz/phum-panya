@@ -35,7 +35,7 @@ interface PublicRecipe {
   caution: string;
   doctor_name: string;
   district_name: string;
-  photo: string;
+  photos: string[];
   ingredients: PublicIngredient[];
   cases: PublicCase[];
 }
@@ -149,14 +149,15 @@ function DoctorDetail() {
                     {t('caution')}: {recipe.caution}
                   </p>
                 )}
-                {recipe.photo && (
+                {recipe.photos?.map((photo) => (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={`/media/${recipe.photo}`}
+                    key={photo}
+                    src={`/media/${photo}`}
                     alt={recipe.name}
                     className="max-w-xs rounded-lg"
                   />
-                )}
+                ))}
                 <section>
                   <h4 className="font-medium">{t('ingredients')}</h4>
                   <ul className="list-inside list-disc">

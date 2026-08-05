@@ -10,6 +10,3 @@
 
 # Local secrets/config — .env.example is the tracked template.
 .env
-
-# graft's local graph cache — regenerable, not committed (run `graft build`).
-graft/

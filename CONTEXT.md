@@ -235,6 +235,35 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   - **Released as `v1.1.0`** (2026-08-05, tag on `6cde31b`). `release.yml` published the Windows
     exe/MSI + Linux binary. Next: manual deploy to the client VPS (no CD).
 
+- **Post-v1.1.0 hardening batch (2026-08-05, merged to `main`)**: seven parked follow-up issues
+  (#12–#18), built with the multi-agent workflow (per-issue branch → TDD builder → fresh-context
+  verifier → merge). Each is its own PR. Full Go suite now **208 tests green**.
+  - **#13 SetPhoto governance (PR #25)**: photo changes obeyed no governance. A new nullable
+    `PendingPhoto` column stages an editor photo change (live `photo` stays until approval; admin
+    applies at once); the Case path adds `guardYearWrite` (Doctor has no `data_year`); every photo
+    change writes a `Revision`. Approve folds `PendingPhoto` into `photo` (composes with a pending
+    `pending_json` edit); reject discards it; the photo-only pending row shows in the review queue.
+  - **#18 recipe photos one-to-many (PR #26)**: `Recipe.Photo` (single string) is replaced by a
+    `RecipePhoto` child table (`RecipeID` FK with `ON DELETE CASCADE`, `Path`, `SortOrder`).
+    `POST /api/recipes/:id/photo` appends; the public projection returns a `photos` array. An
+    idempotent boot-time backfill migrates each old single value into one child row.
+  - **#14 herb merge guards (PR #22)**: `Merge` rejects self-merge, chained merge (canonical must
+    be non-alias), and a missing canonical, and re-points existing aliases so no chain forms.
+    `herb.List()` and `publicapi.ListHerbs()` now filter `alias_of_id IS NULL`.
+  - **#15 input validation (PR #29)**: request DTOs gain `binding:"required"`/`oneof=`; enum columns
+    gain `gorm:"check:..."` constraints (fresh-migrate only — SQLite can't ALTER-ADD a CHECK, so an
+    already-deployed DB relies on the binding guard). Create-only password split into
+    `createUserRequest` so PUT is unaffected; ad-hoc checks removed.
+  - **#16 current-user full_name (PR #21)**: `GET /api/current-user` now returns `full_name`
+    (carried through the `CurrentUser` struct).
+  - **#12 staff nav (PR #23)**: Districts + Users links moved to admin-only; both pages gain
+    `RequireAdmin`. Editors keep district-name reads in forms.
+  - **#17 web ESLint (PR #24)**: flat `eslint.config.mjs` (Next + TS preset); `lint` script switched
+    off deprecated `next lint`; a lint step wired into CI.
+  - Follow-ups filed: **#27** (herb `mergeHandler` should map Merge errors to 400/404, not 500),
+    **#28** (recipe frontend must consume the new `photos` array). **#19** (CD/VPS auto-deploy) is
+    still open — parked pending the deploy model + VPS secrets.
+
 ## Data model (summary)
 
 Nine records: District, User, Doctor, Herb (shared catalog; P5 adds provenance + alias), Recipe, Case,

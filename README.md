@@ -82,6 +82,11 @@ msiexec /i phum-panya-<version>-windows-amd64.msi /quiet ^
   ADMINEMAIL=admin@example.com ADMINPASSWORD=changeme APPDOMAIN=example.com
 ```
 
+## Deploy
+
+See [`docs/ops/deploy.md`](docs/ops/deploy.md) for the step-by-step VPS deploy
+(Linux/systemd, built-in TLS), upgrade, and rollback runbook.
+
 ## Restore
 
 See [`docs/ops/restore.md`](docs/ops/restore.md) to restore the database and

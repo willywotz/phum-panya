@@ -9,6 +9,10 @@ export default defineConfig({
   // flaky. Run serially so the suite is deterministic.
   fullyParallel: false,
   workers: 1,
+  // On a loaded CI runner a create -> list-refetch round-trip can occasionally
+  // exceed the default assertion timeout. Retry on CI only; a real regression
+  // still fails every attempt. Local runs keep 0 retries (fail fast).
+  retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: 'http://localhost:8080',
   },

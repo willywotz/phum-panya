@@ -1,10 +1,12 @@
 # phum-panya — Handoff
 
-Date: 2026-08-05 · Branch: **`main`** · Last release tag: **`v1.1.0`** (P2–P5 + admin UI).
+Date: 2026-08-05 · Branch: **`main`** at `22acde9` · Last release tag: **`v1.1.0`** (P2–P5 + admin UI).
 The four paid phases **P2–P5 are merged to `main`** (PRs #4–#7, all CI-green) **with their
 frontend admin screens** (PR #8, `8cf3caa`), and the lot is **released as `v1.1.0`** (tag on
-`6cde31b`; `release.yml` published the Windows exe/MSI + Linux binary). `main` is one trunk — every
-feature branch is merged and deleted.
+`6cde31b`; `release.yml` published the Windows exe/MSI + Linux binary). Since then, a
+**post-`v1.1.0` hardening batch** and an **optional Postgres/Caddy container deploy stack**
+(PR #35, ADR-0003) have merged to `main` but are **unreleased** — a `v1.2.0` tag would ship them.
+`main` is one trunk — every feature branch is merged and deleted.
 
 ## 1. What this is
 
@@ -65,6 +67,14 @@ Paid phases delivered:
   follow-ups **#12–#18** plus two derived follow-ups (**#27, #28**) are all fixed — each on its own
   branch, TDD + fresh-context review, CI-green. Full suite is now **208 Go tests** (25 packages) +
   the Playwright e2e suite, all green. Only **#19** (CD/VPS auto-deploy) stays open. See §8.
+- **Optional Postgres/Caddy container stack** (merged to `main` via PR #35, `22acde9`; **ADR-0003**,
+  which complements — does not replace — ADR-0001). A **second, optional** deploy path for operators
+  who prefer containers: a Compose stack of **Caddy + Next.js web + Go api + Postgres + a pg_dump
+  backup sidecar**. The **single Go binary + SQLite stays the default and is unchanged** — all new
+  behaviour is gated behind config (`APP_DB_DRIVER`, `APP_DATABASE_URL`, `APP_BEHIND_PROXY`,
+  `APP_PUBLIC_ORIGIN`). DB is a GORM driver swap (pure-Go `pgx`, still cgo-free); Postgres backups
+  are the pg_dump sidecar. Suite now **222 Go tests**; two new CI jobs (`go-postgres`,
+  `stack-validate`). Runbook: `docs/ops/deploy-compose.md`. See §8.
 
 ## 3. Stack (as built)
 
@@ -225,8 +235,10 @@ tables; `Herb` provenance/alias columns; `batch_id` tags). No manual migration s
   the public healer page reads the recipe `photos` array (renders every photo); the staff recipe
   screen gains photo upload via the append endpoint.
 - [#19](https://github.com/willywotz/phum-panya/issues/19) — **OPEN.** no CD; the VPS deploy is
-  manual (runbook: `docs/ops/deploy.md`). Parked pending a deploy-model decision (push `deploy.yml`
-  vs pull-based systemd updater) + VPS SSH secrets.
+  manual. Two deploy targets now exist, both manual: the **single binary + SQLite** (default,
+  runbook `docs/ops/deploy.md`) and the **optional Postgres/Caddy container stack** (ADR-0003,
+  runbook `docs/ops/deploy-compose.md`). Parked pending a deploy-target + deploy-model decision
+  (which target; push `deploy.yml` vs pull-based updater) + VPS secrets.
 
 Not filed (self-remedying, documented behaviour): **P4** cases have no `code`, so re-importing a
 file duplicates cases (coded entities are idempotent) — per-batch undo is the remedy; undo leaves
@@ -235,29 +247,37 @@ serially) and the unformatted recipe-payload queue diff (frontend polish).
 Role-based nav hiding is done (see the P2–P5 frontend note above).
 
 ### Out of scope (per the 2026-08-04 scoping decision)
-- **SQLite → PostgreSQL migration** — explicitly out of scope; the app stays on SQLite. Re-scope
-  trigger: sustained list > 1 s / search > 2 s at real load, or `SQLITE_BUSY` write contention.
-  GORM portability discipline is kept so it stays a driver swap (see the scope doc + ADR-0001).
+- **SQLite as the default stays; no data migration tool.** The default binary keeps SQLite. Postgres
+  is now a **supported optional runtime** via the compose stack (ADR-0003) for fresh installs, but
+  making it the default, or migrating a running SQLite deployment into Postgres, is still out of
+  scope. Re-scope trigger for the default: sustained list > 1 s / search > 2 s at real load, or
+  `SQLITE_BUSY` write contention. GORM portability discipline is kept so both drivers run (ADR-0001).
 
 ## 9. Git state & next steps
 
-- One trunk: **`main`** at `39aab91`, `== origin/main`. Clean; no open feature branches or worktrees.
-- Merged since the last handoff (this hardening batch): PRs **#21** (#16), **#22** (#14), **#23**
-  (#12), **#24** (#17), **#25** (#13), **#26** (#18), **#29** (#15), **#31** (#27), **#32** (#28),
-  plus doc PRs **#30/#33**. Earlier: **#4–#7** (P2–P5 backend), **#8** (frontend), **#9–#11** (docs +
+- One trunk: **`main`** at `22acde9`, `== origin/main`. Clean; no open feature branches or worktrees.
+- Merged since the last handoff: **PR #35** (`22acde9`) — the optional Postgres/Caddy container stack
+  (ADR-0003). Earlier this session (hardening batch): PRs **#21** (#16), **#22** (#14), **#23** (#12),
+  **#24** (#17), **#25** (#13), **#26** (#18), **#29** (#15), **#31** (#27), **#32** (#28), plus doc
+  PRs **#30/#33/#34**. Before that: **#4–#7** (P2–P5 backend), **#8** (frontend), **#9–#11** (docs +
   release + deploy runbook), **#20** (issue links).
-- **`v1.1.0`** is still the last tag (cut on `6cde31b`); the hardening batch is **unreleased** on
-  `main`. A **`v1.2.0`** tag would ship it (governance + validation + multi-photo recipes + polish).
-- `ci.yml` gates every push/PR; `release.yml` builds + publishes on `v*` tags.
+- **`v1.1.0`** is still the last tag (cut on `6cde31b`); the hardening batch **and** the optional
+  container stack are **unreleased** on `main`. A **`v1.2.0`** tag would ship the lot.
+- Suite: **222 Go tests** + Playwright e2e, all green. `ci.yml` now also runs `go-postgres` (live-PG
+  integration) and `stack-validate` (compose config + caddy validate) on every push/PR;
+  `release.yml` builds + publishes on `v*` tags.
 - Open follow-up issues: **only #19** (CD/VPS auto-deploy — see §8). #12–#18, #27, #28 all closed.
 
 **Immediate next steps:**
-1. **Tag `v1.2.0`** to release the hardening batch (or bundle it with the first VPS deploy).
-2. **Deploy to the client VPS** — still manual, no CD ([#19](https://github.com/willywotz/phum-panya/issues/19));
-   runbook at `docs/ops/deploy.md`. Run the SRS §6.1 UAT on the live host, including the
-   editor→pending→admin-approve→public flow.
-3. **Decide #19's model** (push `deploy.yml` on release vs pull-based systemd updater) and provide
-   VPS SSH secrets so CD can be built — it can't be built or verified headless without the host.
+1. **Tag `v1.2.0`** to release the hardening batch + the optional container stack (or bundle it with
+   the first VPS deploy).
+2. **Choose the deploy target** ([#19](https://github.com/willywotz/phum-panya/issues/19)): the
+   **single binary + SQLite** (default, `docs/ops/deploy.md`) or the **Postgres/Caddy container
+   stack** (`docs/ops/deploy-compose.md`). Both are manual today. Then deploy to the client VPS and
+   run the SRS §6.1 UAT on the live host (editor→pending→admin-approve→public flow).
+3. **Decide #19's CD model** for the chosen target (push `deploy.yml` on release vs pull-based
+   updater) and provide VPS secrets so CD can be built — it can't be built or verified headless
+   without the host.
 4. **Note on #15:** the enum CHECK constraints apply on fresh migrations only; the live `v1.1.0` DB
    won't gain them (SQLite can't `ALTER`-add a CHECK). `binding:oneof` guards all writes forward. If
    DB-level coverage on the existing DB is wanted, file a one-time rebuild-migration task.

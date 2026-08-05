@@ -226,7 +226,12 @@ func photoHandler(repo *Repo, mediaStore *media.Store) gin.HandlerFunc {
 			httpx.Err(c, http.StatusBadRequest, "invalid_request", "could not process photo")
 			return
 		}
-		if err := repo.SetPhoto(id, path); err != nil {
+		immediate := user.Role == model.RoleCentralAdmin
+		if err := repo.SetPhoto(id, user.ID, path, immediate); err != nil {
+			if errors.Is(err, yearlock.ErrYearLocked) {
+				httpx.Err(c, http.StatusConflict, "year_locked", "this data year is locked")
+				return
+			}
 			writeRepoError(c, err, "case not found", "could not update case photo")
 			return
 		}

@@ -144,6 +144,83 @@ func TestApproveRefusesEditIntoLockedYear(t *testing.T) {
 	}
 }
 
+// TestApprovePendingPhotoAppliesAndClears proves approving a row whose
+// pending_photo is set (with no other pending change) applies the staged
+// path to the live photo column and clears pending_photo.
+func TestApprovePendingPhotoAppliesAndClears(t *testing.T) {
+	repo, g, did := setup(t)
+	d := seedDoctor(t, g, did, "D1", "x", model.ReviewApproved)
+	pendingPhoto := "uploads/new.jpg"
+	if err := g.Model(&model.Doctor{}).Where("id = ?", d.ID).Update("pending_photo", pendingPhoto).Error; err != nil {
+		t.Fatalf("stash pending_photo: %v", err)
+	}
+
+	if err := repo.Approve("doctor", d.ID, 99); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	var got model.Doctor
+	g.First(&got, d.ID)
+	if got.Photo != pendingPhoto {
+		t.Fatalf("Photo = %q, want %q", got.Photo, pendingPhoto)
+	}
+	if got.PendingPhoto != nil {
+		t.Fatalf("pending_photo must be cleared after approve, got %v", got.PendingPhoto)
+	}
+}
+
+// TestRejectPendingPhotoDiscardsKeepsLivePhoto proves rejecting a row whose
+// pending_photo is set discards the staged path without touching the live
+// photo.
+func TestRejectPendingPhotoDiscardsKeepsLivePhoto(t *testing.T) {
+	repo, g, did := setup(t)
+	d := seedDoctor(t, g, did, "D1", "x", model.ReviewApproved)
+	g.Model(&model.Doctor{}).Where("id = ?", d.ID).Update("photo", "uploads/old.jpg")
+	pendingPhoto := "uploads/new.jpg"
+	if err := g.Model(&model.Doctor{}).Where("id = ?", d.ID).Update("pending_photo", pendingPhoto).Error; err != nil {
+		t.Fatalf("stash pending_photo: %v", err)
+	}
+
+	if err := repo.Reject("doctor", d.ID, 99, "ไม่ชัด"); err != nil {
+		t.Fatalf("reject: %v", err)
+	}
+	var got model.Doctor
+	g.First(&got, d.ID)
+	if got.Photo != "uploads/old.jpg" {
+		t.Fatalf("Photo = %q, want unchanged uploads/old.jpg", got.Photo)
+	}
+	if got.PendingPhoto != nil {
+		t.Fatalf("pending_photo must be discarded after reject, got %v", got.PendingPhoto)
+	}
+}
+
+// TestApproveComposesPendingContentAndPendingPhoto proves a row carrying
+// both a pending content edit and a pending photo applies both on approve.
+func TestApproveComposesPendingContentAndPendingPhoto(t *testing.T) {
+	repo, g, did := setup(t)
+	d := seedDoctor(t, g, did, "D1", "old", model.ReviewApproved)
+	overlay := fmt.Sprintf(`{"ID":%d,"Code":"D1","Photo":"-","FullName":"new","Specialty":"y","Status":"active","FirstYear":2568,"DistrictID":%d,"ReviewState":"approved"}`, d.ID, did)
+	pendingPhoto := "uploads/new.jpg"
+	if err := g.Model(&model.Doctor{}).Where("id = ?", d.ID).
+		Updates(map[string]any{"pending_json": overlay, "pending_photo": pendingPhoto}).Error; err != nil {
+		t.Fatalf("stash: %v", err)
+	}
+
+	if err := repo.Approve("doctor", d.ID, 99); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	var got model.Doctor
+	g.First(&got, d.ID)
+	if got.FullName != "new" {
+		t.Fatalf("content overlay not applied: FullName = %q", got.FullName)
+	}
+	if got.Photo != pendingPhoto {
+		t.Fatalf("Photo = %q, want %q", got.Photo, pendingPhoto)
+	}
+	if got.PendingJSON != nil || got.PendingPhoto != nil {
+		t.Fatalf("pending_json and pending_photo must both be cleared, got %v / %v", got.PendingJSON, got.PendingPhoto)
+	}
+}
+
 func TestQueueListsAcrossEntities(t *testing.T) {
 	repo, g, did := setup(t)
 	seedDoctor(t, g, did, "D2", "pending-create", model.ReviewPending)

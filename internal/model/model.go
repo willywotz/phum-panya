@@ -74,6 +74,7 @@ type Doctor struct {
 	UpdatedAt       time.Time
 	ReviewState     string `gorm:"not null;default:approved;index"`
 	PendingJSON     *string
+	PendingPhoto    *string
 	PendingDelete   bool `gorm:"not null;default:false"`
 	RejectionReason *string
 	BatchID         *uint `gorm:"index"`
@@ -147,6 +148,7 @@ type Case struct {
 	UpdatedAt       time.Time
 	ReviewState     string `gorm:"not null;default:approved;index"`
 	PendingJSON     *string
+	PendingPhoto    *string
 	PendingDelete   bool `gorm:"not null;default:false"`
 	RejectionReason *string
 	BatchID         *uint `gorm:"index"`

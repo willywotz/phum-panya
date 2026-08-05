@@ -1,9 +1,10 @@
 # phum-panya — Handoff
 
-Date: 2026-08-05 · Branch: **`main`** · Last release tag: **`v1.0.0`** (P1).
-The four paid phases **P2–P5 are merged to `main`** (PRs #4–#7, all CI-green) **and their
-frontend admin screens are merged too** (PR #8, `8cf3caa`), but the lot is **not yet tagged as a
-new release**. `main` is one trunk — every feature branch is merged and deleted.
+Date: 2026-08-05 · Branch: **`main`** · Last release tag: **`v1.1.0`** (P2–P5 + admin UI).
+The four paid phases **P2–P5 are merged to `main`** (PRs #4–#7, all CI-green) **with their
+frontend admin screens** (PR #8, `8cf3caa`), and the lot is **released as `v1.1.0`** (tag on
+`6cde31b`; `release.yml` published the Windows exe/MSI + Linux binary). `main` is one trunk — every
+feature branch is merged and deleted.
 
 ## 1. What this is
 
@@ -25,7 +26,8 @@ It ships as **one self-hosted Go binary** with the Next.js UI embedded and data 
 
 ## 2. Status
 
-**P1 shipped as `v1.0.0`. P2–P5 are now built, green, and merged to `main` — backend only.**
+**P1 shipped as `v1.0.0`. P2–P5 (backend + admin UI) are built, green, merged to `main`, and
+released as `v1.1.0`.**
 Everything was built task-by-task with TDD + fresh-context review per task, plus an
 independent whole-branch review before each merge. Each phase went out on its own branch →
 PR → all CI green (Go + web type-check + Playwright e2e) → merged.
@@ -210,17 +212,15 @@ Smaller, parked follow-ups (non-blocking):
 
 ## 9. Git state & next steps
 
-- One trunk: **`main`** at `fecca72`, `== origin/main`. No open feature branches.
-- PRs **#4 (P2), #5 (P3), #6 (P4), #7 (P5)** and **#8 (P2–P5 frontend)** merged. `v1.0.0` is the
-  last tag; P2–P5 (backend **and** frontend) are on `main` but **unreleased** (no new tag cut).
+- One trunk: **`main`** at `6cde31b`, `== origin/main`. No open feature branches.
+- PRs **#4 (P2), #5 (P3), #6 (P4), #7 (P5)**, **#8 (P2–P5 frontend)**, and **#9 (doc refresh + UAT
+  record)** merged. **`v1.1.0`** is the last tag (P2–P5 backend + frontend), cut on `6cde31b` after
+  the UAT pass; `release.yml` built + published the Windows exe/MSI + Linux binary.
 - `ci.yml` gates every push/PR; `release.yml` builds + publishes on `v*` tags.
 
 **Immediate next steps:**
-1. **UAT pass** on the four new staff screens (`/staff/review`, `/staff/year-locks`,
-   `/staff/imports`, `/staff/herbs`) — never yet human-driven, only by Playwright. Run the updated
-   SRS §6.1 UAT including the editor→pending→admin-approve→public flow.
-2. **Cut a release tag** (e.g. `v1.1.0`) once UAT passes — `release.yml` builds + publishes on the
-   `v*` tag.
-3. **Deploy** to the client VPS (still manual).
-4. Optional hardening: gate `SetPhoto` through the P2/P3 rules; add self/chained-merge guards to
-   herb `Merge`; the P1 carry-over polish in §8.
+1. **Deploy `v1.1.0`** to the client VPS (still manual — no CD). Run the SRS §6.1 UAT on the live
+   host, including the editor→pending→admin-approve→public flow.
+2. Optional hardening: gate `SetPhoto` through the P2/P3 rules; add self/chained-merge guards to
+   herb `Merge`; the P1 carry-over polish in §8. Consider whether a district editor should still see
+   the Districts/Users nav links (flagged during the 2026-08-05 UAT).

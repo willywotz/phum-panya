@@ -232,6 +232,8 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
     year-lock pending-empty precondition scopes to Recipe/Case only (a pending doctor does not block a
     lock — by design). Note (pre-P5, out of scope here): the Districts + Users nav links are still
     shown to a district editor.
+  - **Released as `v1.1.0`** (2026-08-05, tag on `6cde31b`). `release.yml` published the Windows
+    exe/MSI + Linux binary. Next: manual deploy to the client VPS (no CD).
 
 ## Data model (summary)
 

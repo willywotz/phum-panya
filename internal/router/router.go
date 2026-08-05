@@ -22,6 +22,7 @@ import (
 	"phum-panya/internal/export"
 	"phum-panya/internal/herb"
 	"phum-panya/internal/httpx"
+	"phum-panya/internal/importer"
 	"phum-panya/internal/media"
 	"phum-panya/internal/publicapi"
 	"phum-panya/internal/recipe"
@@ -75,15 +76,21 @@ func NewEngine(deps Deps) *gin.Engine {
 	auth.RegisterRoutes(api, deps.DB, deps.Store, deps.Throttle, deps.Secure)
 	district.RegisterRoutes(api, district.NewRepo(deps.DB))
 	user.RegisterRoutes(api, user.NewRepo(deps.DB))
-	herb.RegisterRoutes(api, herb.NewRepo(deps.DB), deps.Media)
-	doctor.RegisterRoutes(api, doctor.NewRepo(deps.DB, deps.Clk, rev), deps.Media)
-	recipe.RegisterRoutes(api, recipe.NewRepo(deps.DB, deps.Clk, rev, lockRepo))
-	caserec.RegisterRoutes(api, caserec.NewRepo(deps.DB, deps.Clk, rev, lockRepo), deps.Media)
+	herbRepo := herb.NewRepo(deps.DB)
+	docRepo := doctor.NewRepo(deps.DB, deps.Clk, rev)
+	recRepo := recipe.NewRepo(deps.DB, deps.Clk, rev, lockRepo)
+	casRepo := caserec.NewRepo(deps.DB, deps.Clk, rev, lockRepo)
+
+	herb.RegisterRoutes(api, herbRepo, deps.Media)
+	doctor.RegisterRoutes(api, docRepo, deps.Media)
+	recipe.RegisterRoutes(api, recRepo)
+	caserec.RegisterRoutes(api, casRepo, deps.Media)
 	review.RegisterRoutes(api, review.NewRepo(deps.DB, rev))
 	publicapi.RegisterRoutes(api, deps.DB)
 	export.RegisterRoutes(api, deps.DB)
 	backup.RegisterRoutes(api, deps.DBPath, deps.MediaDir, deps.BackupDir, deps.BackupKeep, deps.Clk)
 	yearlock.RegisterRoutes(api, lockRepo)
+	importer.RegisterRoutes(api, importer.NewImporter(deps.DB, deps.Clk, docRepo, recRepo, casRepo, herbRepo, lockRepo))
 
 	// MediaDir may not exist yet (nothing uploaded); Static on a missing dir
 	// would otherwise 500 instead of 404.

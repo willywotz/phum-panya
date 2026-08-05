@@ -171,3 +171,32 @@ func TestImportBatchMigratesAndTagsDoctor(t *testing.T) {
 		t.Fatalf("doctor.BatchID = %v, want %d", got.BatchID, b.ID)
 	}
 }
+
+func TestHerbProvenanceAndAliasColumns(t *testing.T) {
+	g, err := db.Open(filepath.Join(t.TempDir(), "h.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := model.AutoMigrate(g); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	did := uint(3)
+	canonical := model.Herb{ThaiName: "ขิง"}
+	if err := g.Create(&canonical).Error; err != nil {
+		t.Fatalf("canonical: %v", err)
+	}
+	alias := model.Herb{ThaiName: "ขิงแก่", CreatedByDistrictID: &did, AliasOfID: &canonical.ID}
+	if err := g.Create(&alias).Error; err != nil {
+		t.Fatalf("insert alias herb: %v", err)
+	}
+	var got model.Herb
+	if err := g.First(&got, alias.ID).Error; err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if got.CreatedByDistrictID == nil || *got.CreatedByDistrictID != did {
+		t.Fatalf("CreatedByDistrictID = %v, want %d", got.CreatedByDistrictID, did)
+	}
+	if got.AliasOfID == nil || *got.AliasOfID != canonical.ID {
+		t.Fatalf("AliasOfID = %v, want %d", got.AliasOfID, canonical.ID)
+	}
+}

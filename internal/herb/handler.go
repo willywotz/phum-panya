@@ -127,7 +127,11 @@ func mergeHandler(repo *Repo) gin.HandlerFunc {
 		}
 		n, err := repo.Merge(aliasID, uint(canonical))
 		if err != nil {
-			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not merge herbs")
+			if errors.Is(err, ErrSelfMerge) || errors.Is(err, ErrChainedMerge) {
+				httpx.Err(c, http.StatusBadRequest, "invalid_request", err.Error())
+				return
+			}
+			writeRepoError(c, err, "could not merge herbs")
 			return
 		}
 		httpx.OK(c, http.StatusOK, gin.H{"rePointed": n})

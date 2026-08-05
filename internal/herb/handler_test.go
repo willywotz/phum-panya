@@ -160,6 +160,33 @@ func TestAdminMayMergeHerbs(t *testing.T) {
 	}
 }
 
+func TestMergeHandlerMapsErrorsToStatus(t *testing.T) {
+	env := newHerbAPI(t)
+	canonical := model.Herb{ThaiName: "ก"}
+	dup := model.Herb{ThaiName: "ข"}
+	env.g.Create(&canonical)
+	env.g.Create(&dup)
+	aliasOfCanonical := model.Herb{ThaiName: "ค", AliasOfID: &canonical.ID}
+	env.g.Create(&aliasOfCanonical)
+
+	cases := []struct {
+		name string
+		path string
+		want int
+	}{
+		{"self merge", "/api/herbs/" + itoa(canonical.ID) + "/merge/" + itoa(canonical.ID), 400},
+		{"missing canonical", "/api/herbs/" + itoa(dup.ID) + "/merge/99999", 404},
+		{"chained merge", "/api/herbs/" + itoa(dup.ID) + "/merge/" + itoa(aliasOfCanonical.ID), 400},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if rec := env.doAsAdmin("POST", tc.path, ""); rec.Code != tc.want {
+				t.Fatalf("status = %d, want %d, body=%s", rec.Code, tc.want, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestNearDuplicatesEndpointRequiresAuth(t *testing.T) {
 	env := newHerbAPI(t)
 	env.g.Create(&model.Herb{ThaiName: "ขิง"})

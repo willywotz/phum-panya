@@ -8,7 +8,7 @@ async function login(page: Page, email: string, password: string) {
   await expect(page).toHaveURL(/\/staff$/);
 }
 
-test('admin approves a pending doctor from the queue', async ({ page, request }) => {
+test('admin approves a pending doctor from the queue', async ({ page }) => {
   test.setTimeout(120_000);
   const stamp = Date.now();
   const districtName = `รีวิวอำเภอ${stamp}`;

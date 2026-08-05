@@ -66,7 +66,7 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 			ThaiName: req.ThaiName, LocalName: req.LocalName, ScientificName: req.ScientificName,
 			Photo: req.Photo, PartUsed: req.PartUsed, Properties: req.Properties,
 		}
-		if err := repo.Create(&h); err != nil {
+		if err := repo.Create(&h, nil); err != nil {
 			httpx.Err(c, http.StatusInternalServerError, "internal_error", "could not create herb")
 			return
 		}
@@ -89,7 +89,7 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 			ID: id, ThaiName: req.ThaiName, LocalName: req.LocalName, ScientificName: req.ScientificName,
 			Photo: req.Photo, PartUsed: req.PartUsed, Properties: req.Properties,
 		}
-		if err := repo.Update(&h); err != nil {
+		if err := repo.Update(&h, nil); err != nil {
 			writeRepoError(c, err, "could not update herb")
 			return
 		}

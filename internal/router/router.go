@@ -6,10 +6,12 @@
 package router
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"gorm.io/gorm"
 
 	"phum-panya/internal/auth"
@@ -28,6 +30,7 @@ import (
 	"phum-panya/internal/recipe"
 	"phum-panya/internal/review"
 	"phum-panya/internal/revision"
+	"phum-panya/internal/telemetry"
 	"phum-panya/internal/user"
 	"phum-panya/internal/webui"
 	"phum-panya/internal/yearlock"
@@ -42,6 +45,8 @@ type Deps struct {
 	Throttle auth.Limiter
 	Media    media.Store
 	Clk      clock.Clock
+	Logger   *slog.Logger
+	Metrics  http.Handler
 	// Secure controls whether the session cookie is marked Secure.
 	Secure bool
 
@@ -58,7 +63,14 @@ type Deps struct {
 // fallback for everything else.
 func NewEngine(deps Deps) *gin.Engine {
 	engine := gin.New()
-	engine.Use(gin.Recovery(), gin.Logger())
+	engine.Use(gin.Recovery())
+	engine.Use(otelgin.Middleware(deps.Cfg.ServiceName))
+	engine.Use(telemetry.AccessLog(deps.Logger))
+	if rm, err := telemetry.RequestMetrics(); err == nil {
+		engine.Use(rm)
+	} else {
+		deps.Logger.Error("request metrics", "err", err)
+	}
 	engine.MaxMultipartMemory = 8 << 20
 	engine.Use(auth.SameOrigin(deps.Cfg.AllowedOriginHost()))
 
@@ -70,6 +82,11 @@ func NewEngine(deps Deps) *gin.Engine {
 	api := engine.Group("")
 	api.Use(auth.LoadUser(deps.Store, authUsers))
 	api.GET("/api/health", func(c *gin.Context) { httpx.OK(c, http.StatusOK, gin.H{"status": "ok"}) })
+	// verify-admin is the Caddy forward-auth target that gates /traces (the
+	// Jaeger UI) to central-admin sessions.
+	api.GET("/api/authorization/verify-admin", auth.RequireRole("central_admin"), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
 
 	rev := revision.NewRepo(deps.DB, deps.Clk)
 	// lockRepo is also used by the yearlock routes registered below.
@@ -107,6 +124,10 @@ func NewEngine(deps Deps) *gin.Engine {
 	// never shadows a photo. The handler streams from whichever media adapter
 	// is wired (LocalStore or S3Store/Garage).
 	engine.GET("/media/*key", mediaHandler(deps.Media))
+
+	if deps.Metrics != nil {
+		engine.GET("/metrics", gin.WrapH(deps.Metrics))
+	}
 
 	webui.Register(engine)
 

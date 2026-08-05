@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -42,6 +43,7 @@ func newDeps(t *testing.T, mediaDir string) router.Deps {
 		Throttle:   auth.NewThrottle(clk, 100, time.Minute),
 		Media:      &media.LocalStore{Dir: mediaDir},
 		Clk:        clk,
+		Logger:     slog.Default(),
 		BackupDir:  filepath.Join(dir, "backup"),
 		BackupKeep: 7,
 		DBPath:     filepath.Join(dir, "app.db"),
@@ -192,6 +194,17 @@ func TestSameOriginUsesPublicOriginBehindProxy(t *testing.T) {
 	engine.ServeHTTP(rec2, req2)
 	if rec2.Code == http.StatusForbidden {
 		t.Fatalf("same-origin POST was forbidden by origin check")
+	}
+}
+
+// TestVerifyAdminRejectsAnonymous confirms the Caddy forward-auth target for
+// /traces rejects an unauthenticated caller (401), never 204.
+func TestVerifyAdminRejectsAnonymous(t *testing.T) {
+	engine := newEngine(t, t.TempDir())
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/authorization/verify-admin", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous verify-admin = %d, want 401", rec.Code)
 	}
 }
 

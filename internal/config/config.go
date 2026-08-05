@@ -28,6 +28,11 @@ type Config struct {
 	S3UsePathStyle bool
 
 	ThrottleStore string
+
+	LogLevel     string
+	LogFormat    string
+	OTLPEndpoint string
+	ServiceName  string
 }
 
 func Load() Config {
@@ -54,6 +59,11 @@ func Load() Config {
 		S3UsePathStyle: env("APP_S3_USE_PATH_STYLE", "true") != "false",
 
 		ThrottleStore: env("APP_THROTTLE_STORE", "memory"),
+
+		LogLevel:     env("APP_LOG_LEVEL", "info"),
+		LogFormat:    env("APP_LOG_FORMAT", "json"),
+		OTLPEndpoint: env("APP_OTLP_ENDPOINT", ""),
+		ServiceName:  env("APP_SERVICE_NAME", "phum-panya-api"),
 	}
 }
 

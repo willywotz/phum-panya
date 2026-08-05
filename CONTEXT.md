@@ -351,6 +351,23 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   Postgres 17**: `login_attempts` is UNLOGGED, failed logins insert rows, a successful login
   resets them. 243 Go tests green. With `APP_THROTTLE_STORE=db` no per-process state remains
   (sessions=DB, media=Garage, throttle=DB) → the api is multi-replica-capable (demo is E).
+- **Telemetry — sub-project D done** (branch `feat/telemetry`). See
+  `docs/superpowers/specs/2026-08-05-telemetry-design.md`,
+  `docs/superpowers/plans/2026-08-05-telemetry.md`, and ADR-0006. Delivers 15-Factor factor XIV
+  (all three signals). (1) **Structured logs**: `log/slog` JSON to stdout (`service`/`instance`
+  tags), an `AccessLog` middleware logging one line per request; `main.go` migrated off stdlib
+  `log`. (2) **Metrics**: OTel SDK + Prometheus exporter serving `GET /metrics`
+  (`http_server_request_count`/`_duration` + Go runtime), internal-only (not routed publicly by
+  Caddy). (3) **Tracing**: OTel trace SDK + `otelgin` spans + GORM query spans, W3C propagation;
+  `trace_id`/`span_id` injected into every log line = the correlation key. OTLP gRPC export only
+  when `APP_OTLP_ENDPOINT` set (single-binary/dev degrade gracefully — spans still made,
+  `trace_id` still logged). New `internal/telemetry` package (`Setup`/`NewLogger`/`AccessLog`/
+  `RequestMetrics`/`InstrumentDB`); config `APP_LOG_LEVEL/FORMAT`, `APP_OTLP_ENDPOINT`,
+  `APP_SERVICE_NAME`. Stack bundles **Jaeger** all-in-one (native OTLP, internal); its UI is at
+  **`/traces`, admin-gated** by Caddy `forward_auth` → new `GET /api/authorization/verify-admin`
+  (central-admin → 204, else 401). Heavy OTel dep set; `otelgin` bumped gin 1.10.1→1.12.0 (no
+  regression). **Verified live**: JSON logs carry `trace_id`, `/metrics` serves the counters, and
+  the same `trace_id` appears in Jaeger (log↔trace correlation confirmed). 249 Go tests green.
 
 ## Data model (summary)
 

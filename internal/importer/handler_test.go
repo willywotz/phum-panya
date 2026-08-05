@@ -47,7 +47,7 @@ func newImporterAPI(t *testing.T) *importerAPI {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 
@@ -95,7 +95,7 @@ func newImporterAPI(t *testing.T) *importerAPI {
 
 	r := gin.New()
 	r.MaxMultipartMemory = 8 << 20
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	importer.RegisterRoutes(r, im)
 
 	return &importerAPI{

@@ -39,7 +39,7 @@ func newExportAPI(t *testing.T) *exportAPI {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 
@@ -94,8 +94,8 @@ func newExportAPI(t *testing.T) *exportAPI {
 	}
 
 	r := gin.New()
-	r.Use(auth.LoadUser(store, g))
-	export.RegisterRoutes(r, g)
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
+	export.RegisterRoutes(r, export.NewSource(g))
 
 	return &exportAPI{t: t, g: g, r: r, adminToken: adminToken, editorToken: editorToken}
 }

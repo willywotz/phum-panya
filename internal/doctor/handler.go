@@ -63,10 +63,22 @@ func (req doctorRequest) toModel(id uint) model.Doctor {
 	}
 }
 
+// repository is the port RegisterRoutes depends on; *Repo is the GORM
+// adapter that implements it.
+type repository interface {
+	ListByDistrict(districtID uint) ([]model.Doctor, error)
+	Get(id uint) (model.Doctor, error)
+	Create(d *model.Doctor, actorID uint, immediate bool) error
+	Update(d *model.Doctor, actorID uint, immediate bool) error
+	Delete(id, actorID uint, immediate bool) error
+	SetPhoto(id, actorID uint, path string, immediate bool) error
+	Unpublish(id uint) error
+}
+
 // RegisterRoutes wires the doctor CRUD and photo-upload endpoints onto r.
 // The caller must wrap r with auth.LoadUser first. Writes are restricted to
 // the doctor's own district via auth.CanWriteDistrict.
-func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore *media.Store) {
+func RegisterRoutes(r gin.IRouter, repo repository, mediaStore media.Store) {
 	requireAuth := auth.RequireAuth()
 	r.GET("/api/doctors", requireAuth, listHandler(repo))
 	r.POST("/api/doctors", requireAuth, createHandler(repo))
@@ -76,7 +88,7 @@ func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore *media.Store) {
 	r.POST("/api/doctors/:id/unpublish", requireAuth, unpublishHandler(repo))
 }
 
-func listHandler(repo *Repo) gin.HandlerFunc {
+func listHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		districtID, ok := parseDistrictQuery(c)
 		if !ok {
@@ -91,7 +103,7 @@ func listHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func createHandler(repo *Repo) gin.HandlerFunc {
+func createHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req doctorRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -113,7 +125,7 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func updateHandler(repo *Repo) gin.HandlerFunc {
+func updateHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -144,7 +156,7 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func deleteHandler(repo *Repo) gin.HandlerFunc {
+func deleteHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -171,7 +183,7 @@ func deleteHandler(repo *Repo) gin.HandlerFunc {
 
 // unpublishHandler clears the doctor's consent_obtained flag, hiding it from
 // the public view without deleting its rows.
-func unpublishHandler(repo *Repo) gin.HandlerFunc {
+func unpublishHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -195,7 +207,7 @@ func unpublishHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func photoHandler(repo *Repo, mediaStore *media.Store) gin.HandlerFunc {
+func photoHandler(repo repository, mediaStore media.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {

@@ -42,9 +42,20 @@ type activeRequest struct {
 	Active bool `json:"active"`
 }
 
+// repository is the port RegisterRoutes depends on; *Repo is the GORM
+// adapter that implements it.
+type repository interface {
+	List() ([]model.User, error)
+	Get(id uint) (model.User, error)
+	Create(u *model.User) error
+	Update(u *model.User) error
+	SetActive(id uint, active bool) error
+	SetPassword(id uint, hash string) error
+}
+
 // RegisterRoutes wires the user CRUD endpoints onto r. Every route requires
 // the central_admin role. The caller must wrap r with auth.LoadUser first.
-func RegisterRoutes(r gin.IRouter, repo *Repo) {
+func RegisterRoutes(r gin.IRouter, repo repository) {
 	admin := auth.RequireRole("central_admin")
 	r.GET("/api/users", admin, listHandler(repo))
 	r.POST("/api/users", admin, createHandler(repo))
@@ -53,7 +64,7 @@ func RegisterRoutes(r gin.IRouter, repo *Repo) {
 	r.POST("/api/users/:id/active", admin, setActiveHandler(repo))
 }
 
-func listHandler(repo *Repo) gin.HandlerFunc {
+func listHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		users, err := repo.List()
 		if err != nil {
@@ -64,7 +75,7 @@ func listHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func createHandler(repo *Repo) gin.HandlerFunc {
+func createHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req createUserRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -97,7 +108,7 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func updateHandler(repo *Repo) gin.HandlerFunc {
+func updateHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -127,7 +138,7 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func setPasswordHandler(repo *Repo) gin.HandlerFunc {
+func setPasswordHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -151,7 +162,7 @@ func setPasswordHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func setActiveHandler(repo *Repo) gin.HandlerFunc {
+func setActiveHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {

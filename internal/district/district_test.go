@@ -28,7 +28,7 @@ func newDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 	return g
@@ -103,7 +103,7 @@ func router(t *testing.T) (r *gin.Engine, adminToken, editorToken string, distri
 	}
 
 	r = gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	district.RegisterRoutes(r, district.NewRepo(g))
 
 	return r, adminToken, editorToken, seed.ID

@@ -67,8 +67,8 @@ func newHerbAPI(t *testing.T) *herbAPI {
 	}
 
 	r := gin.New()
-	r.Use(auth.LoadUser(store, g))
-	herb.RegisterRoutes(r, herb.NewRepo(g), &media.Store{Dir: t.TempDir()})
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
+	herb.RegisterRoutes(r, herb.NewRepo(g), &media.LocalStore{Dir: t.TempDir()})
 
 	return &herbAPI{
 		t: t, g: g, r: r,

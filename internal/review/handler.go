@@ -13,8 +13,18 @@ import (
 	"phum-panya/internal/yearlock"
 )
 
+// repository is the port RegisterRoutes depends on; *Repo is the GORM
+// adapter that implements it.
+type repository interface {
+	Queue(districtID *uint) ([]Item, error)
+	Approve(entityType string, entityID, actorID uint) error
+	Reject(entityType string, entityID, actorID uint, reason string) error
+	ApproveDoctorTree(doctorID, actorID uint) (int, error)
+	Detail(entityType string, id uint) (Detail, error)
+}
+
 // RegisterRoutes wires the central-admin review queue endpoints.
-func RegisterRoutes(r gin.IRouter, repo *Repo) {
+func RegisterRoutes(r gin.IRouter, repo repository) {
 	admin := auth.RequireRole(model.RoleCentralAdmin)
 	r.GET("/api/review/queue", admin, queueHandler(repo))
 	r.GET("/api/review/entry/:entityType/:entityId", admin, detailHandler(repo))
@@ -23,7 +33,7 @@ func RegisterRoutes(r gin.IRouter, repo *Repo) {
 	r.POST("/api/review/doctor/:doctorId/approve-all", admin, approveTreeHandler(repo))
 }
 
-func queueHandler(repo *Repo) gin.HandlerFunc {
+func queueHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		items, err := repo.Queue(nil)
 		if err != nil {
@@ -34,7 +44,7 @@ func queueHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func detailHandler(repo *Repo) gin.HandlerFunc {
+func detailHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := strconv.ParseUint(c.Param("entityId"), 10, 64)
 		if err != nil {
@@ -50,7 +60,7 @@ func detailHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func approveHandler(repo *Repo) gin.HandlerFunc {
+func approveHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, _ := auth.UserFrom(c)
 		id, err := strconv.ParseUint(c.Param("entityId"), 10, 64)
@@ -70,7 +80,7 @@ func approveHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func rejectHandler(repo *Repo) gin.HandlerFunc {
+func rejectHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, _ := auth.UserFrom(c)
 		var body struct {
@@ -93,7 +103,7 @@ func rejectHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func approveTreeHandler(repo *Repo) gin.HandlerFunc {
+func approveTreeHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, _ := auth.UserFrom(c)
 		id, err := strconv.ParseUint(c.Param("doctorId"), 10, 64)

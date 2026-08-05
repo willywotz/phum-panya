@@ -13,7 +13,7 @@ import (
 
 func TestAutoMigrateCreatesTables(t *testing.T) {
 	g, _ := db.Open(filepath.Join(t.TempDir(), "m.db"))
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatal(err)
 	}
 	for _, m := range []any{&model.District{}, &model.User{}, &model.Session{}, &model.Doctor{},
@@ -35,7 +35,7 @@ func TestEnumCheckConstraintsRejectOutOfRangeValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -92,7 +92,7 @@ func TestEnumCheckConstraintsRejectOutOfRangeValues(t *testing.T) {
 
 func TestIngredientXORConstraint(t *testing.T) {
 	g, _ := db.Open(filepath.Join(t.TempDir(), "x.db"))
-	_ = model.AutoMigrate(g)
+	_ = db.AutoMigrate(g)
 	err := g.Exec(`INSERT INTO ingredients(recipe_id,herb_id,pending_herb_name) VALUES(1,1,'x')`).Error
 	if err == nil {
 		t.Fatal("expected check constraint to reject row with both herb_id and pending name")
@@ -104,7 +104,7 @@ func TestIngredientXORConstraint(t *testing.T) {
 // reading the row back reports the login as inactive.
 func TestUserDeactivatePersists(t *testing.T) {
 	g, _ := db.Open(filepath.Join(t.TempDir(), "u.db"))
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatal(err)
 	}
 
@@ -137,7 +137,7 @@ func TestUserDeactivatePersists(t *testing.T) {
 // that Doctor.
 func TestDeletingDistrictDoesNotWipeDoctor(t *testing.T) {
 	g, _ := db.Open(filepath.Join(t.TempDir(), "d.db"))
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatal(err)
 	}
 
@@ -166,7 +166,7 @@ func TestAutoMigrateCreatesRevisionAndPendingColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 
@@ -197,7 +197,7 @@ func TestYearLockMigrates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if err := g.Create(&model.YearLock{DataYear: 2567, LockedBy: 1}).Error; err != nil {
@@ -217,7 +217,7 @@ func TestImportBatchMigratesAndTagsDoctor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	dist := model.District{Name: "d", Province: "p"}
@@ -246,7 +246,7 @@ func TestHerbProvenanceAndAliasColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	did := uint(3)
@@ -306,12 +306,12 @@ func TestBackfillRecipePhotosMigratesLegacyValueIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	recipeID := seedRecipeWithLegacyPhoto(t, g, "uploads/legacy.jpg")
 
-	if err := model.BackfillRecipePhotos(g); err != nil {
+	if err := db.BackfillRecipePhotos(g); err != nil {
 		t.Fatalf("first backfill: %v", err)
 	}
 	var photos []model.RecipePhoto
@@ -322,7 +322,7 @@ func TestBackfillRecipePhotosMigratesLegacyValueIdempotently(t *testing.T) {
 		t.Fatalf("photos = %+v, want one row with path uploads/legacy.jpg", photos)
 	}
 
-	if err := model.BackfillRecipePhotos(g); err != nil {
+	if err := db.BackfillRecipePhotos(g); err != nil {
 		t.Fatalf("second backfill: %v", err)
 	}
 	var n int64

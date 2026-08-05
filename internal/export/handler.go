@@ -17,29 +17,50 @@ const (
 	contentTypeXLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
-// exportFunc is the shape shared by Doctors, Recipes, and Cases.
-type exportFunc func(w io.Writer, g *gorm.DB, format string, districtID *uint) error
+// sourceFunc is the shape shared by every Source method.
+type sourceFunc func(w io.Writer, format string, districtID *uint) error
+
+// Source writes an export stream for one entity in the given format, scoped
+// to districtID (nil = all districts).
+type Source interface {
+	Doctors(w io.Writer, format string, districtID *uint) error
+	Recipes(w io.Writer, format string, districtID *uint) error
+	Cases(w io.Writer, format string, districtID *uint) error
+}
+
+type gormSource struct{ g *gorm.DB }
+
+// NewSource returns a GORM-backed export Source.
+func NewSource(g *gorm.DB) Source { return gormSource{g: g} }
+
+func (s gormSource) Doctors(w io.Writer, format string, d *uint) error {
+	return Doctors(w, s.g, format, d)
+}
+func (s gormSource) Recipes(w io.Writer, format string, d *uint) error {
+	return Recipes(w, s.g, format, d)
+}
+func (s gormSource) Cases(w io.Writer, format string, d *uint) error { return Cases(w, s.g, format, d) }
 
 // RegisterRoutes wires the staff-only bulk export endpoints onto r. Every
 // route requires authentication. A district_editor's district is forced
 // from their session (any district_id query parameter is ignored); a
 // central_admin may pass district_id or omit it to export every district.
-func RegisterRoutes(r gin.IRouter, g *gorm.DB) {
+func RegisterRoutes(r gin.IRouter, src Source) {
 	requireAuth := auth.RequireAuth()
 	for _, e := range []struct {
 		name string
-		fn   exportFunc
+		fn   sourceFunc
 	}{
-		{"doctors", Doctors},
-		{"recipes", Recipes},
-		{"cases", Cases},
+		{"doctors", src.Doctors},
+		{"recipes", src.Recipes},
+		{"cases", src.Cases},
 	} {
-		r.GET("/api/export/"+e.name+".csv", requireAuth, exportHandler(g, "csv", e.fn, e.name))
-		r.GET("/api/export/"+e.name+".xlsx", requireAuth, exportHandler(g, "xlsx", e.fn, e.name))
+		r.GET("/api/export/"+e.name+".csv", requireAuth, exportHandler("csv", e.fn, e.name))
+		r.GET("/api/export/"+e.name+".xlsx", requireAuth, exportHandler("xlsx", e.fn, e.name))
 	}
 }
 
-func exportHandler(g *gorm.DB, format string, fn exportFunc, name string) gin.HandlerFunc {
+func exportHandler(format string, fn sourceFunc, name string) gin.HandlerFunc {
 	contentType := contentTypeCSV
 	if format == "xlsx" {
 		contentType = contentTypeXLSX
@@ -52,7 +73,7 @@ func exportHandler(g *gorm.DB, format string, fn exportFunc, name string) gin.Ha
 		c.Writer.Header().Set("Content-Type", contentType)
 		c.Writer.Header().Set("Content-Disposition", "attachment; filename="+name+"."+format)
 		c.Writer.WriteHeader(http.StatusOK)
-		if err := fn(c.Writer, g, format, districtID); err != nil {
+		if err := fn(c.Writer, format, districtID); err != nil {
 			return
 		}
 	}

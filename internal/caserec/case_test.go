@@ -50,7 +50,7 @@ func newCaseAPI(t *testing.T) *caseAPI {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 
@@ -132,9 +132,9 @@ func newCaseAPI(t *testing.T) *caseAPI {
 	}
 
 	r := gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	repo := caserec.NewRepo(g, clock.Real{}, revision.NewRepo(g, clock.Real{}), yearlock.NewRepo(g, clock.Real{}))
-	caserec.RegisterRoutes(r, repo, &media.Store{Dir: t.TempDir()})
+	caserec.RegisterRoutes(r, repo, &media.LocalStore{Dir: t.TempDir()})
 
 	return &caseAPI{
 		t: t, g: g, r: r, repo: repo,

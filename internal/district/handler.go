@@ -19,16 +19,26 @@ type districtRequest struct {
 	Province string `json:"province" binding:"required"`
 }
 
+// repository is the port RegisterRoutes depends on; *Repo is the GORM
+// adapter that implements it.
+type repository interface {
+	List() ([]model.District, error)
+	Get(id uint) (model.District, error)
+	Create(d *model.District) error
+	Update(d *model.District) error
+	Delete(id uint) error
+}
+
 // RegisterRoutes wires the district CRUD endpoints onto r. The caller must
 // wrap r with auth.LoadUser first.
-func RegisterRoutes(r gin.IRouter, repo *Repo) {
+func RegisterRoutes(r gin.IRouter, repo repository) {
 	r.GET("/api/districts", auth.RequireAuth(), listHandler(repo))
 	r.POST("/api/districts", auth.RequireRole("central_admin"), createHandler(repo))
 	r.PUT("/api/districts/:id", auth.RequireRole("central_admin"), updateHandler(repo))
 	r.DELETE("/api/districts/:id", auth.RequireRole("central_admin"), deleteHandler(repo))
 }
 
-func listHandler(repo *Repo) gin.HandlerFunc {
+func listHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		districts, err := repo.List()
 		if err != nil {
@@ -39,7 +49,7 @@ func listHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func createHandler(repo *Repo) gin.HandlerFunc {
+func createHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req districtRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -55,7 +65,7 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func updateHandler(repo *Repo) gin.HandlerFunc {
+func updateHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -75,7 +85,7 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func deleteHandler(repo *Repo) gin.HandlerFunc {
+func deleteHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {

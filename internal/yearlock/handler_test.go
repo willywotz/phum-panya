@@ -38,7 +38,7 @@ func newYearLockAPI(t *testing.T) *yearLockAPI {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 
@@ -74,7 +74,7 @@ func newYearLockAPI(t *testing.T) *yearLockAPI {
 	}
 
 	r := gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	yearlock.RegisterRoutes(r, yearlock.NewRepo(g, clock.Real{}))
 
 	return &yearLockAPI{

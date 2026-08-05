@@ -27,7 +27,7 @@ func newImporterEnv(t *testing.T) (*importer.Importer, *gorm.DB, uint) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	dist := model.District{Name: "d", Province: "p"}

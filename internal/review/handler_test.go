@@ -41,7 +41,7 @@ func newReviewAPI(t *testing.T) *reviewAPI {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 
@@ -77,7 +77,7 @@ func newReviewAPI(t *testing.T) *reviewAPI {
 	}
 
 	r := gin.New()
-	r.Use(auth.LoadUser(store, g))
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	review.RegisterRoutes(r, review.NewRepo(g, revision.NewRepo(g, clock.Real{})))
 
 	return &reviewAPI{

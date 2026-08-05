@@ -38,7 +38,7 @@ func TestOpenWithPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := AutoMigrate(g); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	d := model.District{Name: "ทดสอบ"}

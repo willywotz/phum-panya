@@ -30,11 +30,25 @@ type reconcileRequest struct {
 	HerbID      uint   `json:"herb_id" binding:"required"`
 }
 
+// repository is the port RegisterRoutes depends on; *Repo is the GORM
+// adapter that implements it.
+type repository interface {
+	List() ([]model.Herb, error)
+	Get(id uint) (model.Herb, error)
+	Create(h *model.Herb, createdByDistrictID *uint) error
+	Update(h *model.Herb, editorDistrictID *uint) error
+	Delete(id uint) error
+	PendingNames() ([]string, error)
+	Reconcile(pendingName string, herbID uint) (int64, error)
+	Merge(aliasID, canonicalID uint) (int64, error)
+	NearDuplicates(thaiName string) ([]model.Herb, error)
+}
+
 // RegisterRoutes wires the herb catalog, pending-herb, and storage-usage
 // endpoints onto r. The caller must wrap r with auth.LoadUser first. A
 // district editor may add herbs and edit ones its own district created;
 // merging/aliasing and every other route require the central_admin role.
-func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore *media.Store) {
+func RegisterRoutes(r gin.IRouter, repo repository, mediaStore media.Store) {
 	admin := auth.RequireRole("central_admin")
 	authed := auth.RequireAuth()
 	r.GET("/api/herbs", admin, listHandler(repo))
@@ -57,7 +71,7 @@ func districtOf(c *gin.Context) *uint {
 	return user.DistrictID
 }
 
-func listHandler(repo *Repo) gin.HandlerFunc {
+func listHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		herbs, err := repo.List()
 		if err != nil {
@@ -68,7 +82,7 @@ func listHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func createHandler(repo *Repo) gin.HandlerFunc {
+func createHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req herbRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -87,7 +101,7 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func updateHandler(repo *Repo) gin.HandlerFunc {
+func updateHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -114,7 +128,7 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func mergeHandler(repo *Repo) gin.HandlerFunc {
+func mergeHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		aliasID, ok := parseID(c)
 		if !ok {
@@ -138,7 +152,7 @@ func mergeHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func nearDuplicatesHandler(repo *Repo) gin.HandlerFunc {
+func nearDuplicatesHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		dups, err := repo.NearDuplicates(c.Query("thaiName"))
 		if err != nil {
@@ -149,7 +163,7 @@ func nearDuplicatesHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func deleteHandler(repo *Repo) gin.HandlerFunc {
+func deleteHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -163,7 +177,7 @@ func deleteHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func pendingHandler(repo *Repo) gin.HandlerFunc {
+func pendingHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		names, err := repo.PendingNames()
 		if err != nil {
@@ -174,7 +188,7 @@ func pendingHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func reconcileHandler(repo *Repo) gin.HandlerFunc {
+func reconcileHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req reconcileRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -190,7 +204,7 @@ func reconcileHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func storageHandler(mediaStore *media.Store) gin.HandlerFunc {
+func storageHandler(mediaStore media.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		used, err := mediaStore.UsageBytes()
 		if err != nil {

@@ -51,7 +51,7 @@ func decodedSize(t *testing.T, path string) (w, h int, format string) {
 
 func TestSaveReaderDownscalesPNGToJPEG(t *testing.T) {
 	dir := t.TempDir()
-	store := &media.Store{Dir: dir}
+	store := &media.LocalStore{Dir: dir}
 
 	src := stdimage.NewNRGBA(stdimage.Rect(0, 0, 3000, 2000))
 	var pngBuf bytes.Buffer
@@ -75,7 +75,7 @@ func TestSaveReaderDownscalesPNGToJPEG(t *testing.T) {
 
 func TestSaveReaderRejectsTIFF(t *testing.T) {
 	dir := t.TempDir()
-	store := &media.Store{Dir: dir}
+	store := &media.LocalStore{Dir: dir}
 
 	src := stdimage.NewNRGBA(stdimage.Rect(0, 0, 64, 64))
 	var tiffBuf bytes.Buffer
@@ -90,7 +90,7 @@ func TestSaveReaderRejectsTIFF(t *testing.T) {
 
 func TestSaveMultipartLargeJPEG(t *testing.T) {
 	dir := t.TempDir()
-	store := &media.Store{Dir: dir}
+	store := &media.LocalStore{Dir: dir}
 
 	jpegBytes := randomJPEG(t, 4000, 3000)
 	if len(jpegBytes) <= 8<<20 {
@@ -135,7 +135,7 @@ func TestSaveMultipartLargeJPEG(t *testing.T) {
 
 func TestUsageBytes(t *testing.T) {
 	dir := t.TempDir()
-	store := &media.Store{Dir: dir}
+	store := &media.LocalStore{Dir: dir}
 
 	src := stdimage.NewNRGBA(stdimage.Rect(0, 0, 100, 100))
 	if _, err := rand.Read(src.Pix); err != nil {
@@ -158,7 +158,7 @@ func TestUsageBytes(t *testing.T) {
 		t.Errorf("UsageBytes = %d, want > 0", got)
 	}
 
-	missing := &media.Store{Dir: filepath.Join(dir, "does-not-exist")}
+	missing := &media.LocalStore{Dir: filepath.Join(dir, "does-not-exist")}
 	got, err = missing.UsageBytes()
 	if err != nil {
 		t.Errorf("UsageBytes on missing dir: err = %v, want nil", err)

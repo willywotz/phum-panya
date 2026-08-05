@@ -70,6 +70,15 @@ func (r *Repo) Get(id uint) (model.Recipe, error) {
 	return rec, err
 }
 
+// GetDoctor returns the doctor with id, or gorm.ErrRecordNotFound if none
+// exists. Used by handler.go's ownership checks (a recipe's district is its
+// doctor's district).
+func (r *Repo) GetDoctor(id uint) (model.Doctor, error) {
+	var d model.Doctor
+	err := r.g.First(&d, id).Error
+	return d, err
+}
+
 // Create inserts rec and its ings in one transaction, stamping rec's audit
 // fields with actorID and the current time. Editor creates enter the
 // pending queue; admin creates publish immediately and are logged.

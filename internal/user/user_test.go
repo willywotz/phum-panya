@@ -55,7 +55,7 @@ func newUserAPI(t *testing.T) *userAPI {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 
@@ -80,7 +80,7 @@ func newUserAPI(t *testing.T) *userAPI {
 	}
 
 	engine := gin.New()
-	engine.Use(auth.LoadUser(store, g))
+	engine.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
 	user.RegisterRoutes(engine, user.NewRepo(g))
 
 	return &userAPI{g: g, engine: engine, store: store, adminToken: adminToken}

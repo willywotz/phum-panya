@@ -11,14 +11,13 @@ import (
 	"phum-panya/internal/backup"
 	"phum-panya/internal/clock"
 	"phum-panya/internal/db"
-	"phum-panya/internal/model"
 )
 
 func TestBackupProducesZipAndPrunes(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "app.db")
 	g, _ := db.Open(dbPath)
-	_ = model.AutoMigrate(g)
+	_ = db.AutoMigrate(g)
 	mediaDir := filepath.Join(dir, "media")
 	os.MkdirAll(mediaDir, 0o755)
 	os.WriteFile(filepath.Join(mediaDir, "x.jpg"), []byte("img"), 0o644)
@@ -63,7 +62,7 @@ func TestBackupRunRepeatedDoesNotLeakConnections(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "app.db")
 	g, _ := db.Open(dbPath)
-	_ = model.AutoMigrate(g)
+	_ = db.AutoMigrate(g)
 	outDir := filepath.Join(dir, "out")
 	mediaDir := filepath.Join(dir, "media")
 
@@ -110,7 +109,7 @@ func TestPruneIgnoresNonBackupFiles(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "app.db")
 	g, _ := db.Open(dbPath)
-	_ = model.AutoMigrate(g)
+	_ = db.AutoMigrate(g)
 	outDir := filepath.Join(dir, "out")
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		t.Fatal(err)

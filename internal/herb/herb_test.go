@@ -29,7 +29,7 @@ func newDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	if err := model.AutoMigrate(g); err != nil {
+	if err := db.AutoMigrate(g); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
 	return g
@@ -144,8 +144,8 @@ func router(t *testing.T) (r *gin.Engine, adminToken string, mediaDir string) {
 
 	mediaDir = t.TempDir()
 	r = gin.New()
-	r.Use(auth.LoadUser(store, g))
-	herb.RegisterRoutes(r, herb.NewRepo(g), &media.Store{Dir: mediaDir})
+	r.Use(auth.LoadUser(store, auth.NewGormUsers(g)))
+	herb.RegisterRoutes(r, herb.NewRepo(g), &media.LocalStore{Dir: mediaDir})
 
 	return r, adminToken, mediaDir
 }

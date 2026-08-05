@@ -22,14 +22,38 @@ type loginRequest struct {
 // wrong password, preventing account enumeration via response timing.
 const dummyHash = "$2a$12$NvMgpYk902bQzaPhuRHRNukvkV2aF7/XOwd5wvua3z5dkgbgdi4Lq"
 
-// RegisterRoutes wires the login, logout, and current-user endpoints onto r.
-func RegisterRoutes(r gin.IRouter, g *gorm.DB, store *SessionStore, th *Throttle, secure bool) {
-	r.POST("/api/login", loginHandler(g, store, th, secure))
-	r.POST("/api/logout", logoutHandler(store))
-	r.GET("/api/current-user", LoadUser(store, g), currentUserHandler)
+// Users looks up user accounts for login and session attachment.
+type Users interface {
+	ByActiveEmail(email string) (model.User, error)
+	ByID(id uint) (model.User, error)
 }
 
-func loginHandler(g *gorm.DB, store *SessionStore, th *Throttle, secure bool) gin.HandlerFunc {
+// gormUsers is the GORM-backed Users adapter.
+type gormUsers struct{ g *gorm.DB }
+
+// NewGormUsers returns a GORM-backed Users port.
+func NewGormUsers(g *gorm.DB) Users { return gormUsers{g: g} }
+
+func (u gormUsers) ByActiveEmail(email string) (model.User, error) {
+	var user model.User
+	err := u.g.Where("email = ? AND active = ?", email, true).First(&user).Error
+	return user, err
+}
+
+func (u gormUsers) ByID(id uint) (model.User, error) {
+	var user model.User
+	err := u.g.First(&user, id).Error
+	return user, err
+}
+
+// RegisterRoutes wires the login, logout, and current-user endpoints onto r.
+func RegisterRoutes(r gin.IRouter, users Users, store Sessions, th Limiter, secure bool) {
+	r.POST("/api/login", loginHandler(users, store, th, secure))
+	r.POST("/api/logout", logoutHandler(store))
+	r.GET("/api/current-user", LoadUser(store, users), currentUserHandler)
+}
+
+func loginHandler(users Users, store Sessions, th Limiter, secure bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req loginRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -43,8 +67,7 @@ func loginHandler(g *gorm.DB, store *SessionStore, th *Throttle, secure bool) gi
 			return
 		}
 
-		var user model.User
-		err := g.Where("email = ? AND active = ?", req.Email, true).First(&user).Error
+		user, err := users.ByActiveEmail(req.Email)
 		hash := dummyHash
 		if err == nil {
 			hash = user.PasswordHash
@@ -75,7 +98,7 @@ func loginHandler(g *gorm.DB, store *SessionStore, th *Throttle, secure bool) gi
 	}
 }
 
-func logoutHandler(store *SessionStore) gin.HandlerFunc {
+func logoutHandler(store Sessions) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if raw, err := c.Cookie(sessionCookieName); err == nil && raw != "" {
 			_ = store.Delete(raw)

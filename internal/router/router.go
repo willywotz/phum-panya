@@ -37,10 +37,10 @@ import (
 type Deps struct {
 	Cfg   config.Config
 	DB    *gorm.DB
-	Store *auth.SessionStore
+	Store auth.Sessions
 
-	Throttle *auth.Throttle
-	Media    *media.Store
+	Throttle auth.Limiter
+	Media    media.Store
 	Clk      clock.Clock
 	// Secure controls whether the session cookie is marked Secure.
 	Secure bool
@@ -65,15 +65,17 @@ func NewEngine(deps Deps) *gin.Engine {
 	// api carries auth.LoadUser but no path prefix: every module already
 	// registers its full "/api/..." literal path, so a "/api" group prefix
 	// here would double it.
+	authUsers := auth.NewGormUsers(deps.DB)
+
 	api := engine.Group("")
-	api.Use(auth.LoadUser(deps.Store, deps.DB))
+	api.Use(auth.LoadUser(deps.Store, authUsers))
 	api.GET("/api/health", func(c *gin.Context) { httpx.OK(c, http.StatusOK, gin.H{"status": "ok"}) })
 
 	rev := revision.NewRepo(deps.DB, deps.Clk)
 	// lockRepo is also used by the yearlock routes registered below.
 	lockRepo := yearlock.NewRepo(deps.DB, deps.Clk)
 
-	auth.RegisterRoutes(api, deps.DB, deps.Store, deps.Throttle, deps.Secure)
+	auth.RegisterRoutes(api, authUsers, deps.Store, deps.Throttle, deps.Secure)
 	district.RegisterRoutes(api, district.NewRepo(deps.DB))
 	user.RegisterRoutes(api, user.NewRepo(deps.DB))
 	herbRepo := herb.NewRepo(deps.DB)
@@ -86,8 +88,8 @@ func NewEngine(deps Deps) *gin.Engine {
 	recipe.RegisterRoutes(api, recRepo, deps.Media)
 	caserec.RegisterRoutes(api, casRepo, deps.Media)
 	review.RegisterRoutes(api, review.NewRepo(deps.DB, rev))
-	publicapi.RegisterRoutes(api, deps.DB)
-	export.RegisterRoutes(api, deps.DB)
+	publicapi.RegisterRoutes(api, publicapi.NewRepo(deps.DB))
+	export.RegisterRoutes(api, export.NewSource(deps.DB))
 	if deps.Cfg.BackupEnabled() {
 		backup.RegisterRoutes(api, deps.DBPath, deps.MediaDir, deps.BackupDir, deps.BackupKeep, deps.Clk)
 	}

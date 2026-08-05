@@ -3,9 +3,11 @@ package media_test
 import (
 	"bytes"
 	"crypto/rand"
+	"errors"
 	stdimage "image"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -29,6 +31,19 @@ func randomJPEG(t *testing.T, w, h int) []byte {
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 100}); err != nil {
 		t.Fatalf("jpeg.Encode: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// tinyPNG returns PNG-encoded bytes for a 2x2 image, a minimal valid,
+// decodable fixture.
+func tinyPNG(t *testing.T) []byte {
+	t.Helper()
+
+	img := stdimage.NewRGBA(stdimage.Rect(0, 0, 2, 2))
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("png.Encode: %v", err)
 	}
 	return buf.Bytes()
 }
@@ -165,5 +180,33 @@ func TestUsageBytes(t *testing.T) {
 	}
 	if got != 0 {
 		t.Errorf("UsageBytes on missing dir = %d, want 0", got)
+	}
+}
+
+func TestLocalStoreOpenRoundTrip(t *testing.T) {
+	s := media.NewLocalStore(t.TempDir())
+	// A 2x2 PNG is a valid decodable image; SaveReader re-encodes to JPEG.
+	key, err := s.SaveReader(bytes.NewReader(tinyPNG(t)))
+	if err != nil {
+		t.Fatalf("SaveReader: %v", err)
+	}
+	obj, err := s.Open(key)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer obj.Body.Close()
+	if obj.ContentType != "image/jpeg" {
+		t.Fatalf("ContentType = %q, want image/jpeg", obj.ContentType)
+	}
+	b, _ := io.ReadAll(obj.Body)
+	if int64(len(b)) != obj.Size || obj.Size == 0 {
+		t.Fatalf("Size = %d, read %d bytes", obj.Size, len(b))
+	}
+}
+
+func TestLocalStoreOpenMissingIsErrNotFound(t *testing.T) {
+	s := media.NewLocalStore(t.TempDir())
+	if _, err := s.Open("ab/does-not-exist.jpg"); !errors.Is(err, media.ErrNotFound) {
+		t.Fatalf("err = %v, want ErrNotFound", err)
 	}
 }

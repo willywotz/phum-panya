@@ -61,6 +61,10 @@ Paid phases delivered:
 - **Two HIGH bugs were caught by the whole-branch reviews and fixed before merge** (see §7).
 - **P2–P5 now have frontend admin screens** (merged to `main` via PR #8, `8cf3caa`): approval
   queue, year locks, bulk import, herb merge/near-duplicate, plus role-gated nav. See §8.
+- **Post-`v1.1.0` hardening batch** (merged to `main`, PRs #21–#26, #29, #31–#32): the parked
+  follow-ups **#12–#18** plus two derived follow-ups (**#27, #28**) are all fixed — each on its own
+  branch, TDD + fresh-context review, CI-green. Full suite is now **208 Go tests** (25 packages) +
+  the Playwright e2e suite, all green. Only **#19** (CD/VPS auto-deploy) stays open. See §8.
 
 ## 3. Stack (as built)
 
@@ -191,24 +195,38 @@ tables; `Herb` provenance/alias columns; `batch_id` tags). No manual migration s
 - Parked frontend follow-ups: no per-worker e2e DB isolation (the reason the suite runs serially);
   the queue diff renders a recipe `{recipe,ingredients}` pending payload as one unformatted cell.
 
-**Parked follow-ups are now filed as GitHub issues (#12–#19, all non-blocking):**
-- [#12](https://github.com/willywotz/phum-panya/issues/12) — Districts + Users nav links shown to
-  district editors (both admin-only screens; backend already enforces admin, so UX-only).
-- [#13](https://github.com/willywotz/phum-panya/issues/13) — **P2/P3:** `SetPhoto` bypasses the
-  approval gate, the year-lock guard, and the audit trail (photo swap on an approved/locked row is
-  immediate and unlogged; row content edits are correctly gated).
-- [#14](https://github.com/willywotz/phum-panya/issues/14) — **P5:** herb `Merge` has no
-  self/chained/canonical guard, and merged aliases still appear in the admin + public catalog (no
-  `alias_of_id IS NULL` filter; cosmetic — recipes resolve to the canonical herb).
-- [#15](https://github.com/willywotz/phum-panya/issues/15) — **P1:** no `binding:"required"` tags
-  and no enum DB CHECK constraints.
-- [#16](https://github.com/willywotz/phum-panya/issues/16) — **P1:** `/api/current-user` omits
-  `full_name`.
-- [#17](https://github.com/willywotz/phum-panya/issues/17) — **P1:** web has no ESLint config.
-- [#18](https://github.com/willywotz/phum-panya/issues/18) — **P1:** `Recipe.Photo` is a single
-  string vs the data-model "image (many)".
-- [#19](https://github.com/willywotz/phum-panya/issues/19) — **P1:** no CD; the VPS deploy is manual
-  (runbook: `docs/ops/deploy.md`).
+**The parked follow-ups #12–#18 are now FIXED (post-`v1.1.0` hardening batch); #27/#28 too. Only
+#19 remains open.**
+- [#13](https://github.com/willywotz/phum-panya/issues/13) — **FIXED (PR #25).** `SetPhoto` now
+  obeys P2 approval (editor change staged in a dedicated `pending_photo` column, admin applies at
+  once), P3 year-lock (`guardYearWrite` on the Case path; Doctor has no `data_year`), and writes a
+  `Revision`. Approve folds `pending_photo` into `photo` (composing with a pending content edit);
+  reject discards it; the photo-only pending row shows in the review queue.
+- [#18](https://github.com/willywotz/phum-panya/issues/18) — **FIXED (PR #26).** `Recipe.Photo` →
+  a `RecipePhoto` child table (`ON DELETE CASCADE`), append endpoint `POST /api/recipes/:id/photo`,
+  public projection returns a `photos` array, idempotent boot-time backfill of existing values.
+- [#14](https://github.com/willywotz/phum-panya/issues/14) — **FIXED (PR #22).** herb `Merge`
+  rejects self/chained/missing-canonical and re-points existing aliases; `herb.List()` and public
+  `ListHerbs()` filter `alias_of_id IS NULL`.
+- [#15](https://github.com/willywotz/phum-panya/issues/15) — **FIXED (PR #29).** `binding:"required"`
+  /`oneof=` on request DTOs and `gorm:"check:..."` on enum columns. CHECKs apply on fresh
+  AutoMigrate only (SQLite can't `ALTER`-add a CHECK) — the already-deployed DB relies on the
+  binding guard; a one-time rebuild migration was judged not worth the data-loss risk.
+- [#16](https://github.com/willywotz/phum-panya/issues/16) — **FIXED (PR #21).** `/api/current-user`
+  returns `full_name`.
+- [#12](https://github.com/willywotz/phum-panya/issues/12) — **FIXED (PR #23).** Districts + Users
+  moved to admin-only nav + `RequireAdmin` on both pages; editors keep district-name reads in forms.
+- [#17](https://github.com/willywotz/phum-panya/issues/17) — **FIXED (PR #24).** flat
+  `eslint.config.mjs` (Next + TS preset); `lint` off deprecated `next lint`; lint wired into CI.
+- [#27](https://github.com/willywotz/phum-panya/issues/27) — **FIXED (PR #31).** derived from #14:
+  herb `mergeHandler` maps `ErrSelfMerge`/`ErrChainedMerge` → 400 and missing canonical → 404
+  (was an opaque 500).
+- [#28](https://github.com/willywotz/phum-panya/issues/28) — **FIXED (PR #32).** derived from #18:
+  the public healer page reads the recipe `photos` array (renders every photo); the staff recipe
+  screen gains photo upload via the append endpoint.
+- [#19](https://github.com/willywotz/phum-panya/issues/19) — **OPEN.** no CD; the VPS deploy is
+  manual (runbook: `docs/ops/deploy.md`). Parked pending a deploy-model decision (push `deploy.yml`
+  vs pull-based systemd updater) + VPS SSH secrets.
 
 Not filed (self-remedying, documented behaviour): **P4** cases have no `code`, so re-importing a
 file duplicates cases (coded entities are idempotent) — per-batch undo is the remedy; undo leaves
@@ -223,20 +241,23 @@ Role-based nav hiding is done (see the P2–P5 frontend note above).
 
 ## 9. Git state & next steps
 
-- One trunk: **`main`** at `3d995ec`, `== origin/main`. No open feature branches.
-- PRs **#4–#7** (P2–P5 backend), **#8** (P2–P5 frontend), **#9** (doc refresh + UAT record),
-  **#10** (v1.1.0 release record), **#11** (VPS deploy runbook) merged. **`v1.1.0`** is the last tag
-  (P2–P5 backend + frontend), cut on `6cde31b` after the UAT pass; `release.yml` built + published
-  the Windows exe/MSI + Linux binary.
+- One trunk: **`main`** at `39aab91`, `== origin/main`. Clean; no open feature branches or worktrees.
+- Merged since the last handoff (this hardening batch): PRs **#21** (#16), **#22** (#14), **#23**
+  (#12), **#24** (#17), **#25** (#13), **#26** (#18), **#29** (#15), **#31** (#27), **#32** (#28),
+  plus doc PRs **#30/#33**. Earlier: **#4–#7** (P2–P5 backend), **#8** (frontend), **#9–#11** (docs +
+  release + deploy runbook), **#20** (issue links).
+- **`v1.1.0`** is still the last tag (cut on `6cde31b`); the hardening batch is **unreleased** on
+  `main`. A **`v1.2.0`** tag would ship it (governance + validation + multi-photo recipes + polish).
 - `ci.yml` gates every push/PR; `release.yml` builds + publishes on `v*` tags.
-- Open follow-up issues: **#12–#19** (all non-blocking — see §8).
+- Open follow-up issues: **only #19** (CD/VPS auto-deploy — see §8). #12–#18, #27, #28 all closed.
 
 **Immediate next steps:**
-1. **Deploy `v1.1.0`** to the client VPS — still manual, no CD ([#19](https://github.com/willywotz/phum-panya/issues/19));
+1. **Tag `v1.2.0`** to release the hardening batch (or bundle it with the first VPS deploy).
+2. **Deploy to the client VPS** — still manual, no CD ([#19](https://github.com/willywotz/phum-panya/issues/19));
    runbook at `docs/ops/deploy.md`. Run the SRS §6.1 UAT on the live host, including the
    editor→pending→admin-approve→public flow.
-2. Optional hardening, all filed and prioritised in §8: the governance hole
-   [#13](https://github.com/willywotz/phum-panya/issues/13) (`SetPhoto` gate/lock/audit) is the
-   highest-value; then [#12](https://github.com/willywotz/phum-panya/issues/12) (editor nav),
-   [#14](https://github.com/willywotz/phum-panya/issues/14) (herb merge), and the P1 polish
-   [#15](https://github.com/willywotz/phum-panya/issues/15)–[#19](https://github.com/willywotz/phum-panya/issues/19).
+3. **Decide #19's model** (push `deploy.yml` on release vs pull-based systemd updater) and provide
+   VPS SSH secrets so CD can be built — it can't be built or verified headless without the host.
+4. **Note on #15:** the enum CHECK constraints apply on fresh migrations only; the live `v1.1.0` DB
+   won't gain them (SQLite can't `ALTER`-add a CHECK). `binding:oneof` guards all writes forward. If
+   DB-level coverage on the existing DB is wanted, file a one-time rebuild-migration task.

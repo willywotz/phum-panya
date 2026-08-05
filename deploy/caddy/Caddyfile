@@ -2,15 +2,34 @@
 {$APP_DOMAIN} {
 	encode gzip
 
-	# API → the Go service.
+	# API → the Go service. Two replicas (docker-compose.yaml api.deploy.replicas)
+	# are discovered by DNS and round-robined with an active health check.
 	handle /api/* {
-		reverse_proxy api:8080
+		reverse_proxy {
+			dynamic a {
+				name api
+				port 8080
+				refresh 10s
+			}
+			lb_policy round_robin
+			health_uri /api/health
+			health_interval 10s
+		}
 	}
 
 	# Media reads are streamed by the Go service from object storage; Caddy
 	# proxies them like the rest of the API.
 	handle /media/* {
-		reverse_proxy api:8080
+		reverse_proxy {
+			dynamic a {
+				name api
+				port 8080
+				refresh 10s
+			}
+			lb_policy round_robin
+			health_uri /api/health
+			health_interval 10s
+		}
 	}
 
 	# Jaeger trace UI, gated to central-admin sessions via the api.

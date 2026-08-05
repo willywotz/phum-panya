@@ -44,9 +44,14 @@ func (c Config) UseTLS() bool {
 }
 
 // CookieSecure reports whether the session cookie carries the Secure flag.
-// True under production TLS and behind a proxy (public scheme is HTTPS).
+// True under production TLS, and behind a proxy only when the public origin is
+// HTTPS — so a dev stack proxied over plain HTTP still gets a usable cookie.
 func (c Config) CookieSecure() bool {
-	return c.BehindProxy || (!c.DevMode && c.Domain != "")
+	if c.BehindProxy {
+		u, err := url.Parse(c.PublicOrigin)
+		return err == nil && u.Scheme == "https"
+	}
+	return !c.DevMode && c.Domain != ""
 }
 
 // AllowedOriginHost returns the host the CSRF origin check must match.

@@ -49,6 +49,7 @@ func TestModePredicates(t *testing.T) {
 		{"dev", Config{DevMode: true}, false, false, "", true},
 		{"prod-tls", Config{Domain: "example.org"}, true, true, "example.org", true},
 		{"behind-proxy", Config{BehindProxy: true, PublicOrigin: "https://example.org"}, false, true, "example.org", true},
+		{"behind-proxy-http", Config{BehindProxy: true, PublicOrigin: "http://localhost:8080"}, false, false, "localhost:8080", true},
 		{"postgres", Config{BehindProxy: true, PublicOrigin: "https://example.org", DBDriver: "postgres"}, false, true, "example.org", false},
 	}
 	for _, tc := range cases {

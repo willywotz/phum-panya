@@ -12,6 +12,6 @@ build-release: web
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o bin/server.exe          ./cmd/server
 test:
 	go test ./...
-# Dev stack: web + api behind nginx with hot reload (needs APP_ADMIN_PASSWORD, e.g. from .env).
+# Dev stack: prod-parity Caddy + Postgres + behind-proxy api, web/api hot reload (needs APP_ADMIN_PASSWORD, e.g. from .env).
 dev:
 	docker compose -f docker-compose.dev.yaml up -w --build --force-recreate

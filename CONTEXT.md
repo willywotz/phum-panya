@@ -288,6 +288,19 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   (stack), `Dockerfile.api`, `web/Dockerfile`, `docker-compose.dev.yaml`, `deploy/dev/*.Dockerfile`.
   Updated: `ci.yml` (`stack-validate` drops the `-f` flag), `.dockerignore`, `.env.example`,
   `docs/ops/deploy-compose.md`, `docs/HANDOFF.md`. `docker compose config` + all tests green.
+- **Dev stack brought to prod parity** (15-Factor X, branch `refactor/container-stack-only`). The
+  dev stack (`docker-compose.dev.yaml`) now mirrors prod: **nginx→Caddy** (reuses the prod
+  `deploy/caddy/Caddyfile` verbatim — pointing `APP_DOMAIN` at `http://localhost:<port>` makes
+  Caddy serve plain HTTP, no ACME), **SQLite→Postgres** (same `postgres:17-alpine`), and the api
+  runs in the same **behind-proxy** mode (`APP_BEHIND_PROXY=1` + `APP_PUBLIC_ORIGIN`) instead of
+  `APP_DEV=1` — so the real Origin/CSRF + Postgres code paths are exercised in dev. Media is a
+  shared volume Caddy `file_server`s, as in prod. Only divergence: web/api stay hot-reload
+  (`next dev`/`air`) — you can't hot-reload a compiled standalone build. Removed the nginx dev
+  files (`deploy/dev/nginx.Dockerfile`, `deploy/nginx/dev.conf`). Required one code fix:
+  **`config.CookieSecure()` now derives Secure from the public-origin scheme** (https→Secure), so
+  dev proxied over plain HTTP still gets a usable session cookie; prod (https) unchanged. TDD:
+  new `behind-proxy-http` predicate case (red→green); full suite **223 Go tests** green;
+  `docker compose -f docker-compose.dev.yaml config` validates. `make dev` unchanged.
 
 ## Data model (summary)
 

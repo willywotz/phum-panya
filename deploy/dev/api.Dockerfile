@@ -8,7 +8,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 # .dockerignore drops the embedded UI placeholder; recreate a stub so the
-# //go:embed all:dist in internal/webui compiles. nginx serves pages in dev,
+# //go:embed all:dist in internal/webui compiles. Caddy serves pages in dev,
 # not the Go server, so the content is irrelevant.
 RUN mkdir -p internal/webui/dist \
  && printf '<!doctype html><title>phum-panya dev</title><div id="app"></div>' \

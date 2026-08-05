@@ -92,7 +92,7 @@ Paid phases delivered:
 | UI/styling | **Tailwind CSS v4 + shadcn/ui** (Radix), warm herbal theme + **light/dark toggle**, vendored **Sarabun** font. All offline — no CDN |
 | Service | **kardianos/service** (`internal/svc`) — Windows SCM / Linux systemd / macOS launchd |
 | Config | 15-Factor (pragmatic): env vars (`config.Load`), logs to stdout, graceful shutdown |
-| Dev tooling | `docker-compose.dev.yaml`: web (`next dev` HMR) + api (`air`) behind **nginx**, via **`docker compose watch`** |
+| Dev tooling | `docker-compose.dev.yaml`: prod-parity **Caddy + Postgres**; web (`next dev` HMR) + api (`air`, behind-proxy) via **`docker compose watch`** |
 | CI/CD | GitHub Actions: **`ci.yml`** (go/web/e2e on push + PR) and **`release.yml`** (windows exe/msi + smoke + publish on `v*` tags) |
 
 ## 4. Repo layout
@@ -118,7 +118,7 @@ web/                        Next.js SPA (staff + public) — NOTE: no UI yet for
 deploy/windows/             WiX v5 MSI: installs server.exe + registers service
 .github/workflows/          ci.yml (push/PR gates) + release.yml (tag → build exe/msi + publish)
 Dockerfile.api web/Dockerfile docker-compose.yaml   # prod stack: Caddy+web+api+Postgres+backup (ADR-0003)
-docker-compose.dev.yaml deploy/dev/                  # dev: web+api behind nginx, hot reload
+docker-compose.dev.yaml deploy/dev/                  # dev: prod-parity Caddy+Postgres, web/api hot reload
 .env.example
 ```
 

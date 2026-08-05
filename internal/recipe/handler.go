@@ -118,11 +118,26 @@ type recipeResponse struct {
 	Ingredients []model.Ingredient `json:"ingredients"`
 }
 
+// repository is the port RegisterRoutes depends on; *Repo is the GORM
+// adapter that implements it.
+type repository interface {
+	ListByDoctor(doctorID uint) ([]model.Recipe, error)
+	GetIngredients(recipeID uint) ([]model.Ingredient, error)
+	Get(id uint) (model.Recipe, error)
+	Create(rec *model.Recipe, ings []model.Ingredient, actorID uint, immediate bool) error
+	Update(rec *model.Recipe, ings []model.Ingredient, actorID uint, immediate bool) error
+	AddPhoto(id uint, path string) error
+	GetPhotos(recipeID uint) ([]model.RecipePhoto, error)
+	Delete(id, actorID uint, immediate bool) error
+	ResolveDoctor(code, nameForCheck string) (doctorID uint, mismatch bool, err error)
+	GetDoctor(id uint) (model.Doctor, error)
+}
+
 // RegisterRoutes wires the recipe CRUD, photo-upload, and doctor-resolution
 // endpoints onto r. The caller must wrap r with auth.LoadUser first. Writes
 // are restricted to the recipe's doctor's own district via
 // auth.CanWriteDistrict.
-func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore media.Store) {
+func RegisterRoutes(r gin.IRouter, repo repository, mediaStore media.Store) {
 	requireAuth := auth.RequireAuth()
 	r.GET("/api/recipes", requireAuth, listHandler(repo))
 	r.POST("/api/recipes", requireAuth, createHandler(repo))
@@ -132,7 +147,7 @@ func RegisterRoutes(r gin.IRouter, repo *Repo, mediaStore media.Store) {
 	r.GET("/api/recipes/resolve-doctor", requireAuth, resolveDoctorHandler(repo))
 }
 
-func listHandler(repo *Repo) gin.HandlerFunc {
+func listHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		doctorID, ok := parseDoctorQuery(c)
 		if !ok {
@@ -162,7 +177,7 @@ func listHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func createHandler(repo *Repo) gin.HandlerFunc {
+func createHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req recipeRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -198,7 +213,7 @@ func createHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func updateHandler(repo *Repo) gin.HandlerFunc {
+func updateHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -247,7 +262,7 @@ func updateHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func deleteHandler(repo *Repo) gin.HandlerFunc {
+func deleteHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -280,7 +295,7 @@ func deleteHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func photoHandler(repo *Repo, mediaStore media.Store) gin.HandlerFunc {
+func photoHandler(repo repository, mediaStore media.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, ok := parseID(c)
 		if !ok {
@@ -318,7 +333,7 @@ func photoHandler(repo *Repo, mediaStore media.Store) gin.HandlerFunc {
 	}
 }
 
-func resolveDoctorHandler(repo *Repo) gin.HandlerFunc {
+func resolveDoctorHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		code := c.Query("code")
 		name := c.Query("name")
@@ -335,12 +350,11 @@ func resolveDoctorHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-// doctorOf loads the doctor with id via repo's underlying DB access. On
-// failure it writes the appropriate error response and returns a non-nil
-// error; callers must return immediately in that case.
-func doctorOf(c *gin.Context, repo *Repo, id uint) (model.Doctor, error) {
-	var d model.Doctor
-	err := repo.g.First(&d, id).Error
+// doctorOf loads the doctor with id for an ownership check. On failure it
+// writes the appropriate error response and returns a non-nil error;
+// callers must return immediately in that case.
+func doctorOf(c *gin.Context, repo repository, id uint) (model.Doctor, error) {
+	d, err := repo.GetDoctor(id)
 	if err != nil {
 		writeRepoError(c, err, "doctor not found", "could not load doctor")
 	}

@@ -12,14 +12,23 @@ import (
 	"phum-panya/internal/model"
 )
 
-func RegisterRoutes(r gin.IRouter, repo *Repo) {
+// repository is the port RegisterRoutes depends on; *Repo is the GORM
+// adapter that implements it.
+type repository interface {
+	IsLocked(dataYear int) (bool, error)
+	Lock(dataYear int, actorID uint) error
+	Unlock(dataYear int) error
+	List() ([]model.YearLock, error)
+}
+
+func RegisterRoutes(r gin.IRouter, repo repository) {
 	admin := auth.RequireRole(model.RoleCentralAdmin)
 	r.GET("/api/year-locks", admin, listHandler(repo))
 	r.POST("/api/year-locks", admin, lockHandler(repo))
 	r.DELETE("/api/year-locks/:dataYear", admin, unlockHandler(repo))
 }
 
-func listHandler(repo *Repo) gin.HandlerFunc {
+func listHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		locks, err := repo.List()
 		if err != nil {
@@ -30,7 +39,7 @@ func listHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func lockHandler(repo *Repo) gin.HandlerFunc {
+func lockHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, _ := auth.UserFrom(c)
 		var body struct {
@@ -52,7 +61,7 @@ func lockHandler(repo *Repo) gin.HandlerFunc {
 	}
 }
 
-func unlockHandler(repo *Repo) gin.HandlerFunc {
+func unlockHandler(repo repository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		year, err := strconv.Atoi(c.Param("dataYear"))
 		if err != nil {

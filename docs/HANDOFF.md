@@ -1,5 +1,72 @@
 # phum-panya — Handoff
 
+---
+
+## ★ LATEST (2026-08-05): 15-Factor + Hexagonal compliance program (A→E) — COMPLETE, unpushed
+
+**Current state:** on `main`, **47 commits ahead of `origin/main`, all UNPUSHED.** Build clean;
+**252 Go tests green**. The next person should review, then `rtk git push` (or open a PR) to publish.
+
+**Why:** an audit found the project did not fully meet the two project rules — *15-Factor App* and
+*Hexagonal architecture*. This program brought it to full compliance in five sub-projects, each with
+its own `docs/superpowers/specs/2026-08-05-*-design.md` (spec) + `docs/superpowers/plans/2026-08-05-*.md`
+(plan) + an ADR. Every sub-project: spec → plan → agent-built (builders + fresh-context verifiers) →
+**live Docker verification** → final whole-branch review → merged to local `main`, branch deleted.
+
+| Sub-project | Delivered | ADR |
+|---|---|---|
+| **A** Hexagonal core | Domain core imports no infra; every handler depends on a **port interface**, not `*gorm.DB`/concrete repos. `internal/model` is pure (migration moved to `internal/db`). | — |
+| **B** Media → Garage | Uploads live in **Garage** (S3-compatible) behind the `media.Store` port, selected by `APP_MEDIA_DRIVER` (local default). App streams `GET /media/<key>`. | 0004 |
+| **C** Shared throttle | Login throttle moved to a shared **Postgres `login_attempts` table** (`auth.DBLimiter`), selected by `APP_THROTTLE_STORE`. Removed the last per-process state. SQLite kept. | 0005 |
+| **D** Telemetry | `log/slog` JSON logs + OTel `/metrics` (Prometheus) + OTel tracing to **Jaeger**; `trace_id` correlates logs↔traces. Jaeger UI at `/traces` (admin-gated). | 0006 |
+| **E** Migrations-as-release + multi-replica | `server migrate` subcommand + `APP_AUTO_MIGRATE` gate; prod runs a **migrate job + 2 api replicas** behind **Caddy load-balancing**. | 0007 |
+
+**Net effect:** sessions=DB, media=Garage, throttle=DB → **no per-process state**; the api scales
+horizontally. Verified live: 2 replicas served round-robined traffic, migrate ran once, Caddy failed
+over when a replica was killed.
+
+### What did NOT change (deliberately)
+- **Single Go binary / SQLite / one-file backup** (ADR-0001) still works: `APP_MEDIA_DRIVER=local`,
+  `APP_THROTTLE_STORE=memory`, `APP_AUTO_MIGRATE=true` are the defaults, so `copy one file, run it`
+  is intact. Telemetry degrades gracefully with no OTLP backend (spans still made, `trace_id` still logged).
+- **Dev stack** (`docker-compose.dev.yaml`): single api replica, startup auto-migrate, hot-reload intact.
+- No existing route strings or business behavior changed. New routes only: `GET /metrics`,
+  `GET /api/authorization/verify-admin` (Caddy forward-auth target for `/traces`).
+
+### Running the **prod compose stack** (now: Caddy + web + 2×api + Postgres + Garage + Jaeger + sidecars)
+1. `cp .env.example .env` and set the secrets. **Garage key formats are enforced** (see `.env.example`):
+   `APP_S3_ACCESS_KEY` = `GK` + 24 hex (`echo "GK$(openssl rand -hex 12)"`);
+   `APP_S3_SECRET_KEY` and `GARAGE_RPC_SECRET` = 64 hex (`openssl rand -hex 32`); plus `APP_DOMAIN`,
+   `POSTGRES_PASSWORD`, `APP_ADMIN_PASSWORD`.
+2. `docker compose up -d --build`. Boot order is handled by `depends_on`: garage → garage-init
+   (creates the bucket + imports the key) → migrate (runs the DDL + seeds admin, once) → 2×api → caddy.
+3. **Observability:** `/metrics` is internal-only (scrape `api:8080/metrics`); traces at
+   `https://<domain>/traces` (central-admin login required); logs are JSON on stdout with `trace_id`.
+
+### New config knobs (all have safe defaults)
+`APP_MEDIA_DRIVER` (local|s3) · `APP_S3_*` · `APP_THROTTLE_STORE` (memory|db) ·
+`APP_LOG_LEVEL/FORMAT` · `APP_OTLP_ENDPOINT` · `APP_SERVICE_NAME` · `APP_AUTO_MIGRATE` (true|false).
+The stack sets the non-default values in `docker-compose.yaml`; a single-binary operator sets none.
+
+### Known deferred / parked items (from the reviews — none block merge)
+- **C:** `DBLimiter` ignores GORM errors → fail-open on a DB outage. Parked as moot (a DB outage also
+  breaks the password lookup, so no login can succeed anyway). A "real" fix would add an error return
+  to the `auth.Limiter` port — out of scope.
+- **B:** single-node Garage keeps one data copy; the `media-backup` rclone sidecar is the durability
+  answer. Multi-node Garage is future work.
+- **D:** `otelgin` pulled a transitive **gin 1.10.1 → 1.12.0** bump (no regression observed).
+
+### New dependencies
+`aws-sdk-go-v2` (B), the `go.opentelemetry.io/otel/*` set + `otelgin` + GORM OTel plugin +
+`prometheus/client_golang` (D). `go mod verify` clean.
+
+### Suggested next steps
+1. **Push** the 47 commits (`rtk git push`) or open a PR; consider tagging **`v1.3.0`**.
+2. Optionally address the deferred items above.
+3. The A→E program is the last planned compliance work — the product phases (P1–P5) below are already shipped.
+
+---
+
 Date: 2026-08-05 · Branch: **`main`** at `22acde9` · Last release tag: **`v1.1.0`** (P2–P5 + admin UI).
 The four paid phases **P2–P5 are merged to `main`** (PRs #4–#7, all CI-green) **with their
 frontend admin screens** (PR #8, `8cf3caa`), and the lot is **released as `v1.1.0`** (tag on

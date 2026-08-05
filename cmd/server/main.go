@@ -51,6 +51,8 @@ func main() {
 	switch {
 	case len(args) >= 1 && args[0] == "create-admin":
 		runCreateAdmin()
+	case len(args) >= 1 && args[0] == "migrate":
+		runMigrate()
 	case len(args) >= 1 && args[0] == "service":
 		runServiceControl(args[1:])
 	default: // "" (foreground) or "run" (under the service manager)
@@ -133,17 +135,11 @@ func runServer() {
 		slog.Error("open db", "err", err)
 		os.Exit(1)
 	}
-	if err := db.AutoMigrate(g); err != nil {
-		slog.Error("migrate", "err", err)
-		os.Exit(1)
-	}
-	if err := db.BackfillRecipePhotos(g); err != nil {
-		slog.Error("backfill recipe photos", "err", err)
-		os.Exit(1)
-	}
-	if _, err := bootstrap.EnsureAdmin(g, cfg.AdminEmail, cfg.AdminPassword); err != nil {
-		slog.Error("ensure admin", "err", err)
-		os.Exit(1)
+	if cfg.AutoMigrate {
+		if err := migrateDB(g, cfg); err != nil {
+			slog.Error("migrate", "err", err)
+			os.Exit(1)
+		}
 	}
 
 	mediaStore, err := newMediaStore(context.Background(), cfg)
@@ -237,6 +233,39 @@ func runBackupTicker(cfg config.Config, clk clock.Clock) {
 			slog.Error("daily backup failed", "err", err)
 		}
 	}
+}
+
+// migrateDB runs the schema migration, the recipe-photo backfill, and the
+// first-admin seed. It is the release step: the migrate job runs it once, and
+// runServer runs it at startup only when APP_AUTO_MIGRATE is true.
+func migrateDB(g *gorm.DB, cfg config.Config) error {
+	if err := db.AutoMigrate(g); err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	if err := db.BackfillRecipePhotos(g); err != nil {
+		return fmt.Errorf("backfill recipe photos: %w", err)
+	}
+	if _, err := bootstrap.EnsureAdmin(g, cfg.AdminEmail, cfg.AdminPassword); err != nil {
+		return fmt.Errorf("ensure admin: %w", err)
+	}
+	return nil
+}
+
+// runMigrate is the `server migrate` subcommand: the discrete release step for
+// the multi-replica stack.
+func runMigrate() {
+	cfg := config.Load()
+	slog.SetDefault(telemetry.NewLogger(cfg))
+	g, err := db.OpenWith(cfg.DBDriver, cfg.DBPath, cfg.DatabaseURL)
+	if err != nil {
+		slog.Error("open db", "err", err)
+		os.Exit(1)
+	}
+	if err := migrateDB(g, cfg); err != nil {
+		slog.Error("migrate", "err", err)
+		os.Exit(1)
+	}
+	slog.Info("migrate: done")
 }
 
 // runCreateAdmin seeds the first central admin from APP_ADMIN_EMAIL and

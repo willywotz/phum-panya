@@ -368,6 +368,24 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   (central-admin → 204, else 401). Heavy OTel dep set; `otelgin` bumped gin 1.10.1→1.12.0 (no
   regression). **Verified live**: JSON logs carry `trace_id`, `/metrics` serves the counters, and
   the same `trace_id` appears in Jaeger (log↔trace correlation confirmed). 249 Go tests green.
+- **Migrations-as-release + multi-replica — sub-project E done (FINAL)** (branch
+  `feat/multi-replica`). See `docs/superpowers/specs/2026-08-05-migrations-multireplica-design.md`,
+  `docs/superpowers/plans/2026-08-05-migrations-multireplica.md`, and ADR-0007. Completes the A→E
+  program: the api now runs as multiple stateless replicas. (1) **Migration is a discrete release
+  step**: `migrateDB` (AutoMigrate + Backfill + EnsureAdmin) extracted; new **`server migrate`**
+  subcommand; `runServer` migrates at startup only when **`APP_AUTO_MIGRATE=true`** (default) — so
+  the single binary / dev keep "copy one file, run it" (ADR-0001), while the stack sets `false`.
+  (2) **Prod runs 2 api replicas**: a one-shot `migrate` job (owns the admin-seed env) runs the
+  DDL once; the `api` service is `deploy.replicas: 2` + `APP_AUTO_MIGRATE=false` +
+  `depends_on: migrate completed`; **Caddy load-balances** across replicas via dynamic A-record
+  upstreams with an `/api/health` active check. Dev stays single-replica (hot reload intact) — a
+  deliberate dev/prod difference. **Verified live end-to-end**: the migrate job ran once (replicas
+  did no DDL), Caddy round-robined requests across BOTH replicas, and stopping one replica → Caddy
+  failed over (6/6 requests still 200). 252 Go tests green.
+- **A→E program complete.** The app now: hexagonal core (ports/adapters, A); media in Garage
+  object storage (B); shared DB throttle (C); slog logs + OTel metrics/traces via Jaeger (D);
+  migrations-as-release + multi-replica behind Caddy (E). Sessions=DB, media=Garage, throttle=DB →
+  no per-process state; the api scales horizontally. All merged to local `main` (unpushed).
 
 ## Data model (summary)
 

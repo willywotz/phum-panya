@@ -8,8 +8,10 @@ import (
 
 	"phum-panya/internal/caserec"
 	"phum-panya/internal/clock"
+	"phum-panya/internal/db"
 	"phum-panya/internal/doctor"
 	"phum-panya/internal/herb"
+	"phum-panya/internal/model"
 	"phum-panya/internal/recipe"
 	"phum-panya/internal/yearlock"
 )
@@ -61,6 +63,151 @@ func (im *Importer) DryRun(r io.Reader, sourceName string) (*Report, error) {
 	rep := im.validate(parsed)
 	rep.DryRun = true
 	return rep, nil
+}
+
+// Run validates and, if there are no blocking errors, commits the import through the
+// domain services in one batch. On any mid-commit error it undoes the batch.
+func (im *Importer) Run(r io.Reader, sourceName string, actorID uint) (*Report, error) {
+	parsed, err := ParseWorkbook(r)
+	if err != nil {
+		return nil, err
+	}
+	rep := im.validate(parsed)
+	rep.DryRun = false
+	if len(rep.Errors) > 0 {
+		return rep, nil // refuse to commit a batch with validation errors
+	}
+
+	batch := model.ImportBatch{
+		ImportedBy: actorID,
+		ImportedAt: im.clk.Now(),
+		SourceFile: sourceName,
+		Status:     "committed",
+	}
+	if err := im.g.Create(&batch).Error; err != nil {
+		return nil, err
+	}
+	if err := im.commit(parsed, &batch, actorID); err != nil {
+		_ = im.Undo(batch.ID) // compensating rollback
+		return nil, err
+	}
+	rep.BatchID = &batch.ID
+	return rep, nil
+}
+
+func (im *Importer) commit(p *Parsed, batch *model.ImportBatch, actorID uint) error {
+	doctorID := im.codeIDMap("doctors")
+	recipeID := im.codeIDMap("recipes")
+	count := 0
+
+	for _, d := range p.Doctors {
+		if _, exists := doctorID[d.Code]; exists {
+			continue // duplicate: skipped (already reported)
+		}
+		row := model.Doctor{
+			Code: d.Code, Photo: "-", FullName: d.FullName, KnownAs: d.KnownAs, Gender: d.Gender,
+			BirthYear: d.BirthYear, DistrictID: d.DistrictID, Address: d.Address, Phone: d.Phone,
+			Specialty: d.Specialty, YearsExperience: d.YearsExperience, Lineage: d.Lineage,
+			Status: d.Status, FirstYear: d.FirstYear, BatchID: &batch.ID,
+		}
+		if err := im.doc.Create(&row, actorID, true); err != nil {
+			return err
+		}
+		doctorID[d.Code] = row.ID
+		count++
+	}
+
+	for _, r := range p.Recipes {
+		if _, exists := recipeID[r.Code]; exists {
+			continue
+		}
+		did, ok := doctorID[r.DoctorCode]
+		if !ok {
+			return fmt.Errorf("recipe %s: doctor_code %q unresolved at commit", r.Code, r.DoctorCode)
+		}
+		row := model.Recipe{
+			Code: r.Code, Name: r.Name, DoctorID: did, Indication: r.Indication,
+			Preparation: r.Preparation, Usage: r.Usage, Caution: r.Caution,
+			CareStage: r.CareStage, DataYear: r.DataYear, BatchID: &batch.ID,
+		}
+		ings := im.buildIngredients(r.Code, p.Ingredients)
+		if err := im.rec.Create(&row, ings, actorID, true); err != nil {
+			return err
+		}
+		recipeID[r.Code] = row.ID
+		count++
+	}
+
+	for _, c := range p.Cases {
+		rid, ok := recipeID[c.RecipeCode]
+		if !ok {
+			return fmt.Errorf("case: recipe_code %q unresolved at commit", c.RecipeCode)
+		}
+		row := model.Case{
+			RecipeID: rid, PatientGender: c.PatientGender, PatientAgeRange: c.PatientAgeRange,
+			Condition: c.Condition, Treatment: c.Treatment, Result: c.Result,
+			Duration: c.Duration, DataYear: c.DataYear, BatchID: &batch.ID,
+		}
+		if err := im.cas.Create(&row, actorID, true); err != nil {
+			return err
+		}
+		count++
+	}
+
+	return im.g.Model(batch).Update("row_count", count).Error
+}
+
+// buildIngredients resolves each ingredient's herb by Thai name; an unknown herb takes
+// the pending-herb path (PendingHerbName), satisfying the Ingredient XOR constraint.
+func (im *Importer) buildIngredients(recipeCode string, all []IngredientRow) []model.Ingredient {
+	var out []model.Ingredient
+	for _, ing := range all {
+		if ing.RecipeCode != recipeCode {
+			continue
+		}
+		m := model.Ingredient{Amount: ing.Amount, Unit: ing.Unit, Note: ing.Note}
+		var h model.Herb
+		if err := im.g.Where("thai_name = ?", ing.HerbName).First(&h).Error; err == nil {
+			id := h.ID
+			m.HerbID = &id
+		} else {
+			name := ing.HerbName
+			m.PendingHerbName = &name
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+func (im *Importer) codeIDMap(table string) map[string]uint {
+	type codeRow struct {
+		ID   uint
+		Code string
+	}
+	var rows []codeRow
+	im.g.Table(table).Select("id, code").Scan(&rows)
+	m := make(map[string]uint, len(rows))
+	for _, r := range rows {
+		m[r.Code] = r.ID
+	}
+	return m
+}
+
+// Undo removes every row created by a batch (children first; FK cascade handles
+// ingredients) and marks the batch undone.
+func (im *Importer) Undo(batchID uint) error {
+	return db.Tx(im.g, func(tx *gorm.DB) error {
+		if err := tx.Where("batch_id = ?", batchID).Delete(&model.Case{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("batch_id = ?", batchID).Delete(&model.Recipe{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("batch_id = ?", batchID).Delete(&model.Doctor{}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.ImportBatch{}).Where("id = ?", batchID).Update("status", "undone").Error
+	})
 }
 
 // validate builds the report: required fields, duplicate-code skips, link resolution,

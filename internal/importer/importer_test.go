@@ -81,6 +81,67 @@ func buildDupLockedFixture(t *testing.T, districtID uint) []byte {
 	return buf.Bytes()
 }
 
+func TestCommitWritesApprovedThenUndo(t *testing.T) {
+	im, g, distID := newImporterEnv(t)
+	if distID != 1 {
+		t.Fatalf("fixture assumes district id 1, got %d", distID) // newImporterEnv seeds the first district
+	}
+	data := buildFixtureWorkbook(t) // D1 doctor (district_id 1), R1 recipe (2565), ingredient ขิง, one case — all new, unlocked
+
+	rep, err := im.Run(bytes.NewReader(data), "f.xlsx", 1)
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if rep.BatchID == nil {
+		t.Fatalf("committed run must return a batch id, report=%+v", rep)
+	}
+	if rep.DryRun {
+		t.Fatalf("committed report must have DryRun=false")
+	}
+
+	var d model.Doctor
+	if err := g.Where("code = ?", "D1").First(&d).Error; err != nil {
+		t.Fatalf("imported doctor not found: %v", err)
+	}
+	if d.ReviewState != model.ReviewApproved {
+		t.Fatalf("imported doctor must be approved, got %q", d.ReviewState)
+	}
+	if d.ConsentObtained {
+		t.Fatalf("imported doctor must default to consent=false (hidden until consent recorded)")
+	}
+	if d.BatchID == nil || *d.BatchID != *rep.BatchID {
+		t.Fatalf("imported doctor must be tagged with the batch")
+	}
+	var rc, cc int64
+	g.Model(&model.Recipe{}).Where("code = ?", "R1").Count(&rc)
+	g.Model(&model.Case{}).Count(&cc)
+	if rc != 1 || cc != 1 {
+		t.Fatalf("expected 1 recipe + 1 case written, got recipe=%d case=%d", rc, cc)
+	}
+	// the ingredient took the pending-herb path (ขิง not in catalog)
+	var ing model.Ingredient
+	if err := g.First(&ing).Error; err != nil {
+		t.Fatalf("ingredient not written: %v", err)
+	}
+	if ing.PendingHerbName == nil || *ing.PendingHerbName != "ขิง" {
+		t.Fatalf("ingredient should be pending-herb ขิง, got %+v", ing)
+	}
+
+	if err := im.Undo(*rep.BatchID); err != nil {
+		t.Fatalf("undo: %v", err)
+	}
+	var n int64
+	g.Model(&model.Doctor{}).Where("code = ?", "D1").Count(&n)
+	if n != 0 {
+		t.Fatalf("undo must remove the imported doctor")
+	}
+	g.Model(&model.Recipe{}).Where("code = ?", "R1").Count(&rc)
+	g.Model(&model.Case{}).Count(&cc)
+	if rc != 0 || cc != 0 {
+		t.Fatalf("undo must remove imported recipe/case, got recipe=%d case=%d", rc, cc)
+	}
+}
+
 func TestDryRunReportsDuplicatesAndLockedYears(t *testing.T) {
 	im, g, distID := newImporterEnv(t)
 	g.Create(&model.Doctor{Code: "D1", Photo: "-", FullName: "existing", Specialty: "y", Status: "active", FirstYear: 2560, DistrictID: distID, ReviewState: model.ReviewApproved})

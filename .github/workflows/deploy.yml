@@ -1,0 +1,28 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Released version to deploy (e.g. 1.5.0)
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > key
+          chmod 600 key
+          ssh -i key -o StrictHostKeyChecking=accept-new \
+            "$DEPLOY_SSH_USER@$DEPLOY_SSH_HOST" \
+            "cd '$DEPLOY_PATH' && ./deploy/deploy.sh '$VERSION'"

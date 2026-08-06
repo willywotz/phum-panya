@@ -124,6 +124,14 @@ jobs:
           APP_DATABASE_URL: postgres://phumpanya:ci@localhost:5432/phumpanya?sslmode=disable
         run: go test ./internal/db/ -run TestOpenWithPostgres -v
 
+  images:
+    name: Build + smoke images
+    uses: ./.github/workflows/build-images.yml
+    with:
+      push: false
+    permissions:
+      contents: read
+
   stack-validate:
     name: Validate compose stack
     runs-on: ubuntu-latest

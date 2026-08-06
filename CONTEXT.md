@@ -419,6 +419,16 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   runs `image: ...:${APP_IMAGE_TAG:-latest}`; `docker-compose.build.yaml` still builds
   locally; dev unchanged. This is **F1** of CD; **F2** (get a published release onto the
   host — issue #19 core) is the next sub-project.
+- **Push-based CD (ADR-0011, CD F2 — closes #19).** A `deploy` workflow
+  (`workflow_dispatch`, `version` input; validated `N.N.N` on the runner) SSHes to the VPS
+  and runs `deploy/deploy.sh <version>`: checkout `v<version>` → set `APP_IMAGE_TAG` →
+  `docker compose pull` → `up -d --wait` → poll `/api/health` → **auto-rollback** to the
+  prior version and fail the run on any failure. Rollback = dispatch an older version.
+  Pure helpers (`validate_version`/`read_tag`/`write_tag`) in `deploy/deploy-lib.sh` are
+  unit-tested; docker/git/ssh trusted. Requires `DEPLOY_SSH_HOST/USER/KEY` + `DEPLOY_PATH`
+  secrets + host SSH — end-to-end validation is the owner's live dispatch. Brief downtime
+  on replica recreate accepted (no rolling). `docs/ops/deploy-compose.md` rewritten to
+  this reality. CD F1+F2 complete.
 
 ## Data model (summary)
 

@@ -402,6 +402,13 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   logic (`archive_path`/`prune_plan`/`require_env`) sits in `deploy/backup/media-backup-lib.sh`
   and is unit-tested by a Go test that execs `sh` (no rclone in CI). Dev stack unchanged. Restore:
   `rclone copy dest:$PATH/current garage:$BUCKET` (or `.../archive/<stamp>` for a point in time).
+- **Dependency vulnerability scan (govulncheck).** A `vuln` CI job now runs
+  `govulncheck ./...` on every push/PR, so advisories that reach the code fail CI
+  automatically. Its first find: the gorm OpenTelemetry tracing plugin transitively pulled
+  the (unused) ClickHouse driver stack, including `ch-go v0.61.5` with query-smuggling
+  advisory **GO-2025-3603**. Fixed by bumping `clickhouse-go/v2 v2.30.0 → v2.48.0`
+  (`ch-go v0.74.0`, past the v0.65.0 fix); gorm and gin cores unchanged. `gin v1.12.0` itself
+  is the latest release and carries no advisory. govulncheck: **0 code-affecting vulnerabilities**.
 
 ## Data model (summary)
 

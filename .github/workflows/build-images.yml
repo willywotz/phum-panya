@@ -12,9 +12,9 @@ jobs:
   images:
     name: Build + smoke images
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    # Permissions are dictated by the caller (ci.yml grants contents:read;
+    # release.yml grants packages:write for the push). A reusable workflow may
+    # not request more than its caller grants, or the run fails at startup.
     steps:
       - uses: actions/checkout@v7
       - name: Build and smoke-test images

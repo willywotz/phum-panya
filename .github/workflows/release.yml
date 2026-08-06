@@ -91,6 +91,15 @@ jobs:
             ${{ steps.msi.outputs.path }}
           retention-days: 7
 
+  images:
+    name: Publish images to ghcr.io
+    uses: ./.github/workflows/build-images.yml
+    with:
+      push: true
+    permissions:
+      contents: read
+      packages: write
+
   release:
     name: Publish release
     needs: [windows]

@@ -1,0 +1,39 @@
+name: build-images
+
+on:
+  workflow_call:
+    inputs:
+      push:
+        description: Push images to ghcr.io
+        type: boolean
+        default: false
+
+jobs:
+  images:
+    name: Build + smoke images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build and smoke-test images
+        run: deploy/images/build-and-smoke.sh
+      - name: Push to ghcr.io
+        if: ${{ inputs.push }}
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF_NAME: ${{ github.ref_name }}
+          OWNER: ${{ github.repository_owner }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          version="${REF_NAME#v}"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          for name in api web; do
+            src="phum-panya-$name:ci"
+            repo="ghcr.io/$OWNER/phum-panya-$name"
+            docker tag "$src" "$repo:$version"
+            docker tag "$src" "$repo:latest"
+            docker push "$repo:$version"
+            docker push "$repo:latest"
+          done

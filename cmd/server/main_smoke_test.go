@@ -248,7 +248,10 @@ func TestNewMediaStoreLocal(t *testing.T) {
 }
 
 func TestNewLimiterMemory(t *testing.T) {
-	l := newLimiter(nil, config.Config{ThrottleStore: "memory"}, clock.Real{})
+	l, err := newLimiter(nil, config.Config{ThrottleStore: "memory"}, clock.Real{}, nil)
+	if err != nil {
+		t.Fatalf("newLimiter: %v", err)
+	}
 	if _, ok := l.(*auth.Throttle); !ok {
 		t.Fatalf("got %T, want *auth.Throttle", l)
 	}

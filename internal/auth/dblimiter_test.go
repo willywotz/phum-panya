@@ -136,8 +136,9 @@ func TestDBLimiterStoreErrorLogsWarn(t *testing.T) {
 
 func TestDBLimiterStoreErrorIncrementsCounter(t *testing.T) {
 	reader := metricsdk.NewManualReader()
+	prev := otel.GetMeterProvider()
 	otel.SetMeterProvider(metricsdk.NewMeterProvider(metricsdk.WithReader(reader)))
-	t.Cleanup(func() { otel.SetMeterProvider(otel.GetMeterProvider()) })
+	t.Cleanup(func() { otel.SetMeterProvider(prev) })
 
 	fake := &clock.Fake{T: time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)}
 	l, err := auth.NewDBLimiter(closedDB(t), fake, 3, time.Minute,

@@ -4,10 +4,15 @@ set -eu
 DIR=$(dirname "$0")
 . "$DIR/media-backup-lib.sh"
 
-BUCKET="$APP_S3_BUCKET"
-DEST_PATH="$MEDIA_BACKUP_PATH"
+# Validate every required var before any dereference, so a misconfigured
+# sidecar fails loudly with the missing name (not a raw "parameter not set").
+require_env APP_S3_ENDPOINT APP_S3_BUCKET APP_S3_ACCESS_KEY APP_S3_SECRET_KEY \
+	MEDIA_BACKUP_PATH RCLONE_CONFIG_DEST_TYPE
+
 KEEP_DAYS="${MEDIA_BACKUP_KEEP_DAYS:-30}"
 INTERVAL="${MEDIA_BACKUP_INTERVAL:-86400}"
+BUCKET="$APP_S3_BUCKET"
+DEST_PATH="$MEDIA_BACKUP_PATH"
 
 # Garage source (unchanged).
 export RCLONE_CONFIG_GARAGE_TYPE=s3
@@ -16,8 +21,6 @@ export RCLONE_CONFIG_GARAGE_ENDPOINT="$APP_S3_ENDPOINT"
 export RCLONE_CONFIG_GARAGE_ACCESS_KEY_ID="$APP_S3_ACCESS_KEY"
 export RCLONE_CONFIG_GARAGE_SECRET_ACCESS_KEY="$APP_S3_SECRET_KEY"
 export RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE=true
-
-require_env APP_S3_BUCKET MEDIA_BACKUP_PATH RCLONE_CONFIG_DEST_TYPE
 
 prune_archives() {
 	now_epoch=$1

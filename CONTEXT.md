@@ -409,6 +409,16 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   advisory **GO-2025-3603**. Fixed by bumping `clickhouse-go/v2 v2.30.0 → v2.48.0`
   (`ch-go v0.74.0`, past the v0.65.0 fix); gorm and gin cores unchanged. `gin v1.12.0` itself
   is the latest release and carries no advisory. govulncheck: **0 code-affecting vulnerabilities**.
+- **Containerized release images (ADR-0010, CD F1).** The compose stack used to build
+  `api`/`migrate`/`web` from source on the deploy host — a 15-Factor build/release/run
+  violation and nothing immutable for CD to deploy. Now a reusable workflow
+  (`build-images.yml`) builds the `api` (`Dockerfile.api`) and `web` (`web/Dockerfile`)
+  images and smoke-tests both (api via its `HEALTHCHECK`, web via `curl :3000`): `ci.yml`
+  runs build+smoke on every push/PR; `release.yml` also pushes
+  `ghcr.io/willywotz/phum-panya-{api,web}:<version>` + `:latest` on a `v*` tag. Compose
+  runs `image: ...:${APP_IMAGE_TAG:-latest}`; `docker-compose.build.yaml` still builds
+  locally; dev unchanged. This is **F1** of CD; **F2** (get a published release onto the
+  host — issue #19 core) is the next sub-project.
 
 ## Data model (summary)
 

@@ -1,8 +1,11 @@
 package auth
 
 import (
+	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
 
 	"phum-panya/internal/clock"
@@ -13,17 +16,33 @@ import (
 // shared across api replicas. It reproduces Throttle's sliding-window rule:
 // a key is blocked once it has max or more failures within window.
 type DBLimiter struct {
-	db     *gorm.DB
-	clk    clock.Clock
-	max    int
-	window time.Duration
+	db       *gorm.DB
+	clk      clock.Clock
+	max      int
+	window   time.Duration
+	fallback *Throttle
+	logger   *slog.Logger
+	errs     metric.Int64Counter
 }
 
 var _ Limiter = (*DBLimiter)(nil)
 
-// NewDBLimiter returns a DB-backed Limiter.
-func NewDBLimiter(g *gorm.DB, clk clock.Clock, max int, window time.Duration) *DBLimiter {
-	return &DBLimiter{db: g, clk: clk, max: max, window: window}
+// NewDBLimiter returns a DB-backed Limiter that degrades to a per-replica
+// in-process Throttle when the database is unreachable.
+func NewDBLimiter(g *gorm.DB, clk clock.Clock, max int, window time.Duration, logger *slog.Logger) (*DBLimiter, error) {
+	errs, err := otel.Meter("phum-panya/auth").Int64Counter("login_throttle_store_error_count")
+	if err != nil {
+		return nil, err
+	}
+	return &DBLimiter{
+		db:       g,
+		clk:      clk,
+		max:      max,
+		window:   window,
+		fallback: NewThrottle(clk, max, window),
+		logger:   logger,
+		errs:     errs,
+	}, nil
 }
 
 // Allowed reports whether key has fewer than max failures within window.

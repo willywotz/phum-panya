@@ -160,11 +160,16 @@ func runServer() {
 	}
 
 	clk := clock.Real{}
+	limiter, err := newLimiter(g, cfg, clk, logger)
+	if err != nil {
+		slog.Error("build limiter", "err", err)
+		os.Exit(1)
+	}
 	deps := router.Deps{
 		Cfg:        cfg,
 		DB:         g,
 		Store:      auth.NewSessionStore(g, clk, sessionTTL),
-		Throttle:   newLimiter(g, cfg, clk),
+		Throttle:   limiter,
 		Media:      mediaStore,
 		Clk:        clk,
 		Logger:     logger,
@@ -193,11 +198,11 @@ func runServer() {
 // newLimiter builds the login rate limiter selected by cfg.ThrottleStore:
 // a shared DB-backed limiter for the multi-replica stack, or the in-process
 // throttle otherwise.
-func newLimiter(g *gorm.DB, cfg config.Config, clk clock.Clock) auth.Limiter {
+func newLimiter(g *gorm.DB, cfg config.Config, clk clock.Clock, logger *slog.Logger) (auth.Limiter, error) {
 	if cfg.UsesDBThrottle() {
-		return auth.NewDBLimiter(g, clk, loginThrottleMax, loginThrottleWindow)
+		return auth.NewDBLimiter(g, clk, loginThrottleMax, loginThrottleWindow, logger)
 	}
-	return auth.NewThrottle(clk, loginThrottleMax, loginThrottleWindow)
+	return auth.NewThrottle(clk, loginThrottleMax, loginThrottleWindow), nil
 }
 
 // newMediaStore builds the media adapter selected by cfg.MediaDriver.

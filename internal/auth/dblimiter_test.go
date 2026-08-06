@@ -1,6 +1,8 @@
 package auth_test
 
 import (
+	"io"
+	"log/slog"
 	"path/filepath"
 	"testing"
 	"time"
@@ -24,9 +26,18 @@ func newLimiterDB(t *testing.T) *gorm.DB {
 	return g
 }
 
+func newTestLimiter(t *testing.T, g *gorm.DB, clk clock.Clock, max int, window time.Duration) *auth.DBLimiter {
+	t.Helper()
+	l, err := auth.NewDBLimiter(g, clk, max, window, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("NewDBLimiter: %v", err)
+	}
+	return l
+}
+
 func TestDBLimiterAllowedThenBlockedThenWindowSlides(t *testing.T) {
 	fake := &clock.Fake{T: time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)}
-	l := auth.NewDBLimiter(newLimiterDB(t), fake, 3, time.Minute)
+	l := newTestLimiter(t, newLimiterDB(t), fake, 3, time.Minute)
 	const key = "a@x|1.2.3.4"
 	for i := 0; i < 3; i++ {
 		if !l.Allowed(key) {
@@ -45,7 +56,7 @@ func TestDBLimiterAllowedThenBlockedThenWindowSlides(t *testing.T) {
 
 func TestDBLimiterResetClearsFailures(t *testing.T) {
 	fake := &clock.Fake{T: time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)}
-	l := auth.NewDBLimiter(newLimiterDB(t), fake, 3, time.Minute)
+	l := newTestLimiter(t, newLimiterDB(t), fake, 3, time.Minute)
 	const key = "a@x|1.2.3.4"
 	for i := 0; i < 3; i++ {
 		l.Fail(key)
@@ -59,8 +70,8 @@ func TestDBLimiterResetClearsFailures(t *testing.T) {
 func TestDBLimiterSharedAcrossInstances(t *testing.T) {
 	fake := &clock.Fake{T: time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)}
 	g := newLimiterDB(t)
-	a := auth.NewDBLimiter(g, fake, 3, time.Minute)
-	b := auth.NewDBLimiter(g, fake, 3, time.Minute)
+	a := newTestLimiter(t, g, fake, 3, time.Minute)
+	b := newTestLimiter(t, g, fake, 3, time.Minute)
 	const key = "a@x|1.2.3.4"
 	for i := 0; i < 3; i++ {
 		a.Fail(key)

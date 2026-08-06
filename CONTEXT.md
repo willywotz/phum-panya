@@ -393,6 +393,15 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   counter `login_throttle_store_error_count` (attribute `op`). The `auth.Limiter` port is
   unchanged; degradation is internal to `DBLimiter`. Accepted trade-off: outage-time failures are
   not written back to Postgres on recovery (best-effort, per-replica).
+- **Media backup hardening (ADR-0009).** The `media-backup` rclone sidecar used to `sync` the
+  Garage bucket to a Docker volume **on the same host** — so a lost VPS disk lost the media and
+  its backup together, and `sync` propagated deletions with no history. It now pushes to a single
+  **off-host** rclone remote (`dest`, backend chosen by the operator via `RCLONE_CONFIG_DEST_*` —
+  s3 or sftp) with `--backup-dir dest:$PATH/archive/<stamp>`, so changed/deleted objects are kept
+  in a dated archive; archives older than `MEDIA_BACKUP_KEEP_DAYS` (default 30) are pruned. Pure
+  logic (`archive_path`/`prune_plan`/`require_env`) sits in `deploy/backup/media-backup-lib.sh`
+  and is unit-tested by a Go test that execs `sh` (no rclone in CI). Dev stack unchanged. Restore:
+  `rclone copy dest:$PATH/current garage:$BUCKET` (or `.../archive/<stamp>` for a point in time).
 
 ## Data model (summary)
 

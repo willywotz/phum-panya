@@ -159,15 +159,26 @@ services:
         condition: service_healthy
       garage-init:
         condition: service_completed_successfully
-    entrypoint: ["/bin/sh", "/media-backup.sh"]
     environment:
       APP_S3_ENDPOINT: http://garage:3900
       APP_S3_BUCKET: ${APP_S3_BUCKET:-media}
       APP_S3_ACCESS_KEY: ${APP_S3_ACCESS_KEY:?set APP_S3_ACCESS_KEY}
       APP_S3_SECRET_KEY: ${APP_S3_SECRET_KEY:?set APP_S3_SECRET_KEY}
+      MEDIA_BACKUP_PATH: ${MEDIA_BACKUP_PATH:-media-backup}
+      MEDIA_BACKUP_KEEP_DAYS: ${MEDIA_BACKUP_KEEP_DAYS:-30}
+      MEDIA_BACKUP_INTERVAL: ${MEDIA_BACKUP_INTERVAL:-86400}
+      RCLONE_CONFIG_DEST_TYPE: ${RCLONE_CONFIG_DEST_TYPE:-}
+      RCLONE_CONFIG_DEST_PROVIDER: ${RCLONE_CONFIG_DEST_PROVIDER:-}
+      RCLONE_CONFIG_DEST_ENDPOINT: ${RCLONE_CONFIG_DEST_ENDPOINT:-}
+      RCLONE_CONFIG_DEST_ACCESS_KEY_ID: ${RCLONE_CONFIG_DEST_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_DEST_SECRET_ACCESS_KEY: ${RCLONE_CONFIG_DEST_SECRET_ACCESS_KEY:-}
+      RCLONE_CONFIG_DEST_HOST: ${RCLONE_CONFIG_DEST_HOST:-}
+      RCLONE_CONFIG_DEST_USER: ${RCLONE_CONFIG_DEST_USER:-}
+      RCLONE_CONFIG_DEST_KEY_FILE: ${RCLONE_CONFIG_DEST_KEY_FILE:-}
+    entrypoint: ["/bin/sh", "/media-backup.sh"]
     volumes:
       - ./deploy/backup/media-backup.sh:/media-backup.sh:ro
-      - media-backups:/backups
+      - ./deploy/backup/media-backup-lib.sh:/media-backup-lib.sh:ro
 
 volumes:
   pg-data:
@@ -176,4 +187,3 @@ volumes:
   caddy-config:
   garage-meta:
   garage-data:
-  media-backups:

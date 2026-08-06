@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"gorm.io/gorm"
 
@@ -45,25 +47,43 @@ func NewDBLimiter(g *gorm.DB, clk clock.Clock, max int, window time.Duration, lo
 	}, nil
 }
 
+func (l *DBLimiter) storeError(op string, err error) {
+	l.errs.Add(context.Background(), 1, metric.WithAttributes(attribute.String("op", op)))
+	l.logger.Warn("login throttle store error", "op", op, "err", err)
+}
+
 // Allowed reports whether key has fewer than max failures within window.
+// If the store is unreachable it degrades to the in-process fallback.
 func (l *DBLimiter) Allowed(key string) bool {
 	cutoff := l.clk.Now().Add(-l.window)
 	var n int64
-	l.db.Model(&model.LoginAttempt{}).
+	res := l.db.Model(&model.LoginAttempt{}).
 		Where("key = ? AND created_at > ?", key, cutoff).
 		Count(&n)
+	if res.Error != nil {
+		l.storeError("allowed", res.Error)
+		return l.fallback.Allowed(key)
+	}
 	return n < int64(l.max)
 }
 
 // Fail prunes key's expired rows and records a failure at the current time.
+// If the store is unreachable it records the failure in the in-process fallback.
 func (l *DBLimiter) Fail(key string) {
 	now := l.clk.Now()
 	cutoff := now.Add(-l.window)
 	l.db.Where("key = ? AND created_at <= ?", key, cutoff).Delete(&model.LoginAttempt{})
-	l.db.Create(&model.LoginAttempt{Key: key, CreatedAt: now})
+	if res := l.db.Create(&model.LoginAttempt{Key: key, CreatedAt: now}); res.Error != nil {
+		l.storeError("fail", res.Error)
+		l.fallback.Fail(key)
+	}
 }
 
 // Reset clears all recorded failures for key.
+// If the store is unreachable it clears the in-process fallback instead.
 func (l *DBLimiter) Reset(key string) {
-	l.db.Where("key = ?", key).Delete(&model.LoginAttempt{})
+	if res := l.db.Where("key = ?", key).Delete(&model.LoginAttempt{}); res.Error != nil {
+		l.storeError("reset", res.Error)
+		l.fallback.Reset(key)
+	}
 }

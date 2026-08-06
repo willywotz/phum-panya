@@ -19,9 +19,7 @@ services:
       retries: 5
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
+    image: ghcr.io/willywotz/phum-panya-api:${APP_IMAGE_TAG:-latest}
     restart: unless-stopped
     deploy:
       replicas: 2
@@ -54,9 +52,7 @@ services:
       APP_SERVICE_NAME: phum-panya-api
 
   migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
+    image: ghcr.io/willywotz/phum-panya-api:${APP_IMAGE_TAG:-latest}
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,9 +67,7 @@ services:
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:?set APP_ADMIN_PASSWORD}
 
   web:
-    build:
-      context: web
-      dockerfile: Dockerfile
+    image: ghcr.io/willywotz/phum-panya-web:${APP_IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       PORT: "3000"

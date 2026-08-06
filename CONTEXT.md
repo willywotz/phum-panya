@@ -386,6 +386,13 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   object storage (B); shared DB throttle (C); slog logs + OTel metrics/traces via Jaeger (D);
   migrations-as-release + multi-replica behind Caddy (E). Sessions=DB, media=Garage, throttle=DB →
   no per-process state; the api scales horizontally. All merged to local `main` (unpushed).
+- **Throttle hardening (ADR-0008).** The DB-backed `DBLimiter` used to fail **open** silently
+  when Postgres was unreachable: every login was allowed, no failures counted, no signal — so a
+  database outage removed brute-force protection. It now **degrades to a per-replica in-process
+  `Throttle`** (same max/window) on any store error, emits a `slog` WARN and increments the OTel
+  counter `login_throttle_store_error_count` (attribute `op`). The `auth.Limiter` port is
+  unchanged; degradation is internal to `DBLimiter`. Accepted trade-off: outage-time failures are
+  not written back to Postgres on recovery (best-effort, per-replica).
 
 ## Data model (summary)
 

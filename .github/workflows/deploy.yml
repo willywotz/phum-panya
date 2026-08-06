@@ -20,7 +20,10 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           VERSION: ${{ inputs.version }}
         run: |
-          mkdir -p "$HOME/.ssh"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "deploy: invalid version '$VERSION' (want N.N.N)" >&2
+            exit 1
+          fi
           printf '%s\n' "$DEPLOY_SSH_KEY" > key
           chmod 600 key
           ssh -i key -o StrictHostKeyChecking=accept-new \

@@ -2,7 +2,54 @@
 
 ---
 
-## ★ LATEST (2026-08-05): 15-Factor + Hexagonal compliance program (A→E) — COMPLETE, unpushed
+## ★ LATEST (2026-08-07): Post-compliance hardening + CD pipeline — COMPLETE, pushed
+
+**Current state:** on `main`, **in sync with `origin/main` at `2868319` (all pushed).** Build clean;
+**265 Go tests green** locally. `v1.4.0` is released. **Issue #19 (No CD) is closed.**
+
+**One thing is NOT yet confirmed:** the two CI jobs added this cycle — **`images`** (build + smoke the
+api/web containers) and **`vuln`** (govulncheck) — have **never had a green run on a real runner**. The
+push that would have proven them hit a **GitHub Actions major outage** (critical incident, 2026-08-06
+15:22 UTC): `startup_failure`, "Service Unavailable" resolving actions, cancellations, and a 45-min
+hung build. All of that was **GitHub-side, not the code** — both jobs pass locally (see below). **Action
+for the next person:** once Actions is healthy, re-run CI on `main` (`gh run rerun <id>` or a trivial
+push) and confirm `images` + `vuln` go green. Only then cut **v1.5.0** (a release during the outage
+would just fail `release.yml`).
+
+**What this cycle delivered** (each: spec → plan → agent-built with builders + fresh-context verifiers →
+final whole-branch review → merged to `main`, branch deleted; specs/plans under
+`docs/superpowers/{specs,plans}/2026-08-06-*`):
+
+| Work | Delivered | ADR |
+|---|---|---|
+| **Throttle degrade** | `DBLimiter` no longer fails **open** silently when Postgres is down — it degrades to a per-replica in-process `Throttle`, logs a WARN, and increments `login_throttle_store_error_count`. Port unchanged. | 0008 |
+| **Off-host media backup** | `media-backup` sidecar now pushes to an **off-host** env-driven rclone remote (`dest`) with dated `--backup-dir` archives + retention, replacing the same-host volume. Fixes the "lose the disk, lose the backup" gap. | 0009 |
+| **Vuln scanning + fix** | The "gin monitoring" chore surfaced **GO-2025-3603** (ClickHouse `ch-go`, pulled transitively by the gorm OTel plugin). Bumped `clickhouse-go/v2 → v2.48.0` (`ch-go v0.74.0`); added a **`vuln` CI job** (`govulncheck`); pinned **`toolchain go1.26.5`** (patched 19 stdlib CVEs the new job caught). gin itself was clean. | — |
+| **CD F1 — images** | Reusable `build-images.yml` builds+smokes the **api** (`Dockerfile.api`) and **web** (`web/Dockerfile`) images; `ci.yml` build+smokes every push/PR, `release.yml` pushes `ghcr.io/willywotz/phum-panya-{api,web}:<version>`+`latest` on a `v*` tag. Compose switched `build:`→`image: ...:${APP_IMAGE_TAG:-latest}` (+ `docker-compose.build.yaml` for local builds). Fixes the 15-Factor build/release/run violation. | 0010 |
+| **CD F2 — deploy** | `deploy.yml` (`workflow_dispatch`, `version` input) SSHes to the VPS and runs `deploy/deploy.sh`: checkout `v<version>` → set `APP_IMAGE_TAG` → pull → `up -d --wait` → health-gate `/api/health` → **auto-rollback** on failure. Rollback = dispatch an older version. **Closes #19.** | 0011 |
+
+Plus: minor cleanups (test meter-provider restore; `require_env`-before-deref in `media-backup.sh`);
+a real **SSH command-injection** in `deploy.yml` caught in review and fixed (runner-side `N.N.N`
+guard); and a **reusable-workflow permissions** fix (caller must dictate; hard-declaring `packages:
+write` in the reusable caused the observed `startup_failure`).
+
+**Local verification (all green):** `go test ./...` = 265 passed; `deploy/images/build-and-smoke.sh`
+runs green (`api healthy`, `web responding`); all workflows **actionlint-clean**; `docker compose
+config` valid for prod/build/dev; `govulncheck ./...` = **0 code-affecting vulnerabilities**;
+0 open Dependabot alerts.
+
+**Before the first real CD dispatch (owner setup):** set repo Actions secrets `DEPLOY_SSH_HOST`,
+`DEPLOY_SSH_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_PATH`; on the host, clone the repo at `DEPLOY_PATH`,
+populate `.env` (incl. `APP_IMAGE_TAG`), and `docker login ghcr.io` if the packages are private.
+Full steps are in `docs/ops/deploy-compose.md` (rewritten this cycle to the image/migrate/replica
+reality). End-to-end validation is the owner's live dispatch.
+
+**Deferred / not done:** zero-downtime rolling replica restart (F2 accepts brief downtime);
+multi-host Garage redundancy (B accepts single-node + off-host backup). Neither blocks anything.
+
+---
+
+## (2026-08-05): 15-Factor + Hexagonal compliance program (A→E) — COMPLETE
 
 **Current state:** on `main`, **47 commits ahead of `origin/main`, all UNPUSHED.** Build clean;
 **252 Go tests green**. The next person should review, then `rtk git push` (or open a PR) to publish.

@@ -429,12 +429,13 @@ Reference app (client-forwarded): a Thai "Tok Bidan" herbal app, but without the
   secrets + host SSH — end-to-end validation is the owner's live dispatch. Brief downtime
   on replica recreate accepted (no rolling). `docs/ops/deploy-compose.md` rewritten to
   this reality. CD F1+F2 complete.
-- **Full project overview doc (`PROJECT-OVERVIEW.md`).** One self-contained map of the whole
-  project in a single file, built by reading the repository: product scope, build/run/test,
-  stack, hexagonal layers + package map, data model, full HTTP API surface, config/env matrix,
-  frontend, security/PDPA, both deploy paths, CI/CD workflows, the ADR index, and the
-  history/roadmap. It points to `CONTEXT.md` (work log) and `docs/HANDOFF.md` (operator
-  hand-off) for detail. Written in Simplified Technical English. Docs-only, no code change.
+- **Full project detail doc (`PROJECT-DETAIL.md`).** One fully self-contained file that
+  describes the whole project with no references out to other files: product scope + roles,
+  build/run/test + subcommands, stack, hexagonal layers + per-package map, full data model,
+  every HTTP endpoint, every env var, frontend, security/PDPA, both deploy runbooks (single
+  binary + container stack) inlined, backup/restore steps inlined, CI/CD, all ADRs inlined,
+  and the history/current-state. Written in Simplified Technical English. Docs-only, no code
+  change.
 
 ## Data model (summary)
 
